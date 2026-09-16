@@ -1,6 +1,7 @@
 @use "conversation";
 @use "simplified";
 @use "concierge";
+@use "polish";
 
 $ink: #293d33;
 $muted: #697560;
@@ -11,7 +12,8 @@ $white: #fff;
 $ease: cubic-bezier(.2, .7, .2, 1);
 
 * { box-sizing: border-box; }
-:root { color-scheme: light; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif; color: $ink; background: $paper; font-synthesis: none; }
+@font-face { font-family: 'Pretendard Variable'; src: url('../assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
+:root { color-scheme: light; font-family: 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif; color: $ink; background: $paper; font-synthesis: none; }
 body { word-break: keep-all; overflow-wrap: anywhere; margin: 0; font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
 button, input, textarea, select { font: inherit; }
 button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
@@ -291,3 +293,4 @@ form { margin-top: 24px; }
 
 @include simplified.styles;
 @include concierge.styles;
+@include polish.styles;

@@ -1,6 +1,7 @@
 import { createConversation, migrateConversations, updateConversationMetadata, filterConversations, latestArtifact } from './conversation-store.mjs';
 import { defaultParkingRule, selectContext, classify, readTime, readDate, minutes, updateParkingRule } from './assistant-model.mjs';
 import { hydrateConcierge, nextRunAt, scheduleLabel, buildBrief, matchConciergeRequest } from './concierge-model.mjs';
+import { createMotion } from './motion.mjs';
 
 (() => {
   'use strict';
@@ -62,6 +63,7 @@ import { hydrateConcierge, nextRunAt, scheduleLabel, buildBrief, matchConciergeR
   let voiceText = '지하 2층 C18에 주차했어';
   const modal = $('#modal');
   const main = $('#main');
+  const motion = createMotion(main);
 
   function save() {
     try { localStorage.setItem(key, JSON.stringify(state)); }
@@ -146,7 +148,7 @@ import { hydrateConcierge, nextRunAt, scheduleLabel, buildBrief, matchConciergeR
     const featured = selectContext(state, now);
     const upcoming = state.events.filter(event => event.date === dateKey(now) && minutes(event.time) >= now.getHours() * 60 + now.getMinutes() && event.id !== featured.event?.id).sort((a,b) => a.time.localeCompare(b.time));
     const enabled = state.concierge.jobs.filter(job => job.enabled);
-    return `<div class="today-hero reveal">${contextCard()}<button class="daily-brief-card" data-action="brief-now"><span class="brief-eyebrow">${icon('sun')} MORNING NOTE</span><h2>하루를 챙기는<br>작은 한 장.</h2><p>약속부터 주차 위치까지,<br>오늘 필요한 기억을 모았어요.</p><div class="brief-paper" aria-hidden="true"><span>FOR YOUR DAY</span><i></i><i></i><i></i><b>${icon('check')}</b></div><span class="brief-link">오늘 브리핑 보기 ${icon('arrow')}</span></button></div>
+    return `<div class="today-hero reveal">${contextCard()}<button class="daily-brief-card" data-action="brief-now"><span class="brief-eyebrow">${icon('sun')} MORNING NOTE</span><h2>하루를 챙기는 <br>작은 한 장.</h2><p>약속부터 주차 위치까지,<br>오늘 필요한 기억을 모았어요.</p><div class="brief-paper" aria-hidden="true"><span>FOR YOUR DAY</span><i></i><i></i><i></i><b>${icon('check')}</b></div><span class="brief-link">오늘 브리핑 보기 ${icon('arrow')}</span></button></div>
       <div class="today-middle reveal"><section class="home-agenda"><div class="section-heading"><h2>이어서 챙길 일정 <span class="soft-count">${upcoming.length}</span></h2><button class="text-button" data-view="calendar">전체 일정 ${icon('arrow')}</button></div>${upcoming.length ? `<div class="card agenda-card">${eventRows(upcoming)}</div>` : '<div class="quiet-agenda"><span class="quiet-mark">'+icon('leaf')+'</span><div><strong>비워둔 시간도 좋아요.</strong><p>다음 약속이 생기면 여기에 챙겨둘게요.</p></div></div>'}</section>
       <section class="autopilot-section"><div class="section-heading"><h2>모리가 챙기는 일 <span class="status-dot"></span></h2><button class="text-button" data-view="routines">모두 보기 ${icon('arrow')}</button></div><div class="autopilot-card">${enabled.length ? enabled.map(job => `<button class="job-row" data-action="job-detail" data-id="${job.id}"><span class="job-icon">${icon(job.icon)}</span><span><strong>${esc(job.title)}</strong><small>${esc(scheduleLabel(job))} · 예약 체험</small></span>${icon('chevron')}</button>`).join('') : '<p class="paused-note">지금은 쉬고 있어요. 필요할 때 다시 켤 수 있어요.</p>'}${!state.concierge.jobs.find(job=>job.id==='weekly').enabled ? `<button class="habit-suggestion" data-action="job-detail" data-id="weekly"><span class="suggestion-tag">모리의 제안</span><strong>한 주의 기억도 모아드릴까요?</strong><span>일요일 저녁, 나만의 주간 노트 ${icon('arrow')}</span></button>` : `<div class="routine-footnote">${icon('repeat')} 한 번 부탁한 일을, 다음에도.</div>`}</div></section></div>
       ${preparedShelf()}
@@ -191,7 +193,7 @@ import { hydrateConcierge, nextRunAt, scheduleLabel, buildBrief, matchConciergeR
     const conversation = activeConversation();
     const group = state.conversationGroups.find(item => item.id === conversation.groupId);
     return `<header class="conversation-detail-header"><button class="icon-button back-to-list" data-view="chat" aria-label="대화 목록으로">${icon('arrow')}</button><div><span>${esc(group?.name || '생활')}${conversation.example ? ' · 예시 대화' : ''}</span><h1>${esc(conversation.title)}</h1></div><button class="icon-button" data-action="organize-conversation" aria-label="대화 제목과 그룹 변경">${icon('more')}</button></header>
-      <section class="conversation-panel ${inputMode==='voice'?'voice-mode':''}"><div class="channel-bar">${modeSwitch()}<span class="channel-caption">같은 이야기, 편한 방식으로.</span></div>${inputMode==='voice' ? voicePanel() : `<div class="conversation-log" role="log" aria-label="모리와 나눈 대화" aria-live="polite">${conversation.messages.length ? conversation.messages.map(message => `<article class="conversation-message ${message.role}">${message.role === 'assistant' ? '<span class="message-avatar">m</span>' : ''}<div class="message-content">${message.source === 'voice' ? `<span class="message-meta">${icon('mic')} 음성으로 보냄</span>` : ''}<div class="message-bubble">${esc(message.text)}</div>${message.files?.length ? `<div class="message-files">${message.files.map(file => `<span>${icon('book')}${esc(file.name)}</span>`).join('')}</div>` : ''}${cardMarkup(message.card)}</div></article>`).join('') : `<div class="new-conversation-welcome"><div class="welcome-mori">${mascot()}</div><h2>오늘은 무엇을 함께할까요?</h2><p>작은 기억부터 여행 계획까지, 편하게 부탁해요.</p><div class="request-chips">${suggestions()}</div></div>`}</div><div class="chat-dock">${composer()}<p class="chat-disclaimer">${draftFiles.length ? '첨부 파일은 이름만 표시하는 체험이에요.' : 'AI 연결 전, 예시 응답으로 체험하고 있어요.'}</p></div>`}</section>`;
+      <section class="conversation-panel ${inputMode==='voice'?'voice-mode':''}"><div class="channel-bar">${modeSwitch()}<span class="channel-caption">같은 이야기, 편한 방식으로.</span></div>${inputMode==='voice' ? voicePanel() : `<div class="conversation-log" role="log" aria-label="모리와 나눈 대화" aria-live="polite">${conversation.messages.length ? conversation.messages.map(message => `<article class="conversation-message ${message.role}" data-message-id="${esc(message.id)}">${message.role === 'assistant' ? '<span class="message-avatar">m</span>' : ''}<div class="message-content">${message.source === 'voice' ? `<span class="message-meta">${icon('mic')} 음성으로 보냄</span>` : ''}<div class="message-bubble">${esc(message.text)}</div>${message.files?.length ? `<div class="message-files">${message.files.map(file => `<span>${icon('book')}${esc(file.name)}</span>`).join('')}</div>` : ''}${cardMarkup(message.card)}</div></article>`).join('') : `<div class="new-conversation-welcome"><div class="welcome-mori">${mascot()}</div><h2>오늘은 무엇을 함께할까요?</h2><p>작은 기억부터 여행 계획까지, 편하게 부탁해요.</p><div class="request-chips">${suggestions()}</div></div>`}</div><div class="chat-dock">${composer()}<p class="chat-disclaimer">${draftFiles.length ? '첨부 파일은 이름만 표시하는 체험이에요.' : 'AI 연결 전, 예시 응답으로 체험하고 있어요.'}</p></div>`}</section>`;
   }
   function activeConversation() {
     let conversation = state.conversations.find(item => item.id === state.activeConversationId);
@@ -400,6 +402,7 @@ import { hydrateConcierge, nextRunAt, scheduleLabel, buildBrief, matchConciergeR
     });
     $('.notification-dot').hidden = !state.artifacts.some(item => item.trip && !item.added) && state.concierge.jobs.find(item => item.id === 'weekly').enabled;
     document.title = `${{ today: '오늘', chat: '대화', conversation: activeConversationTitle(), calendar: '캘린더', memories: '내 기록', routines: '자동으로 챙기는 일' }[view]} · mori`;
+    motion.render(view === 'conversation' ? `${view}:${state.activeConversationId}` : view);
   }
   function activeConversationTitle() { return state.conversations.find(item => item.id === state.activeConversationId)?.title || '새 대화'; }
   function navigate(next, preserveDraft = true) {
@@ -414,11 +417,13 @@ import { hydrateConcierge, nextRunAt, scheduleLabel, buildBrief, matchConciergeR
     main.focus({ preventScroll: true });
   }
   function openModal(content, eyebrow = '모리가 도와드릴게요') {
+    const replacing = modal.open;
     if (!modal.open) modalReturnFocus = document.activeElement;
     $('#modal-eyebrow').textContent = eyebrow;
     $('#modal-body').innerHTML = content;
     if (!modal.open) modal.showModal();
     document.body.classList.add('modal-open');
+    if (replacing) motion.enter($('#modal-body'));
   }
   function closeModal() { if (modal.open) modal.close(); }
   modal.addEventListener('close', () => {
@@ -596,7 +601,7 @@ state.parking = { location: data.location, place: data.place || state.parking?.p
     }
   });
   document.addEventListener('change', event => {
-    if (event.target.id === 'context-preview') { previewMode = event.target.value; $('#home-content').innerHTML = dashboardContent(); }
+    if (event.target.id === 'context-preview') { previewMode = event.target.value; motion.reset(); $('#home-content').innerHTML = dashboardContent(); motion.enter($('.context-widget')); }
     if (event.target.id === 'conversation-group-select') { const create = event.target.value === 'new'; $('#new-group-field').hidden = !create; $('[name="newGroup"]').required = create; }
     if (event.target.id === 'chat-files') { chatDraft = $('#message')?.value || ''; draftFiles = [...event.target.files].slice(0, 3).map(file => ({ name:file.name })); stashDraft(); save(); render(); if (view === 'conversation') scrollChat(); }
   });
@@ -604,7 +609,7 @@ state.parking = { location: data.location, place: data.place || state.parking?.p
     if (event.target.id === 'conversation-search') { conversationQuery = event.target.value; $('#conversation-results').innerHTML = conversationResults(); }
     if (event.target.id === 'message') { chatDraft = event.target.value; activeConversation().draft = chatDraft; save(); event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, 120)}px`; } });
   document.addEventListener('keydown', event => { if (event.target.id === 'message' && event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); sendChat(event.target.value); } });
-  function refreshHome() { const content = $('#home-content'); content.classList.add('quiet-refresh'); content.innerHTML = dashboardContent(); }
+  function refreshHome() { const content = $('#home-content'); motion.reset(); content.classList.add('quiet-refresh'); content.innerHTML = dashboardContent(); }
   setInterval(() => { if (view === 'today' && previewMode === 'live' && !modal.open) refreshHome(); }, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && view === 'today' && previewMode === 'live' && !modal.open) refreshHome(); });
   window.addEventListener('hashchange', () => { if (location.hash !== '#main') navigate(location.hash.slice(1)); });
