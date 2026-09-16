@@ -1,0 +1,16 @@
+{
+  "name": "mori-poc",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mori UI/UX prototype with HTML, vanilla JavaScript and SCSS",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "dev": "node scripts/serve.mjs",
+    "build": "sass styles/main.scss styles/main.css --no-source-map --style=expanded",
+    "styles:watch": "sass --watch styles/main.scss:styles/main.css --no-source-map",
+    "check": "node --check src/app.js && node --check scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "sass": "^1.104.1"
+  }
+}
