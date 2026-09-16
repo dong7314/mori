@@ -8,7 +8,8 @@
     "dev": "node scripts/serve.mjs",
     "build": "sass styles/main.scss styles/main.css --no-source-map --style=expanded",
     "styles:watch": "sass --watch styles/main.scss:styles/main.css --no-source-map",
-    "check": "node --check src/app.js && node --check scripts/serve.mjs"
+    "check": "node --check src/app.js && node --check scripts/serve.mjs",
+    "test": "node --test tests/*.test.mjs"
   },
   "devDependencies": {
     "sass": "^1.104.1"

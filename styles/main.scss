@@ -1,3 +1,5 @@
+@use "conversation";
+
 $ink: #293d33;
 $muted: #697560;
 $green: #3f604c;
@@ -282,3 +284,5 @@ form { margin-top: 24px; }
 }
 
 [hidden] { display: none !important; }
+
+@include conversation.styles;
