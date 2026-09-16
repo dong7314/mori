@@ -12,6 +12,10 @@
 </head>
 <body>
   <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m16 2 4 4-4 4M20 6H7a4 4 0 0 0-4 4m5 12-4-4 4-4m-4 4h13a4 4 0 0 0 4-4"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.1M10 9h.1M14 9h.1M18 9h.1M6 12h.1M10 12h.1M14 12h.1M18 12h.1M7 15h10"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M20.8 4.6a5.4 5.4 0 0 0-7.6 0L12 5.8l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6L12 21l8.8-8.8a5.4 5.4 0 0 0 0-7.6Z"/></symbol>
     <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
@@ -50,6 +54,7 @@
     </div>
   </header>
   <main id="main" class="page-shell" tabindex="-1"></main>
+  <div id="ask-launcher" class="ask-launcher" role="group" aria-label="모리에게 부탁하기"><span class="launcher-hint"><i></i> 모리는 여기 있어요</span><button class="launch-voice" data-action="launch-voice"><svg class="icon"><use href="#i-mic"/></svg>말로 부탁</button><span class="launcher-divider"></span><button data-action="launch-text"><svg class="icon"><use href="#i-keyboard"/></svg>글로 부탁</button></div>
   <footer class="page-footer"><span><span class="tiny-logo">m</span> 오늘도, 모리와 가볍게.</span><button data-action="demo-info">화면 체험 버전 <span class="demo-dot"></span></button></footer>
   <nav class="mobile-nav" aria-label="모바일 주요 메뉴">
     <button data-view="today" class="active" aria-current="page"><svg class="icon"><use href="#i-sun"/></svg><span>오늘</span></button>

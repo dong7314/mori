@@ -1,5 +1,6 @@
 import { createConversation, migrateConversations, updateConversationMetadata, filterConversations, latestArtifact } from './conversation-store.mjs';
 import { defaultParkingRule, selectContext, classify, readTime, readDate, minutes, updateParkingRule } from './assistant-model.mjs';
+import { hydrateConcierge, nextRunAt, scheduleLabel, buildBrief, matchConciergeRequest } from './concierge-model.mjs';
 
 (() => {
   'use strict';
@@ -42,7 +43,7 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
     const saved = JSON.parse(localStorage.getItem(key));
     state = saved && Array.isArray(saved.events) && Array.isArray(saved.routines) && Array.isArray(saved.notes) ? { ...seed(), ...saved } : seed();
   } catch { state = seed(); }
-  state = migrateConversations(state);
+  state = hydrateConcierge(migrateConversations(state));
   let conversationGroup = 'all';
   let conversationQuery = '';
   let view = 'today';
@@ -55,6 +56,9 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
   let chatDraft = '';
   let draftFiles = [];
   let recording = false;
+  let inputMode = 'text';
+  let runningJob = null;
+  let jobTimer;
   let voiceText = '지하 2층 C18에 주차했어';
   const modal = $('#modal');
   const main = $('#main');
@@ -118,6 +122,8 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
   }
   function cardMarkup(card) {
     if (!card) return '';
+    if (card.kind === 'brief') return `<div class="reply-card"><span class="reply-label">${icon('sun')} 모리의 브리핑</span><h3>${esc(card.title)}</h3><p>이 브라우저에 남긴 일정과 기억으로 정리했어요.</p><button class="text-button" data-action="report-detail" data-id="${esc(card.reportId)}">한 장으로 보기 ${icon('arrow')}</button></div>`;
+    if (card.kind === 'automation') return `<div class="reply-card"><span class="reply-label">${icon('repeat')} 알아서 챙기는 일</span><h3>${esc(card.title)}</h3><p>반복할 시간과 정리할 내용을 확인해 주세요.</p><button class="text-button" data-action="job-detail" data-id="${esc(card.jobId)}">챙기는 방식 보기 ${icon('arrow')}</button></div>`;
     if (card.kind === 'parking') return `<div class="reply-card"><span class="reply-label">${icon('car')} 기억한 주차 위치</span><h3>${esc(card.location)}</h3><p>${esc(card.place)} · ${esc(card.time)}</p><button class="text-button" data-action="commute-preview">대시보드에서 출근길 미리보기 ${icon('arrow')}</button></div>`;
     if (card.kind === 'rule') return `<div class="reply-card"><span class="reply-label">${icon('spark')} ${card.disabled ? '잠시 쉬는 기억' : '자동으로 챙기는 방식'}</span><h3>${card.disabled ? '출근길 주차 카드 표시를 멈췄어요' : '출근길에는 주차 위치를 먼저'}</h3><p>${esc(card.prompt)}</p><button class="text-button" data-action="commute-preview">첫 위젯 확인하기 ${icon('arrow')}</button></div>`;
     if (card.kind === 'event') return `<div class="reply-card"><span class="reply-label">${icon('calendar')} 캘린더에 기억했어요</span><h3>${esc(card.event.title)}</h3><p>${esc(dateLabel(card.event.date))} ${esc(timeLabel(card.event.time))}</p><p>${esc(card.event.place || '장소 미정')}</p><button class="text-button" data-action="event-detail" data-id="${esc(card.event.id)}">일정 확인·수정 ${icon('arrow')}</button></div>`;
@@ -139,12 +145,22 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
     const now = previewClock();
     const featured = selectContext(state, now);
     const upcoming = state.events.filter(event => event.date === dateKey(now) && minutes(event.time) >= now.getHours() * 60 + now.getMinutes() && event.id !== featured.event?.id).sort((a,b) => a.time.localeCompare(b.time));
-    return `${contextCard()}<section class="home-agenda"><div class="section-heading"><h2>이어서 챙길 일정</h2><button class="text-button" data-view="calendar">전체 일정 ${icon('arrow')}</button></div>${upcoming.length ? `<div class="card agenda-card">${eventRows(upcoming)}</div>` : '<div class="quiet-agenda">지금은 더 챙길 약속이 없어요.</div>'}</section>`;
+    const enabled = state.concierge.jobs.filter(job => job.enabled);
+    return `<div class="today-hero reveal">${contextCard()}<button class="daily-brief-card" data-action="brief-now"><span class="brief-eyebrow">${icon('sun')} MORNING NOTE</span><h2>하루를 챙기는<br>작은 한 장.</h2><p>약속부터 주차 위치까지,<br>오늘 필요한 기억을 모았어요.</p><div class="brief-paper" aria-hidden="true"><span>FOR YOUR DAY</span><i></i><i></i><i></i><b>${icon('check')}</b></div><span class="brief-link">오늘 브리핑 보기 ${icon('arrow')}</span></button></div>
+      <div class="today-middle reveal"><section class="home-agenda"><div class="section-heading"><h2>이어서 챙길 일정 <span class="soft-count">${upcoming.length}</span></h2><button class="text-button" data-view="calendar">전체 일정 ${icon('arrow')}</button></div>${upcoming.length ? `<div class="card agenda-card">${eventRows(upcoming)}</div>` : '<div class="quiet-agenda"><span class="quiet-mark">'+icon('leaf')+'</span><div><strong>비워둔 시간도 좋아요.</strong><p>다음 약속이 생기면 여기에 챙겨둘게요.</p></div></div>'}</section>
+      <section class="autopilot-section"><div class="section-heading"><h2>모리가 챙기는 일 <span class="status-dot"></span></h2><button class="text-button" data-view="routines">모두 보기 ${icon('arrow')}</button></div><div class="autopilot-card">${enabled.length ? enabled.map(job => `<button class="job-row" data-action="job-detail" data-id="${job.id}"><span class="job-icon">${icon(job.icon)}</span><span><strong>${esc(job.title)}</strong><small>${esc(scheduleLabel(job))} · 예약 체험</small></span>${icon('chevron')}</button>`).join('') : '<p class="paused-note">지금은 쉬고 있어요. 필요할 때 다시 켤 수 있어요.</p>'}${!state.concierge.jobs.find(job=>job.id==='weekly').enabled ? `<button class="habit-suggestion" data-action="job-detail" data-id="weekly"><span class="suggestion-tag">모리의 제안</span><strong>한 주의 기억도 모아드릴까요?</strong><span>일요일 저녁, 나만의 주간 노트 ${icon('arrow')}</span></button>` : `<div class="routine-footnote">${icon('repeat')} 한 번 부탁한 일을, 다음에도.</div>`}</div></section></div>
+      ${preparedShelf()}
+      <section class="discover-section reveal"><div class="section-heading"><h2>모리에게 맡겨보세요</h2><span class="section-note">작은 기억부터, 제법 큰 계획까지.</span></div><div class="discover-grid"><button class="discover-card travel" data-action="travel"><span class="discover-glyph">${icon('compass')}</span><strong>여행의 밑그림</strong><p>내 취향으로 계획하고, 문서로 간직해요.</p><span class="discover-bottom">여행 계획 부탁하기 ${icon('arrow')}</span></button><button class="discover-card document" data-action="document-start"><span class="discover-glyph">${icon('book')}</span><strong>흩어진 내용을 한 장으로</strong><p>메모와 자료를 PDF·Excel로 정리해요.</p><span class="discover-bottom">문서 작업 시작하기 ${icon('arrow')}</span></button><button class="discover-card memory" data-action="preferences"><span class="discover-glyph">${icon('heart')}</span><strong>나를 알아가는 모리</strong><p>${esc(state.concierge.preferences.reply)}. 내가 좋아하는 방식을 기억해요.</p><span class="discover-bottom">기억하는 취향 보기 ${icon('arrow')}</span></button></div></section>`;
   }
   function home() {
-    return `<section class="page-intro simple-intro"><div><p class="date-eyebrow">${today.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}</p><h1>오늘</h1></div><span class="home-greeting">필요한 순간에, 모리가 챙길게요.</span></section>
+    return `<section class="page-intro simple-intro home-intro"><div><p class="date-eyebrow">${today.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' })}</p><h1>오늘도, 모리와 가볍게<span>.</span></h1></div><span class="home-greeting"><i class="status-dot"></i> 나를 기억하는 작은 비서</span></section>
       <div id="home-content">${dashboardContent()}</div>
-      <div class="home-utilities"><button class="text-button" data-view="routines">${icon('spark')} 기억한 방식</button><button class="text-button" data-action="preview-settings">${icon('clock')} 시간대 미리보기</button></div>`;
+      <div class="home-utilities"><span>모리가 먼저 챙기는 하루 · UI 체험</span><button class="text-button" data-action="preview-settings">${icon('clock')} 시간대 미리보기</button></div>`;
+  }
+  function preparedShelf() {
+    const report = state.concierge.reports.at(-1), artifact = state.artifacts.at(-1);
+    if (!report && !artifact) return '';
+    return `<section class="prepared-section reveal"><div class="section-heading"><h2>모리가 준비했어요</h2><span class="section-note">다시 찾기 쉽게, 이곳에.</span></div><div class="prepared-grid">${report ? `<button class="prepared-item" data-action="report-detail" data-id="${report.id}"><span class="prepared-icon">${icon('sun')}</span><span><small>브리핑 · 미리보기</small><strong>${esc(report.title)}</strong></span>${icon('arrow')}</button>` : ''}${artifact ? `<button class="prepared-item" data-action="artifact-preview" data-id="${artifact.id}"><span class="prepared-icon lavender">${icon(artifact.trip?'compass':'book')}</span><span><small>${artifact.trip?'여행 계획':'문서'} · 예시 결과</small><strong>${esc(artifact.title)}</strong></span>${icon('arrow')}</button>`:''}</div></section>`;
   }
   function conversationResults() {
     const matches = filterConversations(state.conversations, conversationGroup, conversationQuery);
@@ -168,12 +184,14 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
       <div class="conversation-filters" aria-label="대화 그룹"><button data-action="conversation-filter" data-value="all" aria-pressed="${conversationGroup === 'all'}">전체</button>${state.conversationGroups.map(group => `<button data-action="conversation-filter" data-value="${esc(group.id)}" aria-pressed="${conversationGroup === group.id}">${esc(group.name)}</button>`).join('')}</div>
       <div id="conversation-results">${conversationResults()}</div></div>`;
   }
+  function modeSwitch() {
+    return `<div class="input-mode-switch" role="group" aria-label="대화 입력 방식"><span class="mode-indicator ${inputMode==='voice'?'on-voice':''}"></span><button data-action="input-mode" data-value="text" aria-pressed="${inputMode==='text'}">${icon('keyboard')} 글로 대화</button><button data-action="input-mode" data-value="voice" aria-pressed="${inputMode==='voice'}">${icon('mic')} 음성으로 대화</button></div>`;
+  }
   function conversationPage() {
     const conversation = activeConversation();
     const group = state.conversationGroups.find(item => item.id === conversation.groupId);
     return `<header class="conversation-detail-header"><button class="icon-button back-to-list" data-view="chat" aria-label="대화 목록으로">${icon('arrow')}</button><div><span>${esc(group?.name || '생활')}${conversation.example ? ' · 예시 대화' : ''}</span><h1>${esc(conversation.title)}</h1></div><button class="icon-button" data-action="organize-conversation" aria-label="대화 제목과 그룹 변경">${icon('more')}</button></header>
-      <section class="conversation-panel"><div class="conversation-log" role="log" aria-label="모리와 나눈 대화" aria-live="polite">${conversation.messages.length ? conversation.messages.map(message => `<article class="conversation-message ${message.role}">${message.role === 'assistant' ? '<span class="message-avatar">m</span>' : ''}<div class="message-content">${message.source === 'voice' ? `<span class="message-meta">${icon('mic')} 음성으로 보냄</span>` : ''}<div class="message-bubble">${esc(message.text)}</div>${message.files?.length ? `<div class="message-files">${message.files.map(file => `<span>${icon('book')}${esc(file.name)}</span>`).join('')}</div>` : ''}${cardMarkup(message.card)}</div></article>`).join('') : `<div class="new-conversation-welcome"><span class="mini-mark">m</span><h2>무엇을 도와드릴까요?</h2><p>기억할 일도, 부탁할 일도 편하게 말해 주세요.</p><div class="request-chips">${suggestions()}</div></div>`}</div>
-      <div class="chat-dock">${recording ? voicePanel() : composer()}<p class="chat-disclaimer">${draftFiles.length ? '첨부 파일은 이름만 표시하는 체험이에요.' : 'AI · 음성 체험'}</p></div></section>`;
+      <section class="conversation-panel ${inputMode==='voice'?'voice-mode':''}"><div class="channel-bar">${modeSwitch()}<span class="channel-caption">같은 이야기, 편한 방식으로.</span></div>${inputMode==='voice' ? voicePanel() : `<div class="conversation-log" role="log" aria-label="모리와 나눈 대화" aria-live="polite">${conversation.messages.length ? conversation.messages.map(message => `<article class="conversation-message ${message.role}">${message.role === 'assistant' ? '<span class="message-avatar">m</span>' : ''}<div class="message-content">${message.source === 'voice' ? `<span class="message-meta">${icon('mic')} 음성으로 보냄</span>` : ''}<div class="message-bubble">${esc(message.text)}</div>${message.files?.length ? `<div class="message-files">${message.files.map(file => `<span>${icon('book')}${esc(file.name)}</span>`).join('')}</div>` : ''}${cardMarkup(message.card)}</div></article>`).join('') : `<div class="new-conversation-welcome"><div class="welcome-mori">${mascot()}</div><h2>오늘은 무엇을 함께할까요?</h2><p>작은 기억부터 여행 계획까지, 편하게 부탁해요.</p><div class="request-chips">${suggestions()}</div></div>`}</div><div class="chat-dock">${composer()}<p class="chat-disclaimer">${draftFiles.length ? '첨부 파일은 이름만 표시하는 체험이에요.' : 'AI 연결 전, 예시 응답으로 체험하고 있어요.'}</p></div>`}</section>`;
   }
   function activeConversation() {
     let conversation = state.conversations.find(item => item.id === state.activeConversationId);
@@ -187,12 +205,13 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
     const conversation = activeConversation();
     conversation.draft = $('#message')?.value ?? chatDraft;
     conversation.draftFiles = draftFiles;
+    if (inputMode === 'voice') { voiceText = $('#voice-transcript')?.value ?? voiceText; conversation.voiceDraft = voiceText; }
   }
   function openConversation(id) {
     stashDraft();
     if (!state.conversations.some(conversation => conversation.id === id)) return;
     state.activeConversationId = id;
-    const conversation = activeConversation(); chatDraft = conversation.draft || ''; draftFiles = conversation.draftFiles || []; recording = false;
+    const conversation = activeConversation(); chatDraft = conversation.draft || ''; draftFiles = conversation.draftFiles || []; recording = false; inputMode = 'text'; voiceText = conversation.voiceDraft || '지하 2층 C18에 주차했어';
     save(); navigate('conversation', false);
   }
   function organizeConversation() {
@@ -203,22 +222,27 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
     openModal(`${modalTitle('다른 시간에는 무엇이 보일까요?', '첫 위젯이 달라지는 모습을 미리 볼 수 있어요.')}<label class="field"><span>미리 볼 시간</span><select id="context-preview" aria-label="위젯 시간대 체험">${[['live','실제 요일 · 현재 시간'],['rule',`기억한 시간 · ${state.parkingRule.start}`],['commute','평일 · 출근길 07:30'],['afternoon','평일 · 오후 14:00'],['evening','평일 · 저녁 21:00'],['weekend','토요일 · 오전 08:00']].map(([value,label]) => `<option value="${value}" ${previewMode === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label><button class="button primary full" data-action="close">이 시간으로 보기</button>`, '화면 체험');
   }
   function voicePanel() {
-    return `<div class="voice-in-chat"><div class="voice-status"><div class="waveform" aria-hidden="true">${Array.from({ length: 12 }, (_, i) => `<i style="--i:${i}"></i>`).join('')}</div><strong>말하기를 마치면 대화로 전달해요.</strong><span>음성 인식 시뮬레이션 · 실제 녹음 없음</span></div><label class="field"><span>체험할 음성 문장</span><textarea id="voice-transcript" rows="2" maxlength="2000">${esc(voiceText)}</textarea></label><div class="voice-examples">${['지하 2층 C18에 주차했어','내일 오후 6시에 강남역에서 민수와 약속을 등록해 줘','부산 2박 3일 여행 계획을 짜줘','회의 내용을 PDF 문서로 정리해 줘'].map(t => `<button data-action="voice-example" data-value="${esc(t)}">${esc(t)}</button>`).join('')}</div><div class="voice-controls"><button class="button secondary" data-action="voice-cancel">취소</button><button class="button primary" data-action="voice-stop">${icon('check')} 말하기 종료 · 대화로 보내기</button></div></div>`;
+    return `<div class="voice-workspace ${recording?'is-listening':''}"><span class="voice-demo-label"><i></i> 음성 체험 · 실제 녹음 없음</span><div class="voice-orb-wrap"><span class="orb-ring ring-one"></span><span class="orb-ring ring-two"></span><span class="orb-spark spark-one" aria-hidden="true">✦</span><span class="orb-spark spark-two" aria-hidden="true">✦</span><button class="voice-orb-button" data-action="${recording?'voice-stop':'voice-record'}" aria-label="${recording?'말하기 종료 · 대화로 보내기':'말하기 시작'}">${icon(recording?'stop':'mic')}</button></div><h2>${recording?'이야기를 듣고 있어요.':'말 한마디면 충분해요.'}</h2><p class="voice-helper">${recording?'마치면 가운데 버튼을 눌러 대화로 보내주세요.':'마이크를 누르고, 편하게 부탁해 보세요.'}</p><div class="voice-wave" aria-hidden="true">${Array.from({length:23},(_,i)=>`<i style="--bar:${i};--height:${12+(i*17%29)}px"></i>`).join('')}</div><div class="voice-transcript-card"><label for="voice-transcript">${recording?'이렇게 전달할게요':'체험할 문장을 고르거나 바꿔보세요'}</label><textarea id="voice-transcript" rows="2" maxlength="2000">${esc(voiceText)}</textarea><div class="voice-scenarios">${[['car','주차','지하 2층 C18에 주차했어'],['sun','브리핑','오늘 하루 브리핑해 줘'],['compass','여행','부산 2박 3일 여행 계획을 짜줘'],['book','문서','회의 내용을 PDF 문서로 정리해 줘']].map(([glyph,label,text])=>`<button data-action="voice-example" data-value="${esc(text)}">${icon(glyph)}${label}</button>`).join('')}</div></div><button class="voice-text-return" data-action="input-mode" data-value="text">${icon('keyboard')} 글로 돌아가기</button></div>`;
   }
   function scrollChat() { const log = $('.conversation-log'); if (log) log.scrollTop = log.scrollHeight; }
-  function startChat(draft = '') {
+  function startChat(draft = '', mode = 'text') {
     closeModal(); stashDraft();
     const empty = state.conversations.find(conversation => !conversation.messages.length && !conversation.draft && !conversation.draftFiles.length);
     const conversation = empty || createConversation(uid());
     if (!empty) state.conversations.unshift(conversation);
     state.activeConversationId = conversation.id; conversation.draft = draft;
-    recording = false; chatDraft = draft; draftFiles = []; save(); navigate('conversation', false);
-    $('#message')?.focus({ preventScroll: true });
+    recording = false; inputMode = mode; voiceText = conversation.voiceDraft || '지하 2층 C18에 주차했어'; chatDraft = draft; draftFiles = []; save(); navigate('conversation', false);
+    if (mode==='text') $('#message')?.focus({ preventScroll: true });
   }
-  function voice() { if (view !== 'conversation') startChat(); closeModal(); stashDraft(); chatDraft = $('#message')?.value || chatDraft; recording = true; navigate('conversation', false); scrollChat(); }
+  function switchInput(mode) {
+    stashDraft(); inputMode = mode; recording = false; save(); render();
+    if (mode === 'text') { scrollChat(); $('#message')?.focus({preventScroll:true}); }
+    else $('.voice-orb-button')?.focus({preventScroll:true});
+  }
+  function voice() { if (view !== 'conversation') startChat('', 'voice'); else switchInput('voice'); }
   function respond(text, card) { activeConversation().updatedAt = new Date().toISOString(); if (card?.kind === 'choices' && activeConversation().pending) { activeConversation().pending.id = uid(); card.requestId = activeConversation().pending.id; } activeConversation().messages.push({ id: uid(), role: 'assistant', text, card }); }
   function createArtifact(text, trip = null, files = []) {
-    const artifact = { id: uid(), conversationId: activeConversation().id, title: trip ? `${trip.destination}, ${trip.days}일의 느긋한 여행` : /엑셀|excel|표/i.test(text) ? '내가 부탁한 정리표' : '내가 부탁한 문서', description: trip ? '걷고, 쉬고, 천천히 둘러보는 예시 계획이에요.' : '부탁한 내용을 담은 문서 초안입니다. 실제 내용 분석 전 체험용 양식이에요.', request: text, trip, rows: trip ? [['일차','주제','일정'], ...tripPlan(trip).flatMap(d => d.activities.map(a => [String(d.day),d.title,a]))] : [['항목','내용'],['요청',text],['첨부',files.map(f => f.name).join(', ') || '없음'],['정리할 내용','내용을 채워 주세요'],['메모','예시 양식 · 실제 파일 분석 전']] };
+    const artifact = { id: uid(), conversationId: activeConversation().id, title: trip ? `${trip.destination}, ${trip.days}일의 느긋한 여행` : /엑셀|excel|표/i.test(text) ? '내가 부탁한 정리표' : '내가 부탁한 문서', description: trip ? `${state.concierge.preferences.travel}. 이 취향을 담은 예시 계획이에요.` : '부탁한 내용을 담은 문서 초안입니다. 실제 내용 분석 전 체험용 양식이에요.', request: text, trip, rows: trip ? [['일차','주제','일정'], ...tripPlan(trip).flatMap(d => d.activities.map(a => [String(d.day),d.title,a]))] : [['항목','내용'],['요청',text],['첨부',files.map(f => f.name).join(', ') || '없음'],['정리할 내용','내용을 채워 주세요'],['메모','예시 양식 · 실제 파일 분석 전']] };
     state.artifacts.push(artifact); return artifact;
   }
   function addChatEvent(pending) {
@@ -242,6 +266,24 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
       const destination = text.replace(/(?:으로|로)?\s*(가자|부탁해|해줘|여행).*$/, '').trim();
       const trip = { destination: destination.slice(0,40), days: activeConversation().pending.days, company: '함께 떠나는 여행' };
       activeConversation().pending = null; state.trip = trip; const artifact = createArtifact(text, trip); respond('이 여행지로 예시 계획을 정리했어요. 같은 대화에서 PDF와 표 파일로 확인해 보세요.', { kind: 'artifact', artifactId: artifact.id }); return;
+    }
+    const conciergeRequest = matchConciergeRequest(text);
+    if (conciergeRequest) {
+      const job = state.concierge.jobs.find(item => item.id === conciergeRequest);
+      if (/매일|매주|평일|마다/.test(text)) {
+        const proposal = { time: job.time, days: [...job.days] };
+        const time = readTime(text);
+        if (time?.value) proposal.time = time.value;
+        if (/매일/.test(text)) proposal.days = [0,1,2,3,4,5,6];
+        else if (/평일/.test(text)) proposal.days = [1,2,3,4,5];
+        else { const weekday = text.match(/([일월화수목금토])요일/); if (weekday) proposal.days = ['일월화수목금토'.indexOf(weekday[1])]; }
+        job.proposal = proposal;
+        respond('반복해서 챙기는 방식으로 준비했어요. 시간을 확인하고 켜두면 돼요. 이 체험에서는 예약 설정만 저장해요.', {kind:'automation', title:job.title, jobId:job.id});
+      } else {
+        const report = makeReport(job.id);
+        respond('남겨둔 일정과 기억을 한 장으로 정리했어요.', {kind:'brief',title:report.title,reportId:report.id});
+      }
+      return;
     }
     if (/주차/.test(text) && /끄|그만|중지/.test(text)) { state.parkingRule.enabled = false; respond('출근길 주차 카드를 잠시 쉬도록 기억했어요.', { kind: 'rule', prompt: state.parkingRule.prompt, disabled: true }); return; }
     const request = classify(text, new Date());
@@ -271,7 +313,7 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
     const files = draftFiles.map(f => ({ name: f.name }));
     updateConversationMetadata(activeConversation(), text || '파일에 관한 대화');
     activeConversation().messages.push({ id: uid(), role:'user', text:text || '이 파일을 정리해 줘', source, files });
-    chatDraft = source === 'voice' ? activeConversation().draft : ''; draftFiles = []; recording = false; activeConversation().draft = chatDraft; activeConversation().draftFiles = [];
+    chatDraft = source === 'voice' ? activeConversation().draft : ''; draftFiles = []; recording = false; inputMode = 'text'; activeConversation().draft = chatDraft; activeConversation().draftFiles = [];
     handleRequest(text, files); save(); navigate('conversation', false); scrollChat();
     if (source === 'text') $('#message')?.focus({ preventScroll:true });
   }
@@ -303,22 +345,60 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
     const showLife = memoryFilter !== 'trip';
     return `<section class="page-intro simple-intro"><div><h1>내 기록</h1><p>다시 꺼내보고 싶은 기억.</p></div><button class="button secondary" data-view="routines">${icon('spark')} 기억한 방식</button></section><div class="filter-tabs" aria-label="기록 종류">${[['all', '모든 기록'], ['life', '생활 기록'], ['trip', '여행 계획']].map(([id, label]) => `<button data-action="memory-filter" data-value="${id}" aria-pressed="${memoryFilter === id}" class="${memoryFilter === id ? 'active' : ''}">${label}</button>`).join('')}</div><div class="memory-grid">${showLife ? parkingCard() : ''}${showLife ? state.notes.map(note => `<article class="card note-card"><span class="action-icon peach">${icon('book')}</span><span class="tiny-label">생활 기록</span><h3>${esc(note.title)}</h3><p>${esc(note.content)}</p><div class="card-bottom"><small>${esc(dateLabel(note.createdAt))}</small><button class="text-button" data-action="note-detail" data-id="${esc(note.id)}">기록 보기 ${icon('arrow')}</button></div></article>`).join('') : ''}${memoryFilter !== 'life' && state.trip ? `<article class="card trip-memory"><div class="trip-landscape" aria-hidden="true"><span class="landscape-sun"></span><span class="mountain one"></span><span class="mountain two"></span><span class="landscape-caption">a little getaway</span></div><div class="trip-memory-body"><span class="tiny-label">${state.trip ? '내가 만든 여행 계획' : '미리 준비한 예시 여행'}</span><h3>${state.trip ? esc(state.trip.destination) + ', ' + state.trip.days + '일의 느긋한 여행' : '제주, 느긋하게 보내는 3일'}</h3><p>바다를 걷고, 맛있는 걸 먹고, 잠깐 쉬어가요.</p><button class="text-button" data-action="${state.trip ? 'trip-result' : 'sample-trip'}">여행 계획 보기 ${icon('arrow')}</button></div></article>` : ''}</div>`;
   }
+  function makeReport(jobId) {
+    const report = { id: uid(), ...buildBrief(state, jobId) };
+    state.concierge.reports.push(report);
+    const job = state.concierge.jobs.find(item => item.id === jobId);
+    if (job) job.lastPreviewAt = report.createdAt;
+    save(); return report;
+  }
+  function showReport(id) {
+    const report = state.concierge.reports.find(item => item.id === id); if (!report) return;
+    openModal(`<div class="report-heading"><span class="report-seal">${icon(report.jobId==='weekly'?'leaf':'sun')}</span><span class="eyebrow">${new Date(report.createdAt).toLocaleDateString('ko-KR', {month:'long',day:'numeric',weekday:'long'})} · 모리의 비서 노트</span>${modalTitle(esc(report.title))}</div><div class="brief-report">${report.items.map((item,i)=>`<section><span class="report-number">0${i+1}</span><div><small>${esc(item.label)}</small><h3>${esc(item.value)}</h3><p>${esc(item.detail)}</p></div></section>`).join('')}</div><div class="report-source">${icon('book')} 이 브라우저의 일정·기록으로 만든 미리보기</div><div class="field-row"><button class="button secondary" data-action="print-trip">${icon('download')} PDF로 간직하기</button><button class="button primary" data-action="report-chat" data-id="${report.id}">${icon('chat')} 이어서 이야기</button></div><p class="print-help fine-print" hidden>인쇄 창에서 PDF로 저장해 주세요. 인쇄 창이 열리지 않으면 Chrome/Safari에서 이용할 수 있어요.</p>`, '모리가 준비했어요');
+  }
+  function jobDetail(id) {
+    const stored = state.concierge.jobs.find(item => item.id === id); if (!stored) return;
+    const job = stored.proposal ? { ...stored, ...stored.proposal, enabled: false, source: '대화에서 부탁한 방식 · 저장 전' } : stored;
+    const next = nextRunAt(job);
+    openModal(`${modalTitle(esc(job.title),esc(job.description))}<div class="job-flow"><span>${icon('clock')} 정해진 시간에</span><i>→</i><span>${icon('book')} 기억을 모아</span><i>→</i><span>${icon('spark')} 한 장으로</span></div><form id="job-settings-form" data-id="${job.id}"><div class="field-row"><label class="field"><span>언제 챙길까요?</span><select name="frequency" aria-label="반복 요일"><option value="weekdays" ${job.days.length===5?'selected':''}>월요일부터 금요일</option><option value="daily" ${job.days.length===7?'selected':''}>매일</option>${[0,1,2,3,4,5,6].map(day=>`<option value="day-${day}" ${job.days.length===1&&job.days[0]===day?'selected':''}>매주 ${'일월화수목금토'[day]}요일</option>`).join('')}</select></label>${field('시간','time',job.time,'time','required')}</div><div class="job-method"><span>${icon('leaf')} 기억해 둘 방식</span><p>${job.id==='morning'?'오늘의 약속과 마지막 주차 위치를 모아, 짧고 쉽게 알려줘.':'지난 7일의 일정과 메모를 모아, 한 주를 돌아볼 수 있는 노트로 정리해 줘.'}</p><small>${esc(job.source)}</small></div><p class="job-next">${stored.proposal ? '저장 전 제안 · 현재 설정은 '+esc(scheduleLabel(stored)) : next ? '다음 예정 · '+next.toLocaleString('ko-KR',{month:'long',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit'}) : '아직 자동으로 챙기지 않고 있어요.'}</p>${submitButton(job.enabled?'이 방식으로 저장':'이 시간에 챙겨줘')}</form><div class="job-secondary"><button class="text-button" data-action="job-run" data-id="${job.id}">${icon('spark')} 지금 미리보기</button>${stored.proposal?`<button class="text-button" data-action="job-keep" data-id="${job.id}">지금 방식 유지</button>`:''}${job.enabled?`<button class="text-button" data-action="job-pause" data-id="${job.id}">잠시 쉬기</button>`:''}</div><p class="fine-print">예약 기능 체험이에요. 설정은 저장되지만<br>앱을 닫은 뒤 실제 실행·알림은 아직 연결되지 않았어요.</p>`, '알아서 챙기는 일');
+  }
+  function runJob(id) {
+    if (!state.concierge.jobs.some(job=>job.id===id)) return;
+    clearTimeout(jobTimer); runningJob = id;
+    openModal(`${modalTitle('기억을 한 장에 담고 있어요.')}<div class="brief-processing"><div class="processing-mori">${mascot()}</div><ol><li>${icon('check')} 등록한 일정 살펴보기</li><li>${icon('check')} 남겨둔 기억 모으기</li><li>${icon('spark')} 나에게 맞게 정리하기</li></ol><p>저장된 체험 데이터로 준비하고 있어요.</p></div>`, '브리핑 미리보기');
+    jobTimer = setTimeout(() => {
+      if (runningJob !== id || !modal.open) return;
+      runningJob = null; const report = makeReport(id); render(); showReport(report.id);
+    }, 1200);
+  }
+  function preferencesModal() {
+    const preferences = state.concierge.preferences;
+    openModal(`${modalTitle('조금씩, 나를 알아가는 모리.', '좋아하는 방식은 기억하고, 달라지면 고칠 수 있어요.')}<div class="memory-garden">${mascot()}<span>오늘의 취향이<br>다음 부탁의 시작이 돼요.</span></div><form id="preferences-form">${field('여행은 이런 분위기로','travel',preferences.travel,'text','required maxlength="120"')}${field('대답은 이런 방식으로','reply',preferences.reply,'text','required maxlength="80"')}${field('특별히 챙길 점','care',preferences.care,'text','required maxlength="120"')}${submitButton('이렇게 기억해 줘')}</form><p class="fine-print">처음에는 예시 취향으로 시작해요.<br>수정한 취향은 브리핑과 여행 결과 설명에 반영돼요.</p>`, '모리가 기억하는 나');
+  }
+  function careInbox() {
+    const pending = state.artifacts.filter(item => item.trip && !item.added);
+    openModal(`${modalTitle('모리의 알림함', '확인하고 결정할 일만 모아둘게요.')}<div class="care-inbox">${pending.map(item=>`<button data-action="trip-approval" data-id="${item.id}"><span class="job-icon">${icon('compass')}</span><span><small>내 확인이 필요해요</small><strong>${esc(item.title)}</strong><p>이 여행을 캘린더에도 담을까요?</p></span>${icon('chevron')}</button>`).join('')}${!state.concierge.jobs.find(item=>item.id==='weekly').enabled ? `<button data-action="job-detail" data-id="weekly"><span class="job-icon">${icon('leaf')}</span><span><small>새로운 제안</small><strong>한 주의 기억, 모아드릴까요?</strong><p>일요일마다 돌아보는 나만의 노트.</p></span>${icon('chevron')}</button>` : ''}${!pending.length&&state.concierge.jobs.find(item=>item.id==='weekly').enabled?'<div class="conversation-empty">'+icon('check')+'<h2>지금은 확인할 일이 없어요.</h2><p>모리가 챙길 일이 생기면 이곳에 알려드릴게요.</p></div>':''}</div>`, '나를 위한 작은 알림');
+  }
+  function jobCards() {
+    return `<section class="scheduled-jobs"><div class="section-heading"><h2>반복해서 맡긴 일</h2><span class="section-note">예약 실행 체험</span></div><div class="job-cards">${state.concierge.jobs.map(job=>`<article class="scheduled-job"><div class="scheduled-job-top"><span class="job-icon">${icon(job.icon)}</span><span class="job-state ${job.enabled?'enabled':''}">${job.enabled?'챙기는 중':'아직 쉬는 중'}</span></div><h3>${esc(job.title)}</h3><p>${esc(job.description)}</p><div class="job-frequency">${icon('clock')}${esc(scheduleLabel(job))}</div><div class="job-card-actions"><button class="text-button" data-action="job-detail" data-id="${job.id}">방식 살펴보기 ${icon('arrow')}</button><button class="icon-button" data-action="job-run" data-id="${job.id}" aria-label="${esc(job.title)} 미리보기">${icon('spark')}</button></div></article>`).join('')}</div></section>`;
+  }
   function routines() {
     const rule = state.parkingRule;
     return `<section class="page-intro simple-intro"><div><h1>기억한 방식</h1><p>필요한 때에 먼저 꺼내드리는 기억이에요.</p></div><button class="text-button" data-view="memories">내 기록 ${icon('arrow')}</button></section>
-      <div class="simple-rules"><article class="card learned-rule-card"><span class="learned-label">${icon('car')} ${rule.enabled ? '자동으로 챙기는 중' : '잠시 쉬는 중'}</span><h2>출근길, 내 차 위치</h2><p class="rule-timing">${rule.weekdays.length === 7 ? '매일' : rule.weekdays.length === 2 ? '주말' : '월요일–금요일'} · ${rule.start}–${rule.end}</p><details class="rule-details"><summary>어떻게 기억하고 있나요?</summary><p>${esc(rule.prompt)}</p><small>${esc(rule.source)}</small></details><div class="rule-actions"><button class="text-button" data-action="rule-chat">${icon('chat')} 대화로 바꾸기</button><button class="text-button" data-action="pause-rule">${rule.enabled ? '잠시 쉬기' : '다시 챙기기'}</button></div></article>
+      ${jobCards()}<div class="section-heading rules-section-heading"><h2>일상에서 익힌 방식</h2><span class="section-note">기억을 필요한 순간에 꺼내요.</span></div><div class="simple-rules"><article class="card learned-rule-card"><span class="learned-label">${icon('car')} ${rule.enabled ? '자동으로 챙기는 중' : '잠시 쉬는 중'}</span><h2>출근길, 내 차 위치</h2><p class="rule-timing">${rule.weekdays.length === 7 ? '매일' : rule.weekdays.length === 2 ? '주말' : '월요일–금요일'} · ${rule.start}–${rule.end}</p><details class="rule-details"><summary>어떻게 기억하고 있나요?</summary><p>${esc(rule.prompt)}</p><small>${esc(rule.source)}</small></details><div class="rule-actions"><button class="text-button" data-action="rule-chat">${icon('chat')} 대화로 바꾸기</button><button class="text-button" data-action="pause-rule">${rule.enabled ? '잠시 쉬기' : '다시 챙기기'}</button></div></article>
       <article class="card learned-rule-card"><span class="learned-label">${icon('calendar')} 일정에 맞춰 자동으로</span><h2>다가오는 약속</h2><p class="rule-timing">다음 약속부터, 저녁에는 내일의 첫 약속까지.</p><details class="rule-details"><summary>어떻게 기억하고 있나요?</summary><p>지나간 약속은 첫 카드에서 내리고, 오늘 남은 약속을 보여줘요. 오늘 일정이 끝난 저녁에는 내일 첫 약속을 꺼내드려요.</p></details></article></div>`;
   }
   function render() {
     document.body.classList.toggle('chat-view', view === 'conversation');
     document.body.dataset.page = view;
+    $('#ask-launcher').hidden = view === 'conversation';
     main.innerHTML = ({ today: home, chat: chatPage, conversation: conversationPage, calendar, memories, routines }[view])();
     $$('[data-view]').forEach(btn => {
       const active = btn.dataset.view === (view === 'conversation' ? 'chat' : view === 'routines' ? 'memories' : view);
       btn.classList.toggle('active', active);
       if (active) btn.setAttribute('aria-current', 'page'); else btn.removeAttribute('aria-current');
     });
-    $('.notification-dot').hidden = state.approval !== 'pending';
+    $('.notification-dot').hidden = !state.artifacts.some(item => item.trip && !item.added) && state.concierge.jobs.find(item => item.id === 'weekly').enabled;
     document.title = `${{ today: '오늘', chat: '대화', conversation: activeConversationTitle(), calendar: '캘린더', memories: '내 기록', routines: '자동으로 챙기는 일' }[view]} · mori`;
   }
   function activeConversationTitle() { return state.conversations.find(item => item.id === state.activeConversationId)?.title || '새 대화'; }
@@ -343,6 +423,7 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
   function closeModal() { if (modal.open) modal.close(); }
   modal.addEventListener('close', () => {
     document.body.classList.remove('modal-open');
+    clearTimeout(jobTimer); runningJob = null;
     if (modalReturnFocus?.isConnected) modalReturnFocus.focus();
     else if (view !== 'conversation') $('.desktop-nav .active')?.focus();
   });
@@ -376,6 +457,19 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
     const { action, id, value } = button.dataset;
     switch (action) {
       case 'close': closeModal(); break;
+      case 'launch-voice': startChat('', 'voice'); break;
+      case 'launch-text': startChat(); break;
+      case 'input-mode': switchInput(value); break;
+      case 'voice-record': stashDraft(); recording = true; render(); $('.voice-orb-button')?.focus({preventScroll:true}); break;
+      case 'brief-now': runJob('morning'); break;
+      case 'job-detail': jobDetail(id); break;
+      case 'job-run': runJob(id); break;
+      case 'job-keep': { const job=state.concierge.jobs.find(item=>item.id===id); if(job) { delete job.proposal; save(); jobDetail(id); } break; }
+      case 'job-pause': { const job = state.concierge.jobs.find(item=>item.id===id); if (job) { job.enabled=false; save(); render(); jobDetail(id); toast('필요할 때 다시 챙겨드릴게요.'); } break; }
+      case 'report-detail': showReport(id); break;
+      case 'report-chat': { const report = state.concierge.reports.find(item=>item.id===id); if (!report) break; startChat(); const conversation=activeConversation(); conversation.title=report.title; conversation.titleLocked=true; respond('방금 정리한 브리핑이에요. 이어서 부탁할 일이 있나요?',{kind:'brief',title:report.title,reportId:report.id}); save(); render(); scrollChat(); break; }
+      case 'preferences': preferencesModal(); break;
+      case 'document-start': startChat('이번 달 지출 정리용 엑셀 양식을 만들어줘'); break;
       case 'preview-settings': previewSettings(); break;
       case 'new-conversation': startChat(); break;
       case 'open-conversation': openConversation(id); break;
@@ -400,7 +494,7 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
       case 'next-month': calendarMonth.setMonth(calendarMonth.getMonth() + 1); render(); break;
       case 'calendar-today': selectedDate = dateKey(today); calendarMonth = new Date(today.getFullYear(), today.getMonth(), 1); render(); break;
       case 'voice': voice(); break;
-      case 'voice-example': voiceText = value; $('#voice-transcript').value = value; break;
+      case 'voice-example': voiceText = value; $('#voice-transcript').value = value; activeConversation().voiceDraft=value; save(); break;
       case 'voice-cancel': recording = false; render(); scrollChat(); break;
       case 'voice-stop': { const text = $('#voice-transcript')?.value.trim(); if (text) { voiceText = text; sendChat(text, 'voice'); } else $('#voice-transcript')?.focus(); break; }
       case 'text-input': startChat(); break;
@@ -421,7 +515,10 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
       case 'confirm-chat-trip': {
         const artifact = state.artifacts.find(a => a.id === id); if (!artifact?.trip || artifact.added) break;
         tripPlan(artifact.trip).forEach(day => state.events.push({ id: uid(), title: `${artifact.trip.destination} · ${day.title}`, date:dayOffset(13 + day.day), time:'10:00', place:artifact.trip.destination, color:'purple' }));
-        artifact.added = true; respond(`${artifact.trip.destination} 여행 일정 ${artifact.trip.days}개를 오늘부터 2주 뒤의 캘린더에 담았어요.`); save(); closeModal(); navigate('conversation', false); scrollChat(); break;
+        artifact.added = true; closeModal();
+        if (state.conversations.some(item=>item.id===artifact.conversationId)) openConversation(artifact.conversationId);
+        else { startChat(); artifact.conversationId=activeConversation().id; }
+        respond(`${artifact.trip.destination} 여행 일정 ${artifact.trip.days}개를 오늘부터 2주 뒤의 캘린더에 담았어요.`); save(); navigate('conversation', false); scrollChat(); break;
       }
       case 'memory-filter': memoryFilter = value; render(); $(`[data-action="memory-filter"][data-value="${value}"]`)?.focus({ preventScroll: true }); break;
       case 'note-detail': {
@@ -438,7 +535,7 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
         const link = document.createElement('a'); link.href = url; link.download = 'mori-travel-example.csv'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); toast('Excel에서 열 수 있는 예시 표를 내려받았어요.'); break;
       }
       case 'print-trip': $('.print-help').hidden = false; window.print(); break;
-      case 'approvals': approvalModal(); break;
+      case 'approvals': careInbox(); break;
       case 'approve':
         if (state.approval !== 'pending') break;
         ['제주 도착 · 바닷가 산책', '숲길 걷기 · 카페에서 쉬기', '느긋한 아침 · 돌아오기'].forEach((title, i) => { if (!state.events.some(e => e.id === `approved-trip-${i}`)) state.events.push({ id: `approved-trip-${i}`, title, date: dayOffset(14 + i), time: '10:00', place: '제주 · 예시 일정', color: 'purple' }); });
@@ -449,7 +546,7 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
       case 'settings': openModal(`${modalTitle('나에게 맞는 모리.', '언제든 편하게 바꿀 수 있어요.')}<div class="settings-row"><div><strong>자동 개인화</strong><p>반복하는 일에서 표시할 내용을 배워요.</p></div><button role="switch" class="toggle ${state.personalization ? 'on' : ''}" aria-label="자동 개인화" aria-checked="${state.personalization}" data-action="personalization"><span></span></button></div><div class="inline-tip">${icon('shield')} 체험 데이터는 이 브라우저에만 저장돼요.<br>실제 계정이나 외부 캘린더는 연결하지 않아요.</div><button class="button secondary full" data-action="reset-confirm">체험 데이터를 처음으로 되돌리기</button>`, '내 설정'); break;
       case 'personalization': state.personalization = !state.personalization; save(); button.classList.toggle('on', state.personalization); button.setAttribute('aria-checked', state.personalization); toast(state.personalization ? '자동 개인화를 켰어요. 이 체험에서는 새 자동 학습 없이 설정만 저장해요.' : '자동 개인화를 껐어요. 직접 설정한 반복은 유지해요.'); break;
       case 'reset-confirm': openModal(`${modalTitle('처음 모습으로 돌아갈까요?', '이 브라우저에서 추가한 체험 기록과 일정이 지워지고 예시 데이터로 돌아가요.')}<div class="field-row"><button class="button secondary" data-action="settings">남겨둘게요</button><button class="button primary" data-action="reset">처음으로 되돌리기</button></div>`, '체험 데이터 초기화'); break;
-      case 'reset': state = migrateConversations(seed()); conversationGroup = 'all'; conversationQuery = ''; chatDraft = ''; draftFiles = []; recording = false; previewMode = 'live'; selectedDate = dateKey(today); calendarMonth = new Date(today.getFullYear(), today.getMonth(), 1); save(); closeModal(); navigate('today', false); toast('처음의 모리로 돌아왔어요.'); break;
+      case 'reset': state = hydrateConcierge(migrateConversations(seed())); conversationGroup = 'all'; conversationQuery = ''; chatDraft = ''; draftFiles = []; recording = false; previewMode = 'live'; selectedDate = dateKey(today); calendarMonth = new Date(today.getFullYear(), today.getMonth(), 1); save(); closeModal(); navigate('today', false); toast('처음의 모리로 돌아왔어요.'); break;
       case 'demo-info': openModal(`${modalTitle('모리의 하루를 미리 만나보세요.', '버튼을 누르고 기록을 남기며 사용 흐름을 살펴보는 UI/UX 체험입니다.')}<ul class="detail-list stacked"><li><strong>직접 해볼 수 있어요</strong><span>주차 위치와 일정 저장, 기록 조회, 승인, 반복 설정</span></li><li><strong>예시로 보여드려요</strong><span>음성 인식, AI 대화, 자동 학습, 여행 검색</span></li><li><strong>모바일 앱에서 만나요</strong><span>실제 홈 화면 위젯, 푸시와 예약 알림</span></li></ul><button class="button primary full" data-action="close">모리 둘러보기</button>`, 'MORI · UI/UX PROTOTYPE'); break;
     }
   });
@@ -466,6 +563,12 @@ import { defaultParkingRule, selectContext, classify, readTime, readDate, minute
       if (input?.required && !data[name]) { input.setCustomValidity('내용을 입력해 주세요.'); input.reportValidity(); input.addEventListener('input', () => input.setCustomValidity(''), { once: true }); return; }
     }
     switch (form.id) {
+      case 'preferences-form': state.concierge.preferences = { travel:data.travel, reply:data.reply, care:data.care }; save(); closeModal(); render(); toast('다음 부탁에도 이 취향을 기억할게요.'); break;
+      case 'job-settings-form': {
+        const job = state.concierge.jobs.find(item=>item.id===form.dataset.id); if (!job) break;
+        job.time=data.time; job.days=data.frequency==='daily'?[0,1,2,3,4,5,6]:data.frequency==='weekdays'?[1,2,3,4,5]:[Number(data.frequency.slice(4))];
+        job.enabled=true; job.source='직접 선택한 반복'; delete job.proposal; if (job.id==='weekly') job.title='한 주 돌아보기'; save(); closeModal(); render(); toast('챙기는 방식을 저장했어요. 실제 예약 실행은 연결 전이에요.'); break;
+      }
       case 'conversation-settings-form': {
         const conversation = activeConversation();
         let groupId = data.group;
@@ -497,14 +600,16 @@ state.parking = { location: data.location, place: data.place || state.parking?.p
     if (event.target.id === 'conversation-group-select') { const create = event.target.value === 'new'; $('#new-group-field').hidden = !create; $('[name="newGroup"]').required = create; }
     if (event.target.id === 'chat-files') { chatDraft = $('#message')?.value || ''; draftFiles = [...event.target.files].slice(0, 3).map(file => ({ name:file.name })); stashDraft(); save(); render(); if (view === 'conversation') scrollChat(); }
   });
-  document.addEventListener('input', event => { if (event.target.id === 'conversation-search') { conversationQuery = event.target.value; $('#conversation-results').innerHTML = conversationResults(); }
+  document.addEventListener('input', event => { if (event.target.id === 'voice-transcript') { voiceText=event.target.value; activeConversation().voiceDraft=voiceText; save(); }
+    if (event.target.id === 'conversation-search') { conversationQuery = event.target.value; $('#conversation-results').innerHTML = conversationResults(); }
     if (event.target.id === 'message') { chatDraft = event.target.value; activeConversation().draft = chatDraft; save(); event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, 120)}px`; } });
   document.addEventListener('keydown', event => { if (event.target.id === 'message' && event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); sendChat(event.target.value); } });
-  setInterval(() => { if (view === 'today' && previewMode === 'live' && !modal.open) $('#home-content').innerHTML = dashboardContent(); }, 30000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && view === 'today' && previewMode === 'live') $('#home-content').innerHTML = dashboardContent(); });
+  function refreshHome() { const content = $('#home-content'); content.classList.add('quiet-refresh'); content.innerHTML = dashboardContent(); }
+  setInterval(() => { if (view === 'today' && previewMode === 'live' && !modal.open) refreshHome(); }, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && view === 'today' && previewMode === 'live' && !modal.open) refreshHome(); });
   window.addEventListener('hashchange', () => { if (location.hash !== '#main') navigate(location.hash.slice(1)); });
   view = ['today', 'chat', 'conversation', 'calendar', 'memories', 'routines'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'today';
-  if (view === 'conversation') { chatDraft = activeConversation().draft || ''; draftFiles = activeConversation().draftFiles || []; }
+  if (view === 'conversation') { chatDraft = activeConversation().draft || ''; draftFiles = activeConversation().draftFiles || []; voiceText = activeConversation().voiceDraft || voiceText; }
   save();
   render();
   if (view === 'conversation') scrollChat();

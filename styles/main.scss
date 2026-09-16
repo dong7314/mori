@@ -1,5 +1,6 @@
 @use "conversation";
 @use "simplified";
+@use "concierge";
 
 $ink: #293d33;
 $muted: #697560;
@@ -289,3 +290,4 @@ form { margin-top: 24px; }
 @include conversation.styles;
 
 @include simplified.styles;
+@include concierge.styles;
