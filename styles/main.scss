@@ -2,6 +2,7 @@
 @use "simplified";
 @use "concierge";
 @use "polish";
+@use "app";
 
 $ink: #293d33;
 $muted: #697560;
@@ -294,3 +295,4 @@ form { margin-top: 24px; }
 @include simplified.styles;
 @include concierge.styles;
 @include polish.styles;
+@include app.styles;
