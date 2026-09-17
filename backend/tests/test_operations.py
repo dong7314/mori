@@ -1,15 +1,12 @@
-import json
 import sys
 from pathlib import Path
-from uuid import uuid4
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import inspect, select
+from sqlalchemy import inspect
 
-from mori.auth.models import AccessToken
 from mori.cli import main
 from mori.config import Settings
 from mori.main import create_app
@@ -47,34 +44,12 @@ def test_database_unavailable_does_not_break_liveness_or_leak_credentials():
         assert "secret-not-for-output" not in ready.text
 
 
-def test_cli_provisions_hashed_tokens_and_can_revoke(client, sessions, monkeypatch, capsys):
-    monkeypatch.setattr(sys, "argv", ["mori", "create-user", "--name", "개인 알파"])
-    main()
-    first = json.loads(capsys.readouterr().out)
-    token = first["access_token"]
-    headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": str(uuid4())}
-    assert (
-        client.post("/v1/parking-records", headers=headers, json={"spot": "C36"}).status_code == 201
-    )
-    with sessions() as session:
-        stored = session.scalar(select(AccessToken))
-        assert stored.token_hash != token
-        assert len(stored.token_hash) == 64
-
-    monkeypatch.setattr(sys, "argv", ["mori", "issue-token", "--user-id", first["user_id"]])
-    main()
-    second = json.loads(capsys.readouterr().out)
-    monkeypatch.setattr(sys, "argv", ["mori", "revoke-token", "--token-id", first["token_id"]])
-    main()
-    assert json.loads(capsys.readouterr().out)["revoked"] is True
-    assert client.get("/v1/parking-records/latest", headers=headers).status_code == 401
-    assert (
-        client.get(
-            "/v1/parking-records/latest",
-            headers={"Authorization": f"Bearer {second['access_token']}"},
-        ).status_code
-        == 200
-    )
+@pytest.mark.parametrize("command", ["create-user", "issue-token"])
+def test_cli_cannot_bypass_social_signup(monkeypatch, command):
+    monkeypatch.setattr(sys, "argv", ["mori", command])
+    with pytest.raises(SystemExit) as stopped:
+        main()
+    assert stopped.value.code == 2
 
 
 def test_migration_matches_models_and_can_roll_back(database_url, sessions):

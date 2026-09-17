@@ -34,9 +34,10 @@ spec:
                 secretKeyRef:
                   name: mori-backend
                   key: MORI_DATABASE_URL
-            # Add the actual frontend origins when connecting the app.
-            - name: MORI_CORS_ORIGINS
-              value: '[]'
+          # OAuth credentials, public URL, return allowlist and CORS are documented in README.md.
+          envFrom:
+            - secretRef:
+                name: mori-backend
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

@@ -4,7 +4,7 @@
 
 ## 공통
 
-- 인증: `Authorization: Bearer <발급된 토큰>`.
+- 인증: [네이버·카카오 로그인](social-login.md)에서 받은 Mori 액세스 토큰을 `Authorization: Bearer <access_token>`으로 전송한다. 소셜 제공자의 토큰을 직접 받지 않는다.
 - 저장 요청: `Content-Type: application/json`, `Idempotency-Key: <작업별 UUID>`.
 - 사용자는 인증 문맥으로 결정한다. body의 `user_id`, `recorded_at` 등 미정의 필드는 거부한다.
 - 표시 시각은 `recorded_at`의 UTC 시각을 사용자 시간대로 변환한다.
@@ -45,7 +45,7 @@
 ID와 시각은 예시다. 프론트는 서버에서 성공을 받은 뒤 이 데이터로 완료 상태를 표시한다. 요청 키는 저장 동작을 시작할 때 한 번 만들고, 통신 오류·시간 초과 후 재전송할 때 재사용한다. 새 주차 동작에는 새 키를 사용한다.
 
 ```sh
-# MORI_ACCESS_TOKEN에는 관리 CLI에서 발급한 값을 설정한다.
+# MORI_ACCESS_TOKEN에는 소셜 로그인 코드 교환으로 받은 Mori access_token을 설정한다.
 MORI_REQUEST_ID=$(uuidgen)
 curl --fail-with-body http://127.0.0.1:8000/v1/parking-records \
   -H "Authorization: Bearer $MORI_ACCESS_TOKEN" \

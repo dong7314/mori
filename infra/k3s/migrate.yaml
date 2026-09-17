@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: mori-migrate-0001
+  name: mori-migrate-0002
   namespace: mori
 spec:
   backoffLimit: 1

@@ -6,7 +6,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from mori.auth.models import AccessToken, User
+from mori.auth.models import (
+    AccessToken,
+    AuthSession,
+    LoginGrant,
+    OAuthFlow,
+    RefreshToken,
+    SocialIdentity,
+    User,
+)
+from mori.auth.router import profile_router
+from mori.auth.router import router as auth_router
 from mori.config import Settings
 from mori.database import DatabaseSession, build_engine, build_session_factory
 from mori.errors import ErrorResponse, register_error_handlers
@@ -31,11 +41,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Mori API",
-        version="0.1.0",
-        description="개인 알파: 인증된 사용자의 주차 기록 저장·조회",
+        version="0.2.0",
+        description="네이버·카카오 소셜 가입과 사용자별 주차 기록 저장·조회",
         lifespan=lifespan,
     )
     app.state.session_factory = build_session_factory(engine)
+    app.state.settings = settings
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -48,10 +59,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response = await call_next(request)
         if request.url.path.startswith("/v1/"):
             response.headers["Cache-Control"] = "no-store"
+            response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
     register_error_handlers(app)
     app.include_router(parking_router)
+    app.include_router(auth_router)
+    app.include_router(profile_router)
 
     @app.get("/health/live", response_model=HealthStatus, tags=["health"])
     def live() -> HealthStatus:
@@ -68,6 +82,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         session.execute(select(User.id).limit(0))
         session.execute(select(AccessToken.id).limit(0))
         session.execute(select(ParkingRecord.id).limit(0))
+        for model in (SocialIdentity, AuthSession, OAuthFlow, LoginGrant, RefreshToken):
+            session.execute(select(model).limit(0))
         response.headers["Cache-Control"] = "no-store"
         return HealthStatus(status="ready")
 

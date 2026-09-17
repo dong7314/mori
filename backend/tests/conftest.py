@@ -12,8 +12,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
-from mori.auth.dependencies import hash_token
-from mori.auth.models import AccessToken, User
+from mori.auth.crypto import hash_token
+from mori.auth.models import AccessToken, AuthSession, SocialIdentity, User
 from mori.config import Settings
 from mori.database import build_engine, build_session_factory
 from mori.main import create_app
@@ -47,21 +47,34 @@ def database_url() -> Iterator[str]:
 
 @pytest.fixture
 def settings(database_url: str) -> Settings:
-    return Settings(database_url=database_url, cors_origins=["http://localhost:5173"])
+    return Settings(
+        database_url=database_url,
+        cors_origins=["http://localhost:5173"],
+        auth_public_base_url="https://mori.test",
+        auth_return_urls=["https://app.test/auth/callback", "mori://auth/callback"],
+        naver_client_id="test-naver-client",
+        naver_client_secret="test-naver-secret",
+        kakao_client_id="test-kakao-client",
+        kakao_client_secret="test-kakao-secret",
+    )
 
 
 @pytest.fixture
 def sessions(settings: Settings) -> Iterator[sessionmaker[Session]]:
     engine = build_engine(settings)
     with engine.begin() as connection:
-        connection.execute(text("TRUNCATE parking_records, access_tokens, users CASCADE"))
+        connection.execute(
+            text(
+                "TRUNCATE oauth_flows, login_grants, parking_records, access_tokens, users CASCADE"
+            )
+        )
     yield build_session_factory(engine)
     engine.dispose()
 
 
 @pytest.fixture
 def client(settings: Settings, sessions: sessionmaker[Session]) -> Iterator[TestClient]:
-    with TestClient(create_app(settings)) as client:
+    with TestClient(create_app(settings), base_url=settings.auth_public_base_url) as client:
         yield client
 
 
@@ -73,9 +86,14 @@ def accounts(sessions: sessionmaker[Session]) -> dict[str, dict]:
             user = User(display_name=name)
             session.add(user)
             session.flush()
+            session.add(SocialIdentity(user_id=user.id, provider="naver", subject=name))
+            family = AuthSession(user_id=user.id, expires_at=datetime.now(UTC) + timedelta(days=1))
+            session.add(family)
+            session.flush()
             raw_token = f"mori_test_{uuid4().hex}"
             access = AccessToken(
                 user_id=user.id,
+                session_id=family.id,
                 token_hash=hash_token(raw_token),
                 expires_at=datetime.now(UTC) + timedelta(days=1),
             )
@@ -84,6 +102,7 @@ def accounts(sessions: sessionmaker[Session]) -> dict[str, dict]:
             accounts[name] = {
                 "user_id": user.id,
                 "token_id": access.id,
+                "session_id": family.id,
                 "headers": {"Authorization": f"Bearer {raw_token}"},
             }
     return accounts

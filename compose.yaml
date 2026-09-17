@@ -33,7 +33,16 @@ services:
     image: mori-backend:dev
     environment:
       MORI_DATABASE_URL: postgresql+psycopg://mori:mori-local-only@db:5432/mori
-      MORI_CORS_ORIGINS: '["http://localhost:5173","http://127.0.0.1:5173"]'
+      MORI_CORS_ORIGINS: '${MORI_CORS_ORIGINS:-["http://localhost:5173","http://127.0.0.1:5173"]}'
+      MORI_AUTH_PUBLIC_BASE_URL: '${MORI_AUTH_PUBLIC_BASE_URL:-http://localhost:8000}'
+      MORI_AUTH_RETURN_URLS: '${MORI_AUTH_RETURN_URLS:-["http://localhost:5173/auth/callback"]}'
+      MORI_AUTH_COOKIE_SECURE: '${MORI_AUTH_COOKIE_SECURE:-false}'
+      MORI_AUTH_ACCESS_TOKEN_SECONDS: '${MORI_AUTH_ACCESS_TOKEN_SECONDS:-900}'
+      MORI_AUTH_SESSION_DAYS: '${MORI_AUTH_SESSION_DAYS:-30}'
+      MORI_NAVER_CLIENT_ID: '${MORI_NAVER_CLIENT_ID:-}'
+      MORI_NAVER_CLIENT_SECRET: '${MORI_NAVER_CLIENT_SECRET:-}'
+      MORI_KAKAO_CLIENT_ID: '${MORI_KAKAO_CLIENT_ID:-}'
+      MORI_KAKAO_CLIENT_SECRET: '${MORI_KAKAO_CLIENT_SECRET:-}'
     ports:
       - "127.0.0.1:${MORI_API_PORT:-8000}:8000"
     depends_on:

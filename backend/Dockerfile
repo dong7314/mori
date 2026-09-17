@@ -18,4 +18,5 @@ COPY migrations ./migrations
 ENV PATH="/app/.venv/bin:$PATH"
 USER 10001:10001
 EXPOSE 8000
-CMD ["uvicorn", "mori.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+# OAuth callback query strings contain short-lived credentials; do not log request URLs.
+CMD ["uvicorn", "mori.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
