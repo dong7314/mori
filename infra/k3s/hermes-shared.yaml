@@ -1,0 +1,140 @@
+# Confirm llama.cpp listens on port 8080, then replace the model ID before applying.
+# Create the mori-hermes Secret and label the chosen worker as described in README.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mori-hermes-config
+  namespace: mori
+data:
+  config.yaml: |
+    gateway:
+      multiplex_profiles: true
+    providers:
+      lan_llama:
+        api: http://192.168.0.8:8080/v1
+        key_env: LLAMA_API_KEY
+        transport: chat_completions
+    model:
+      provider: custom:lan_llama
+      default: REPLACE_MODEL_ID
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mori-hermes-shared-home
+  namespace: mori
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mori-hermes-shared
+  namespace: mori
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mori-hermes-shared
+  template:
+    metadata:
+      labels:
+        app: mori-hermes-shared
+    spec:
+      nodeSelector:
+        mori-agent: "true"
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        fsGroup: 10000
+      initContainers:
+        - name: write-config
+          image: busybox:1.36.1
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              if grep -q REPLACE_MODEL_ID /bootstrap/config.yaml; then
+                echo 'Set model.default from llama.cpp /v1/models before deploying Hermes.' >&2
+                exit 1
+              fi
+              cp /bootstrap/config.yaml /data/config.yaml
+              chown 10000:10000 /data /data/config.yaml
+          volumeMounts:
+            - name: home
+              mountPath: /data
+            - name: config
+              mountPath: /bootstrap
+              readOnly: true
+      containers:
+        - name: hermes
+          image: nousresearch/hermes-agent:latest
+          imagePullPolicy: IfNotPresent
+          args: ["gateway", "run"]
+          ports:
+            - name: api
+              containerPort: 8642
+          env:
+            - name: API_SERVER_ENABLED
+              value: "true"
+            - name: API_SERVER_HOST
+              value: 0.0.0.0
+            - name: API_SERVER_PORT
+              value: "8642"
+          envFrom:
+            - secretRef:
+                name: mori-hermes
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: api
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: api
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: api
+            periodSeconds: 20
+            timeoutSeconds: 3
+          volumeMounts:
+            - name: home
+              mountPath: /opt/data
+      volumes:
+        - name: home
+          persistentVolumeClaim:
+            claimName: mori-hermes-shared-home
+        - name: config
+          configMap:
+            name: mori-hermes-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mori-hermes-shared
+  namespace: mori
+spec:
+  type: ClusterIP
+  selector:
+    app: mori-hermes-shared
+  ports:
+    - name: api
+      port: 8642
+      targetPort: api

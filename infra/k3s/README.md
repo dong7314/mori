@@ -2,6 +2,8 @@
 
 이 디렉터리는 배포 예시다. 기존 GPU·Hermes·클러스터를 수정하지 않는다. 실제 적용 전에 이미지 저장소, PostgreSQL 연결 주소, 소셜 앱 키와 공개 API 주소를 준비한다. PostgreSQL 배포·스토리지 정책은 별도로 구성한다.
 
+기존 k3s worker에서 공용 Hermes Gateway를 실행하고 별도 Linux GPU 노트북의 llama.cpp에 연결하는 절차는 [hermes-shared.md](hermes-shared.md)를 참고한다. 해당 배포는 Mori API 배포와 별도로 적용한다.
+
 ## 적용 순서
 
 1. `backend/Dockerfile`로 노드 아키텍처에 맞는 이미지를 빌드하고 접근 가능한 레지스트리에 올린다. 배포 파일 두 곳의 `mori-backend:dev`를 같은 배포 태그나 digest로 바꾼다.
