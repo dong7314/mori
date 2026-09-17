@@ -1,0 +1,42 @@
+name: Backend
+on:
+  push:
+    branches: [master]
+    paths: ["backend/**", "compose.yaml", "infra/k3s/**", ".github/workflows/backend.yml"]
+  pull_request:
+    paths: ["backend/**", "compose.yaml", "infra/k3s/**", ".github/workflows/backend.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mori
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: mori
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mori -d mori"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      MORI_TEST_POSTGRES_URL: postgresql+psycopg://mori:ci-only@localhost:5432/mori
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install uv==0.12.15
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest
+      - run: uv run python scripts/export_openapi.py --check
+      - run: docker build -t mori-backend:ci .

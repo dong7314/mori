@@ -1,0 +1,42 @@
+# Run once per release with a unique Job name, before updating the API Deployment.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mori-migrate-0001
+  namespace: mori
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 120
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: mori-backend:dev
+          imagePullPolicy: IfNotPresent
+          command: [alembic, upgrade, head]
+          env:
+            - name: MORI_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: mori-backend
+                  key: MORI_DATABASE_URL
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi

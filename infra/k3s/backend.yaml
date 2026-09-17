@@ -1,0 +1,84 @@
+# Create namespace mori and Secret mori-backend first. Replace the image with a published tag.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mori-api
+  namespace: mori
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mori-api
+  template:
+    metadata:
+      labels:
+        app: mori-api
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: mori-backend:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: MORI_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: mori-backend
+                  key: MORI_DATABASE_URL
+            # Add the actual frontend origins when connecting the app.
+            - name: MORI_CORS_ORIGINS
+              value: '[]'
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            timeoutSeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            timeoutSeconds: 3
+            periodSeconds: 20
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mori-api
+  namespace: mori
+spec:
+  selector:
+    app: mori-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+  type: ClusterIP
