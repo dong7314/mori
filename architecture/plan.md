@@ -4,7 +4,53 @@
 
 갱신일: 2026-09-17 · 상태: 앱 우선 방향과 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
 
-`master` `bfadecf`에는 FastAPI·PostgreSQL API, Alembic 마이그레이션, 로컬 Docker Compose와 k3s 배포 예시가 있다. 실제 구현은 소셜 인증·Free/Pro 등급 승인·주차 기록까지다. 아래 구조도의 Worker, Hermes, 공용 GPU 서버, 사용자별 Pod/PVC, 스케줄러와 Runtime Controller는 **설계 대상**이며 현재 배포·연결·성능 측정된 구성 요소가 아니다. Pro 등급 변경이 전용 실행 환경 제공을 뜻하지 않는다.
+`master` `bfadecf`에는 FastAPI·PostgreSQL API, Alembic 마이그레이션, 로컬 Docker Compose와 k3s 배포 예시가 있다. 실제 구현은 소셜 인증·Free/Pro 등급 승인·주차 기록까지다. 사용자는 GPU 노트북에서 llama.cpp를 이미 운영 중이라고 밝혔다. 아래 구조도의 Mori Worker, Hermes, 사용자별 Pod/PVC, 스케줄러와 Runtime Controller는 **설계 대상**이며 llama.cpp와의 연결·성능도 아직 검증하지 않았다. Pro 등급 변경이 전용 실행 환경 제공을 뜻하지 않는다.
+
+## 현재 홈 네트워크와 배포 위치
+
+2026-09-17 사용자 설명을 기준으로 한 장비 현황이다. 클러스터와 장비 사양을 원격에서 확인한 결과는 아니다. 다섯 장비 모두 ipTIME에 연결되어 있다. GPU 노트북의 주소 `192.168.0.8`, llama.cpp 포트 `8080`, API 키 설정은 사용자에게 확인했다. 다른 장비의 IP 주소, CPU·RAM·디스크, 실제 전원·절전 상태는 아직 확인되지 않았다.
+
+| 장비 | 현재 알려진 상태 | Mori 초기 배치 판단 |
+| --- | --- | --- |
+| 미니 PC 1 | k3s master/server 노드 | 기존 제어 평면 유지. Mori API·DB의 실제 배치와 여유 자원은 확인 후 결정 |
+| 미니 PC 2·3 | ipTIME에 연결. k3s 참여 여부와 용도는 미확인 | 첫 Hermes↔LLM 연결에 필수는 아님. 필요하면 이후 CPU Worker·저장소 후보로 검토 |
+| 노트북 1 | 미니 PC 1에 연결된 기존 k3s worker | **공용 Hermes Gateway Pod**의 첫 배치 후보. CPU·RAM·절전·영속 볼륨을 확인하고 노드에 고정 |
+| 노트북 2 | Linux, RTX 3090 eGPU, ipTIME 연결. `192.168.0.8:8080`에서 llama.cpp 운영 중이며 API 키 설정됨(사용자 설명) | **k3s 밖의 독립 llama.cpp 서버**. 실행 상태·모델 ID·클러스터에서의 접근은 현장 검증 필요 |
+
+```text
+휴대폰 앱 → Mori API(k3s) → Hermes Adapter → Hermes Gateway Pod(k3s CPU worker)
+                                             → llama.cpp(Linux GPU 노트북, 사설 LAN)
+```
+
+GPU 노트북을 k3s worker로 합류시키지 않는다. Hermes만 기존 k3s에서 실행하고, llama.cpp는 GPU 노트북의 systemd 서비스 또는 재시작 정책을 둔 컨테이너로 운영한다. 모델은 GPU 서버에서 한 번 적재하고 여러 Hermes 요청이 같은 추론 API를 공유한다. 실제 구현 전에는 노트북 1의 상시 가동·자원 상태를 확인한다. 절전이나 자원 부족이 있다면 미니 PC 2·3 중 한 대를 k3s CPU worker로 추가해 Hermes 배치를 옮기는 안을 검토한다.
+
+GPU 노트북에는 ipTIME DHCP 예약 등으로 고정된 LAN 주소 또는 내부 DNS 이름을 부여한다. `llama-server`는 LAN에서 도달 가능한 주소에 바인딩하고, GPU 노트북 방화벽은 Hermes Pod에서 실제로 관측되는 출발지의 추론 요청만 허용한다. 서버 API 키를 설정하고 모델 API를 인터넷에 직접 공개하지 않는다. 동일 공유기 연결만으로 Pod에서 GPU 노트북까지 통신된다고 단정하지 않고, 게스트망/AP 격리·호스트 방화벽·Pod egress를 실제로 확인한다. 휴대폰이 집 밖에서 접근하는 경로는 별도 결정 사항이다.
+
+초기 연결 순서는 다음과 같다.
+
+1. GPU 노트북의 기존 llama.cpp에서 `nvidia-smi`, `/health`, 인증된 `/v1/models`로 eGPU·모델 적재·실제 모델 ID를 확인한다. 현재 모델 ID와 컨텍스트 길이·동시 추론 설정은 아직 모른다. `/health`가 모델 적재 완료를 반환하는지 확인한다. 인증 키는 보호된 서비스 환경 파일 등에 두고 명령행 인자로 노출하지 않는다. [llama.cpp 서버](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md), [CUDA 컨테이너 이미지](https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md).
+2. k3s의 기존 CPU worker에 Hermes Gateway Pod와 내부 Service를 둔다. Hermes home은 재시작 뒤에도 유지되는 볼륨에 보관하고, 초기 로컬 볼륨을 쓰면 해당 노드에 고정하며 다른 노드로 자동 재배치된다고 가정하지 않는다. Hermes Pod에는 GPU를 요청하지 않는다.
+3. Hermes의 custom provider URL을 `http://192.168.0.8:8080/v1`로 설정하고, llama.cpp API 키와 `/v1/models`에서 확인한 모델 ID를 맞춘다. 비밀값은 Git이 아닌 운영 Secret에 둔다. Hermes API 서버는 내부 Service로만 제공하고 Mori Adapter만 호출한다. [Hermes 모델 제공자 설정](https://hermes-agent.nousresearch.com/docs/integrations/providers), [Hermes API 서버](https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server).
+4. Hermes Pod 안에서 GPU 서버의 `/health`·`/v1/models` 접근을 확인하고, Hermes 채팅 1회와 Mori 주차 도구 호출 1회를 검증한다. GPU 노트북 절전·재부팅·eGPU 분리 시 AI 작업은 대기/실패로 표시하되 기존 DB 조회는 유지한다.
+
+공용 Gateway의 사용자별 profile은 기억·세션·설정을 나누는 수단이다. 공식 문서상 profile 자체는 파일·터미널 접근의 보안 sandbox가 아니므로, 다중 사용자에게 열기 전 Mori 계정→profile 매핑, profile별 API 키, 도구 권한과 파일 실행 격리를 검증한다. 초기는 단일 사용자 또는 신뢰된 시험 계정으로 제한한다. [Hermes profile](https://hermes-agent.nousresearch.com/docs/user-guide/profiles/), [다중 profile Gateway](https://hermes-agent.nousresearch.com/docs/user-guide/multi-profile-gateways).
+
+연결 설정의 형태는 다음과 같다. `context_length`는 모델 적재·VRAM 실측 후 설정한다. Hermes의 컨텍스트 길이를 llama.cpp의 실제 `--ctx-size`보다 크게 설정하지 않는다. 다중 profile을 켤 때는 각 profile의 `.env`에 자체 `API_SERVER_KEY`와 모델 서버 키를 준비한다.
+
+```yaml
+# Hermes profile의 config.yaml 예시
+providers:
+  lan_llama:
+    api: http://192.168.0.8:8080/v1
+    key_env: LLAMA_API_KEY
+    transport: chat_completions
+model:
+  provider: custom:lan_llama
+  default: <v1/models에서_확인한_모델_ID>
+  # context_length: 65536  # 서버에서 같은 길이를 검증한 뒤 설정
+```
+
+`model.default`는 GPU 노트북의 실제 `/v1/models` 결과와 일치시킨다. 적용용 초안은 `master`의 `infra/k3s/hermes-shared.yaml`에 있으며, 모델 ID 교체와 클러스터 검증이 남아 있다.
 
 ## 1. 전체 구조
 
@@ -36,7 +82,7 @@ flowchart TD
     API --> Files
 ```
 
-그림의 상자는 논리적인 책임이다. 초기에는 단일 백엔드 코드베이스의 API·Worker·제어 프로세스로 구성한다. 제품은 휴대폰·태블릿 앱이며 브라우저는 개발·PoC 확인에 사용한다. 앱은 Mori API에 연결하고 Hermes·DB·GPU·Pod 관리 API는 내부망에 둔다.
+그림의 상자는 논리적인 책임이다. 초기에는 단일 백엔드 코드베이스의 API·Worker·제어 프로세스로 구성한다. 제품은 휴대폰·태블릿 앱이며 브라우저는 개발·PoC 확인에 사용한다. 앱은 Mori API에 연결한다. Hermes·DB·Pod 관리 API는 클러스터 내부에 두고, GPU API는 별도 Linux 노트북의 사설 LAN에서 Mori 측 호출만 받는다.
 
 React 인앱 UI와 네이티브 기능을 브리지로 연결하는 방안을 검증한다. 앱 컨테이너는 Capacitor와 React Native + WebView를 비교한 뒤 선택한다. OS 위젯은 별도 구현하고, 열린 WebView나 사용자 Hermes Pod에 의존하지 않는 조회 경로를 둔다. 화면·위젯·브리지는 실제 제품에서 사용자 담당이다. [프론트 앱 설계](../front/plan.md#10-휴대폰태블릿-앱-우선-설계).
 
@@ -201,12 +247,12 @@ Hermes에도 자체 cron이 있다. 다만 제품 예약 작업을 Mori와 Herme
 - 모듈을 구분한 단일 백엔드 코드베이스와 API/Worker 실행 프로세스.
 - PostgreSQL, 제한된 Hermes 실행기, 공용 모델 서버, 음성 인식 경로.
 - 초기에는 DB 기반 작업 큐와 로컬 파일 저장소로 운영하고, 서비스와 파일 저장 인터페이스를 분리한다.
-- 컨테이너 실행 구성으로 시작하고 DB 큐·runtime 상태·요청 시 시작·유휴 중지 계약을 먼저 검증한다. P1의 소규모 기동 실험과 P4의 유료 운영을 구분하며, 대규모 클러스터는 선행 구축하지 않는다.
+- 이미 운영 중인 k3s server·worker를 활용해 Hermes를 CPU worker에 배치하고, Linux GPU 노트북에서 독립 실행하는 llama.cpp에 LAN으로 연결한다. DB 큐·runtime 상태·요청 시 시작·유휴 중지 계약은 별도로 검증한다. P1의 소규모 기동 실험과 P4의 유료 운영을 구분한다.
 
 ### 유료 제공 전
 
-- 단일 노드 Kubernetes/k3s 등을 후보로 사용자별 Pod 0/1·독립 PVC·Runtime Controller·기동/종료 한도·자원 제한을 구현한다. A-05의 재개·중복 방지 시험을 통과해야 유료 제공한다.
-- 모델 서버는 별도 프로세스/컨테이너로 유지할 수 있다. 클러스터 내부 편입은 운영 이점이 있을 때 선택한다.
+- 현재 다중 노드 k3s에 사용자별 Pod 0/1·독립 PVC·Runtime Controller·기동/종료 한도·자원 제한을 구현한다. A-05의 재개·중복 방지 시험을 통과해야 유료 제공한다. 사용자별 볼륨이 특정 노드에 묶이면 재배치·복구 정책을 함께 정한다.
+- llama.cpp는 별도 GPU 노트북에서 유지한다. k3s의 Hermes Pod가 사설 LAN 주소로 호출하며, GPU 노트북 장애·절전과 네트워크 단절을 독립 장애로 다룬다.
 - 무료/유료 전환에서 사용자 저장 공간의 동시 쓰기를 막고, 작업을 잠시 비운 뒤 라우팅을 원자적으로 전환한다.
 - 실패하면 이전 라우팅을 유지하며, 이전·해지 과정에서 데이터가 바로 삭제되지 않게 한다. 보관 정책은 별도 확정한다.
 
@@ -228,7 +274,7 @@ Mori DB와 Hermes home은 용도가 다르므로 함께 백업한다. DB는 제�
 
 로그에는 작업 ID, 성공/실패, 지연, 자원 사용량을 우선 남기고 원음·인증 토큰·개인 기록 전체를 기본으로 남기지 않는다. 사용자 요청 삭제는 DB·Hermes 상태·파일·캐시와 백업 만료 정책까지 연결한다.
 
-기본 보관 기간, 암호화 키 관리, 백업 위치, 운영 시간은 배포 전 결정한다. 집 서버 하나에 모두 두는 초기 구성이므로 고가용성이나 24시간 전달을 보장하지 않는다. GPU와 API/스케줄러 호스트를 분리하는 것은 이후 운영 선택지다.
+기본 보관 기간, 암호화 키 관리, 백업 위치, 운영 시간은 배포 전 결정한다. 물리 장비는 나뉘어 있지만 하나의 가정용 LAN, 단일 k3s 제어 평면, 단일 RTX 3090에 의존하므로 고가용성이나 24시간 전달을 보장하지 않는다. 노트북 절전·eGPU 연결 상태·공유기와 전원 장애도 운영 검증 대상이다.
 
 ## 7. 구현 전 통과할 검증
 
