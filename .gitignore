@@ -3,3 +3,7 @@ node_modules/
 test-results/
 playwright-report/
 .poc-server.log
+
+.env
+.env.*
+!.env.example
