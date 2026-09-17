@@ -2,39 +2,43 @@
 
 [전체 계획으로 돌아가기](../plan.md)
 
-상태: 검토용 제안. 사용자가 확정한 방향은 Hermes 기반 비서, 무료 공용 실행, 유료 사용자별 Pod, RTX 3090 로컬 Qwen3.8이다.
+갱신일: 2026-09-17 · 상태: 앱 우선 방향과 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
 
 ## 1. 전체 구조
 
 ```mermaid
 flowchart TD
-    App[React 반응형 웹 / 같은 화면의 앱 WebView] --> API[Mori API: 인증·업무 처리]
+    App[휴대폰·태블릿 앱 / React 인앱 UI] --> API[Mori API: 인증·업무 처리]
     App <-->|앱 실행 시 브리지| Native[네이티브 녹음·권한·알림·딥링크]
     Native --> API
-    Widget[휴대폰 위젯] --> API
-    API --> DB[(PostgreSQL: 기록·일정·작업)]
+    Widget[OS 홈 화면 위젯] --> API
+    API --> DB[(PostgreSQL: 기록·예약·작업·실행 상태)]
     API --> STT[음성 인식]
     API --> Router[Hermes Adapter / 사용자별 라우팅]
+    Router --> Queue[DB 작업 대기열]
     Scheduler[예약 실행 Worker] --> DB
-    Scheduler --> Router
+    Scheduler --> Queue
     Scheduler --> Notify[알림 전송 / 위젯 데이터 준비]
-    Router --> Shared[무료: 공용 실행 풀 안의 격리된 사용자 실행]
-    Router --> Dedicated[유료: 사용자별 Hermes Pod]
-    Shared --> LLM[공용 Qwen3.8 추론 서버 / RTX 3090]
+    Queue --> Controller[Runtime Controller / 깨우기·중지·복구]
+    Controller --> Shared[무료: 공용 풀의 격리 실행 슬롯]
+    Controller --> Dedicated[유료: 사용자별 Hermes Pod 0 또는 1]
+    Shared <--> SharedHome[(계정별로 분리한 영속 home)]
+    Dedicated <--> Home[(사용자 전용 영속 home / PVC)]
+    Shared --> LLM[공용 Qwen 추론 서버 / RTX 3090]
     Dedicated --> LLM
     Shared --> Tools[인증된 Mori 도구 API]
     Dedicated --> Tools
     Tools --> API
-    Tools --> Jobs[검색·문서 생성 Worker]
-    Jobs --> Files[(파일 저장소)]
+    Tools --> Jobs[검색·파일 처리 Worker]
+    Jobs --> Files[(원본·결과 파일 저장소)]
     API --> Files
 ```
 
-그림의 상자는 논리적인 책임을 뜻한다. 처음부터 모두 별도의 서비스나 서버로 분리하지 않는다. 앱은 Mori API에 연결하고, Hermes·DB·GPU·Pod 관리 API는 내부망에 둔다.
+그림의 상자는 논리적인 책임이다. 초기에는 단일 백엔드 코드베이스의 API·Worker·제어 프로세스로 구성한다. 제품은 휴대폰·태블릿 앱이며 브라우저는 개발·PoC 확인에 사용한다. 앱은 Mori API에 연결하고 Hermes·DB·GPU·Pod 관리 API는 내부망에 둔다.
 
-React 웹은 초기 실제 제품이다. 이후 모바일 앱은 같은 React 화면을 WebView로 재사용하고, 브리지를 통해 네이티브 녹음·권한·푸시·로컬 알림·딥링크를 연결한다. OS 위젯은 별도 구현하며 열린 WebView에 의존하지 않는 데이터 경로를 둔다. 앱 컨테이너는 Capacitor와 React Native + WebView를 비교한 뒤 선택한다.
+React 인앱 UI와 네이티브 기능을 브리지로 연결하는 방안을 검증한다. 앱 컨테이너는 Capacitor와 React Native + WebView를 비교한 뒤 선택한다. OS 위젯은 별도 구현하고, 열린 WebView나 사용자 Hermes Pod에 의존하지 않는 조회 경로를 둔다. 화면·위젯·브리지는 실제 제품에서 사용자 담당이다. [프론트 앱 설계](../front/plan.md#10-휴대폰태블릿-앱-우선-설계).
 
-웹과 앱은 같은 기록·일정·작업·승인 API를 사용한다. 실행 승인 상태는 서버에 보존해 웹과 앱의 중복 응답을 일관되게 처리한다. 앱·웹·브리지의 버전과 지원 기능을 확인하고, 모바일 앱의 백그라운드 상시 실행에 에이전트 작업을 의존시키지 않는다. 상세 책임과 검증 기준은 [프론트 확장 계획](../front/plan.md#10-react-반응형-웹에서-모바일-앱으로-확장)에 둔다.
+앱 UI·네이티브 알림 응답은 같은 인증된 작업·승인 API를 사용한다. 승인과 실행 상태는 서버에 보존하고, 앱 종료·재접속·여러 기기의 중복 응답을 처리한다. 앱/WebView/브리지 버전 호환은 앱 계약에서 검증한다.
 
 간단한 기록 조회, 캘린더 조회, 이미 정해진 알림 전송에는 LLM을 호출하지 않는다. 자연어 해석, 여러 도구를 조합하는 작업, 스킬 생성처럼 필요한 부분에만 Hermes와 LLM을 사용한다.
 
@@ -42,12 +46,13 @@ React 웹은 초기 실제 제품이다. 이후 모바일 앱은 같은 React �
 
 | 항목 | 무료 기본 사용자 | 유료 사용자 |
 | --- | --- | --- |
-| 실행 자원 | 제한된 공용 Worker/실행 슬롯을 여러 사용자가 나눠 쓴다. | 사용자별 Hermes Pod를 할당한다. |
+| 실행 자원 | 제한된 공용 Worker/실행 슬롯을 나눠 쓴다. | 사용자 전용 실행 정의를 유지하고 Pod는 필요 시 0→1, 유휴 시 1→0으로 조절한다. |
 | Hermes 상태 | 사용자별 profile/home, 대화·기억·스킬 분리 | 사용자별 profile/home과 전용 영속 볼륨 |
 | LLM | 공용 추론 서버 | 같은 공용 추론 서버 |
-| 스케줄 | Mori 스케줄러가 필요 시 실행 요청 | Mori 스케줄러가 전용 Pod로 실행 요청 |
+| 스케줄 | Mori 스케줄러가 필요 시 실행 요청 | Mori 스케줄러가 AI 작업 전에 깨우고, 준비된 전용 Pod로 실행 요청 |
 | 제한 | 사용자별 호출량·작업 길이·동시 실행 제한 | Pod CPU·RAM 제한과 별도의 LLM 사용량 제한 |
-| 지속성 | 실행이 끝나도 개인 데이터는 유지 | Pod가 재생성되어도 개인 데이터는 유지 |
+| 지속성 | 실행이 끝나도 개인 데이터는 유지 | Pod가 없어도 DB·전용 home·파일·위젯 설정 유지 |
+| 등록 정책 | 논리적 비서·위젯 각각 약 3개, 정확한 집계는 미정 | 논리적 등록 개수 제한 없음. Pod 수·동시 작업·저장량은 별도 정책 |
 
 ### 공용 실행의 경계
 
@@ -61,17 +66,94 @@ React 웹은 초기 실제 제품이다. 이후 모바일 앱은 같은 React �
 - 도구 접근은 백엔드가 발급한 사용자·작업 범위 인증으로 제한한다. 프롬프트의 ‘다른 사용자 데이터에 접근하지 말라’는 문구에 의존하지 않는다.
 - 격리가 검증되기 전에는 한 사람의 알파만 운영한다. 무료 다중 사용자 제공의 선행 조건으로 삼는다.
 
-### 유료 Pod 운영
+### 유료 Pod 운영과 등록 단위
 
-Pod는 사용자별로 하나의 논리적 에이전트 실행 환경을 제공한다. CPU·메모리 제한값, 최대 Pod 수와 상시 실행 여부는 실측 후 확정한다. 처음에는 단순한 상시 실행을 후보로 두고, 유휴 중지는 시작 지연과 예약 실행 복구가 검증된 뒤 검토한다.
+**개인화 상태는 계속 보관하고, 실행 Pod는 사용 중일 때만 켜는 방식을 기본 설계로 둔다.** 유료의 전용성은 사용자 전용 데이터와 실행 경계를 뜻한다. 상시 실행·즉시 응답·전용 GPU를 요금제 조건으로 약속하지 않는다. 무료도 계정별 기억·스킬은 보존하며 기본 기능은 같다.
 
-예시 출발값은 `requests: CPU 250m / RAM 512Mi`, `limits: CPU 1 / RAM 2Gi`이다. 이는 보장 사양이나 검증된 최소 사양이 아니다. 브라우저·문서 생성은 별도 제한된 Worker로 보내고 그 비용도 사용자 사용량에 포함한다.
+앱에서 등록하는 `Assistant`와 인프라의 `AgentRuntime`을 분리한다. 초기 제안은 사용자당 전용 runtime 하나, 실행 Pod 최대 하나이며 여러 논리적 비서의 작업은 직렬 처리한다. 비서를 추가할 때마다 Pod를 하나씩 만드는 구조는 피한다. 비서별 역할·대화·스킬 참조를 `assistant_id`로 구분하고 Hermes profile 매핑은 A-03에서 검증한다. 같은 home에 여러 Hermes 프로세스가 동시에 쓰지 않게 한다. Hermes 공식 문서도 profile을 별도의 home으로 설명하고 동시 작성자를 피하도록 안내한다. [Hermes profiles](https://hermes-agent.nousresearch.com/docs/user-guide/profiles/).
 
-Kubernetes에서 CPU limit는 실행을 제한하고, 메모리 limit 초과는 종료를 일으킬 수 있다. 따라서 작업 상태와 데이터는 Pod 메모리에만 두지 않는다. [Kubernetes 자원 관리](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
+CPU·메모리 한도, 최대 활성 사용자 수는 실측 후 정한다. 출발 예시는 `requests: CPU 250m / RAM 512Mi`, `limits: CPU 1 / RAM 2Gi`이며 검증된 최소 사양이 아니다. 브라우저·파일 처리는 별도 제한된 Worker로 보내고 비용을 사용자 사용량에 포함한다. CPU·메모리·디스크 한도를 각각 적용하며 작업 상태는 메모리에만 두지 않는다.
 
-Pod별 home/PVC, 서비스 인증, 최소 권한, 비특권 실행, 기본 차단 NetworkPolicy를 함께 설계한다. 일반 Pod는 커널을 공유하므로 임의 생성 코드를 적대적인 워크로드까지 포함해 강하게 격리해야 하면 추가 sandbox가 필요하다. Namespace나 CPU 제한만으로 사용자 데이터 접근이 차단되지는 않는다. [Kubernetes 멀티테넌시](https://kubernetes.io/docs/concepts/security/multi-tenancy/).
+Pod별 home/PVC, 서비스 인증, 비특권 실행, 최소 권한과 기본 차단 NetworkPolicy를 둔다. 임의 코드가 필요한 경우 별도 sandbox를 검증한다. 에이전트에 Kubernetes 관리 권한을 주지 않고, 별도 Runtime Controller만 허용된 사용자 workload의 생성·scale·상태 확인 권한을 가진다.
 
-제품 트래픽을 처리하는 에이전트에는 Kubernetes 관리 권한을 주지 않는다. 별도 제어 프로세스가 요금제 상태를 읽고 Pod 생성·준비 확인·복구를 담당한다.
+### 유휴 중지와 콜드 스타트
+
+여기서 **scale-to-zero**는 유휴 Pod를 0개로 줄이는 정책이고, **cold start**는 다음 요청 때 새 Pod를 띄워 준비하는 과정이다. 프로세스 메모리를 얼렸다 그대로 복원하는 기능을 뜻하지 않는다. 메모리의 미완료 추론을 보존한다고 가정하지 않고, 저장된 작업·세션·도구 결과에서 재개 가능한 지점을 확인한다.
+
+| 구성요소 | 유휴 시 정책 | 깨우는 조건 |
+| --- | --- | --- |
+| 유료 Hermes 실행 Pod | 사용자별 0개, 활성 시 1개 | 인증된 AI 요청, 유효한 후속 답변·승인, AI 예약 작업 |
+| 사용자 home / PVC | 유지, Pod 종료와 삭제 수명주기 분리 | 같은 저장 공간을 재연결 |
+| DB·파일·예약·위젯 snapshot | 유지 | 조회는 Mori API/Worker가 처리 |
+| API·스케줄러·Runtime Controller | 서버 운영 시간 동안 상시 가동 | Pod가 없는 상태에서도 요청을 접수하고 깨울 수 있어야 함 |
+| 공용 GPU 추론 서버 | 초기에는 모델을 적재한 상태 유지 | 사용자 Pod마다 모델을 다시 적재하지 않음 |
+
+이 정책이 줄이는 것은 유휴 Hermes 프로세스의 CPU·RAM 점유다. 영속 저장소, Kubernetes·DB 등의 기본 자원과 공용 GPU의 전력·VRAM까지 0으로 만들지는 않는다. GPU 자체 유휴 종료는 전체 사용자의 재적재 지연을 측정한 뒤 별도 결정한다.
+
+Kubernetes 실행 방식의 첫 후보는 사용자별 Deployment의 `replicas: 0/1`, 내부 Service, 독립적으로 관리하는 PVC다. 이미지 digest와 의존성을 고정해 미리 준비하며 부팅마다 패키지를 설치하지 않는다. Controller만 replica 수를 조절하고 배포 도구나 별도 autoscaler가 이를 덮어쓰지 않게 한다. [Deployment scaling](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#scaling-a-deployment).
+
+#### 실행 상태와 요청 경로
+
+아래는 Mori가 관리하는 runtime 상태이며 Kubernetes Pod phase와 별개다. 공통 업무 작업 상태와도 분리한다.
+
+```mermaid
+stateDiagram-v2
+    [*] --> sleeping
+    sleeping --> starting: AI 작업 접수 / 예약 사전 준비
+    starting --> ready: 준비 확인
+    ready --> busy: 작업 lease 획득
+    busy --> ready: 완료 / 저장 가능한 대기 지점
+    ready --> draining: 유휴 조건 충족
+    draining --> sleeping: 종료와 볼륨 연결 해제 확인
+    starting --> failed: 준비 기한 초과 / 시작 실패
+    busy --> failed: 실행 환경 장애
+    draining --> failed: 종료 확인 실패
+    failed --> starting: 재시도 허용 / 이전 실행 종료 확인
+```
+
+1. API가 인증·요금제·입력·멱등 키를 확인해 DB에 작업과 outbox를 저장한다. 긴 HTTP 연결로 기동을 기다리게 하지 않고 `202 Accepted`와 `run_id`를 반환한다.
+2. 단순 기록·일정·위젯 조회는 도메인 API에서 끝낸다. 앱 진입, health check, 상태 polling, 열린 SSE 연결만으로 Pod를 깨우거나 유휴 시간을 연장하지 않는다.
+3. Dispatcher가 AI 작업의 사용자 runtime을 조회한다. `sleeping`이면 사용자 단위 잠금/lease와 generation을 사용해 깨우기를 한 번만 요청한다. 동시 요청은 같은 기동 결과를 기다린다.
+4. Controller는 전역 활성 Pod·동시 기동 상한, CPU·RAM 여유와 GPU 대기열을 확인한 뒤 생성한다. 부족하면 DB 큐에서 기다리고 대기 기한·취소·사용자별 공정성을 적용한다. 무제한 등록을 무제한 동시 기동으로 해석하지 않는다.
+5. 사용자 볼륨 연결, Hermes 설정·버전·실행 API의 준비를 확인한다. startup/readiness probe의 실제 경로는 고정한 Hermes 버전 또는 Adapter로 검증한다. liveness는 외부 GPU 지연만으로 Pod를 반복 재시작하지 않게 분리한다. [Kubernetes probes](https://kubernetes.io/docs/concepts/workloads/pods/probes/).
+6. Dispatcher가 유효한 runtime generation과 작업 lease를 다시 확인해 작업을 전달한다. 앱에는 `run.status=queued`와 `wait_reason=agent_starting` 또는 `capacity`를 전달하고, 업무 실행이 시작될 때 `running`으로 바꾼다.
+7. 사용자 입력·승인 대기 중에는 continuation과 필요한 도구 결과를 저장한 경우에만 Pod를 내려도 된다. 선택한 Hermes API가 안전한 중단·재개를 지원하는지 먼저 검증한다. 불가능하면 해당 대기 작업을 기한까지 유지하거나 명시적인 실패로 종료하며, 실행 중인 추론을 조용히 버리지 않는다.
+
+#### 안전하게 중지하기
+
+유휴 판단은 최근 화면 조작 시각이 아니라 **실행 중인 작업·도구·파일 쓰기·외부 결과 대기와 예약 사전 준비 유무**를 기준으로 한다. CPU가 낮거나 사용자가 앱을 닫았다는 이유만으로 중지하지 않는다.
+
+- 마지막 실제 작업 완료 후 유휴 시간이 지나고, 미전달 AI 작업·실행 lease·필요한 사전 준비가 없을 때 중지 후보가 된다.
+- Controller가 원자적으로 `draining`으로 전환하면 새 dispatch를 차단한다. 동시에 도착한 요청은 DB 큐에 남기고 기존 Pod 종료를 확인한 뒤 한 번만 재기동한다.
+- 세션·스킬·메모리 기록을 마무리하고 정상 종료를 요청한다. `terminationGracePeriodSeconds`는 flush 시간을 측정해 정한다. Kubernetes의 종료 유예가 만료되면 강제 종료될 수 있으므로 안전성은 lease·멱등성·외부 효과 대조로 보완한다. [Pod termination](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination).
+- PVC는 독립 자원으로 유지하고 유휴 중지 때 삭제하지 않는다. 재부착·Pod 재생성 시험과 백업 복원을 각각 수행한다. `ReadWriteOnce`만으로 같은 노드의 단일 작성자를 보장한다고 가정하지 않는다. 지원 CSI에서는 `ReadWriteOncePod`를 검토한다. [Persistent volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#access-modes).
+- 업데이트에는 `Recreate`를 우선 검토하되, 이것만으로 장애·수동 삭제 시의 중복 실행이 해결되지는 않는다. generation 검증은 오래된 실행의 도구 호출을 거부하고, home의 동시 쓰기는 이전 프로세스 종료·볼륨 해제 확인으로 막는다. 노드 단절 등으로 종료가 불명확하면 새 작성자를 띄우지 않고 복구 대기로 둔다.
+- Controller가 재시작하면 DB의 의도와 실제 Pod/lease 상태를 대조한다. 타임아웃 후 늦게 준비된 Pod, 취소된 요청, 종료 실패를 수습하며 `starting`에 영구 정체되지 않게 한다.
+
+#### 예약 작업과 사전 준비
+
+일정과 cron의 소유자는 계속 Mori 스케줄러다. 사용자 Pod에 타이머를 넣지 않는다. 주차 표시·기존 일정 알림은 Pod가 없는 상태에서도 처리한다.
+
+AI가 필요한 코스피 정기 브리핑·검색·개인 스킬은 실행 예정 시각보다 먼저 Pod를 준비하는 **prewarm**을 사용한다. `prewarm_at = scheduled_at - 준비 여유 시간`으로 계산하고, 여유 시간은 cold-start p95와 변동 폭을 측정해 조정한다. 미리 깨운 Pod는 해당 회차까지 유지하되 예약 취소·변경·만료 시 유지 사유를 해제한다. 검색 등 실제 업무는 예정 시각 전에 실행하지 않는다.
+
+‘09:30에 검색 시작’과 ‘09:30까지 결과 전달’은 다른 약속이다. `scheduled_at`은 작업 시작 예정 시각, `delivery_deadline`은 결과가 필요한 시각으로 구분한다. 사용자가 결과 도착 시각을 지정했다면 검색·추론·파일 생성 시간을 고려해 시작 시각을 산정하고, 해석이 모호하면 필요한 것만 확인한다. 정확한 전달 보장은 전체 처리 시간을 측정한 뒤 결정한다. 같은 시각 요청이 몰리면 기동을 분산하되, 실행 지연을 숨기지 않고 허용 지연 초과 시 작업별 건너뛰기·실패 정책을 적용한다.
+
+사전 준비 중복과 실제 실행 중복은 별개로 막는다. 동일 사용자 기동은 하나로 합치고, 예약 회차는 `automation_id + scheduled_at`로 식별해 작업을 한 번 생성한다. 전용 환경 시작 실패를 이유로 사용자 상태를 공용 Hermes에 자동 연결하지 않는다.
+
+#### 초기 구현과 조정할 값
+
+처음에는 DB 작업 큐와 작은 Runtime Controller를 사용한다. HTTP 트래픽만으로는 승인 대기·예약·도구 실행 여부를 알 수 없기 때문이다. KEDA/Knative 도입은 규모가 커질 때 비교한다. KEDA HTTP Add-on에는 0개인 backend가 준비될 때까지 요청을 보관하는 기능이 있으나, Mori의 작업 영속성·사용자 격리·단일 작성자까지 대신하지는 않는다. [KEDA cold-start 처리](https://keda.sh/http-add-on/0.15/user-guide/configure-cold-start/).
+
+| 항목 | 시작 제안 / 결정 기준 |
+| --- | --- |
+| 유휴 중지 | 마지막 작업 완료 후 10분을 실험 시작값으로 두고 5·10·30분을 비교. 확정 요금제 조건 아님 |
+| 준비 기한·종료 유예 | 이미지 캐시 유무, 볼륨 연결, Hermes 복원 시간을 측정해 설정. 무한 대기는 금지 |
+| 사전 준비 여유 | cold-start p95 + 여유 시간. 예약 회차에 연결하고 지나친 조기 기동 제한 |
+| 작업/큐 기한 | 작업 종류별 대기·실행·허용 지연과 취소 정책을 분리 |
+| 활성 Pod·동시 기동 수 | 호스트 메모리·CPU와 GPU 큐 부하를 기준으로 전역 상한 설정 |
+| 대화 사용감 | 같은 대화의 연속 요청은 warm 상태 재사용. 마지막 완료 후 유휴 시간부터 다시 계산 |
+
+A-05에서는 warm/cold 시작 p50·p95, 이미지 미캐시·재부착 시간, 준비 실패율, 유휴 메모리 감소, 사용자 대기·예약 지연을 함께 측정한다. runtime 준비 시간과 LLM 첫 응답 시간을 분리한다. 이 결과 없이 ‘몇 초 안에 항상 응답’이나 절감률을 약속하지 않는다.
 
 ## 3. RTX 3090과 모델 운영
 
@@ -117,11 +199,11 @@ Hermes에도 자체 cron이 있다. 다만 제품 예약 작업을 Mori와 Herme
 - 모듈을 구분한 단일 백엔드 코드베이스와 API/Worker 실행 프로세스.
 - PostgreSQL, 제한된 Hermes 실행기, 공용 모델 서버, 음성 인식 경로.
 - 초기에는 DB 기반 작업 큐와 로컬 파일 저장소로 운영하고, 서비스와 파일 저장 인터페이스를 분리한다.
-- 컨테이너 실행 구성을 사용하되 유료 Pod 제어와 대규모 클러스터를 먼저 구축하지 않는다.
+- 컨테이너 실행 구성으로 시작하고 DB 큐·runtime 상태·요청 시 시작·유휴 중지 계약을 먼저 검증한다. P1의 소규모 기동 실험과 P4의 유료 운영을 구분하며, 대규모 클러스터는 선행 구축하지 않는다.
 
 ### 유료 제공 전
 
-- 단일 노드 Kubernetes/k3s 등을 후보로 사용자별 Pod·볼륨·자원 제한을 구현한다.
+- 단일 노드 Kubernetes/k3s 등을 후보로 사용자별 Pod 0/1·독립 PVC·Runtime Controller·기동/종료 한도·자원 제한을 구현한다. A-05의 재개·중복 방지 시험을 통과해야 유료 제공한다.
 - 모델 서버는 별도 프로세스/컨테이너로 유지할 수 있다. 클러스터 내부 편입은 운영 이점이 있을 때 선택한다.
 - 무료/유료 전환에서 사용자 저장 공간의 동시 쓰기를 막고, 작업을 잠시 비운 뒤 라우팅을 원자적으로 전환한다.
 - 실패하면 이전 라우팅을 유지하며, 이전·해지 과정에서 데이터가 바로 삭제되지 않게 한다. 보관 정책은 별도 확정한다.
@@ -134,6 +216,8 @@ Hermes에도 자체 cron이 있다. 다만 제품 예약 작업을 Mori와 Herme
 | --- | --- |
 | GPU 추론 장애 | 기존 기록·캘린더 조회와 이미 등록된 단순 알림은 CPU 서비스가 살아 있으면 유지. AI 요청은 대기/실패 상태를 표시한다. |
 | Hermes Pod 재시작 | DB의 작업과 영속 home을 기준으로 복구. 외부 작업을 무조건 반복하지 않는다. |
+| 사용자 Pod 유휴 중지 | 정상 상태로 취급. 조회는 API로 제공하고 AI 요청만 준비 대기로 전환한다. |
+| 시작 실패·전역 자원 부족 | 입력과 run_id를 보존하고 재시도 가능 여부·기한을 표시. 무한 기동이나 공용 환경으로의 임의 전환 금지 |
 | 집 서버/전원/인터넷 전체 장애 | 서버 기능과 새 전송은 중단된다. 휴대폰은 캐시된 카드와 미리 받은 일정 범위만 표시한다. |
 | DB 장애 | 완료를 가장하지 않고 저장 실패를 표시. 재시도와 백업 복원을 준비한다. |
 | 알림 전달 지연 | 서버 발송 성공과 기기 수신·표시를 구분하고 실행 이력에 남긴다. |
@@ -153,3 +237,16 @@ Mori DB와 Hermes home은 용도가 다르므로 함께 백업한다. DB는 제�
 - CPU·메모리·디스크 제한 초과가 다른 사용자의 상태를 손상시키지 않는다.
 - 무료 ↔ 유료 전환 후 동일한 기억·스킬·예약이 이어지고 실행 주체는 하나다.
 - 서버 전체 장애와 복구 시 미실행 작업의 처리 정책이 확인된다.
+
+### 유휴 중지·재기동 인수 시나리오
+
+- 동일 사용자에게 요청 여러 개가 동시에 들어와도 Pod 1개·유효 작성자 1개만 실행된다.
+- idle 중지 판정과 새 요청이 경합해도 요청이 유실되지 않고 같은 업무 효과가 중복되지 않는다.
+- 긴 검색·파일 생성·도구 응답 대기·저장 미완료 때 중지되지 않는다. 저장된 승인 대기는 재기동 후 이어진다.
+- Pod 0개에서 앱 주차 조회·위젯 snapshot·일반 일정 알림이 동작하고 polling이 Pod를 깨우지 않는다.
+- 예약 prewarm과 직접 요청이 겹쳐도 한 번 기동하며 예약 취소·시간 변경·전원 장애 후 정책대로 처리된다.
+- 시작 실패, 이미지 미캐시, 볼륨 재부착 실패, 강제 종료, Controller 재시작에서 기한 내 상태가 정리된다.
+- 재기동 뒤 대화·개인 스킬·설정·원본/결과 파일이 같고, 다른 사용자의 데이터가 연결되지 않는다.
+- scale-to-zero·업데이트·무료↔유료 전환·해지 작업이 경합해도 실행 generation과 저장 공간의 단일 작성자를 유지한다.
+
+2026-09-17 공식 자료를 확인해 콜드 스타트 관련 근거를 추가했다. 위 상태 모델·API·Controller·시간 값은 Mori 설계 제안이며 아직 배포·측정하지 않았다.
