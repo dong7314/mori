@@ -4,6 +4,17 @@
 
 갱신일: 2026-09-17 · 백엔드와 인프라 구현은 AI 담당이다. 제품 클라이언트는 휴대폰·태블릿 앱이다. 아래 API와 데이터 구조는 Mori의 제안 계약이며 Hermes에 이미 존재하는 API나 확정 스키마를 뜻하지 않는다.
 
+### 현재 `master` 구현 범위 — 2026-09-17
+
+| 영역 | 구현된 내용 | 아직 없는 내용 |
+| --- | --- | --- |
+| 인증·계정 | FastAPI·PostgreSQL, 네이버·카카오 소셜 가입/로그인, 일회용 코드 교환, 세션 갱신·로그아웃, `GET /v1/me` | 제품 앱의 기기 로그인 검증, 일반 대화·기억·설정 API |
+| 주차 | 인증된 계정의 `POST /v1/parking-records`, `GET /v1/parking-records/latest`, 재전송 멱등 키와 사용자별 격리 | 자연어 해석 도구 연결, 기록 수정·삭제, 습관 감지·OS 위젯 |
+| 등급 | 최고 관리자 CLI 역할 지정, Pro 승인·회수 API와 변경 이력. 기본 등급 Free | 결제·구독, 비서/위젯 등록·집계·한도, Pro 전용 실행 환경 |
+| 운영 | Alembic 마이그레이션, OpenAPI, Docker Compose·k3s 배포 예시, PostgreSQL 통합 테스트 코드 | 운영 배포·부하 실측, Hermes/LLM/STT, DB 작업 큐·스케줄러·Runtime Controller |
+
+기준 커밋은 `master` `bfadecf`다. 2026-09-17 상태 점검에서는 Docker 엔진과 `uv`를 사용할 수 없어 PostgreSQL 통합 테스트를 재실행하지 못했다. 따라서 아래 설계 계약을 모두 구현된 API로 읽지 않는다.
+
 ## 1. 책임 분리
 
 | 모듈 | 책임 |
@@ -151,6 +162,8 @@ DB 조회의 사용자 범위와 행 수준 접근 제어를 함께 검토한다
 ## 8. 프론트에 제공할 API 초안
 
 모든 요청은 서버 인증 문맥으로 사용자를 결정한다. 경로의 UUID를 안다는 것만으로 다른 사용자의 데이터에 접근할 수 없어야 한다. 변경 요청에는 멱등 키와 필요 시 버전 조건을 사용한다.
+
+현재 `master`에 있는 공개 경로는 `/health/live`, `/health/ready`, `/v1/auth/providers`, `/v1/auth/{provider}/login`, `/v1/auth/{provider}/callback`, `/v1/auth/exchange`, `/v1/auth/refresh`, `/v1/auth/logout`, `/v1/me`, 주차 저장·최신 조회, 최고 관리자용 `/v1/admin/users` 목록·Pro 승인/회수·권한 이력이다. 아래 나머지는 구현 순서를 논의하기 위한 초안이다. `GET /v1/me`는 구현됐지만 `PATCH /v1/me/preferences`는 아직 없다.
 
 | API | 용도 |
 | --- | --- |
