@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 190" fill="none" role="img" aria-label="새싹 비서 모리">
+      <ellipse cx="187" cy="165" rx="91" ry="9" fill="#aebca4" opacity=".23"/>
+      <path d="M106 100c0-31 19-63 54-63 12 0 21 4 29 12 7-5 16-8 25-8 32 0 52 26 52 56v37c0 21-17 33-41 33h-81c-26 0-38-14-38-34v-33Z" fill="#f9fbef"/>
+      <path d="M182 48c-14-12-14-31-4-35 13-4 18 17 4 35Z" fill="#839c6e"/>
+      <path d="M182 49c2-20 16-30 28-23 8 8-9 24-28 23Z" fill="#adc49a"/>
+      <path d="M159 102v7m47-7v7" stroke="#425545" stroke-width="6" stroke-linecap="round"/>
+      <path d="M174 119c4 5 11 5 15 0" stroke="#425545" stroke-width="3" stroke-linecap="round"/>
+      <ellipse cx="148" cy="119" rx="10" ry="5" fill="#eebbb0" opacity=".65"/><ellipse cx="218" cy="119" rx="10" ry="5" fill="#eebbb0" opacity=".65"/>
+      <path d="M110 118c-15-8-26-2-20 7l22 10m149-23c19-17 30-10 20 2l-20 15" fill="#f9fbef"/>
+      <rect x="54" y="52" width="57" height="45" rx="11" fill="white" transform="rotate(-13 54 52)"/>
+      <path d="m72 71 7 6 12-18" stroke="#719b76" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="m274 43 2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6Z" fill="#bca46f"/>
+      <circle cx="88" cy="133" r="3" fill="#abb99f"/><circle cx="291" cy="91" r="4" fill="#c7d5bd"/>
+    </svg>
