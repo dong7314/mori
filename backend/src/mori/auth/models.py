@@ -9,9 +9,15 @@ from mori.database import Base
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("tier IN ('free', 'pro')", name="ck_user_tier"),
+        CheckConstraint("role IN ('user', 'super_admin')", name="ck_user_role"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     display_name: Mapped[str] = mapped_column(String(80))
+    tier: Mapped[str] = mapped_column(String(16), default="free", server_default="free")
+    role: Mapped[str] = mapped_column(String(16), default="user", server_default="user")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

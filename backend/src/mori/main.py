@@ -20,6 +20,8 @@ from mori.auth.router import router as auth_router
 from mori.config import Settings
 from mori.database import DatabaseSession, build_engine, build_session_factory
 from mori.errors import ErrorResponse, register_error_handlers
+from mori.membership.models import AccessChange
+from mori.membership.router import router as membership_router
 from mori.parking.models import ParkingRecord
 from mori.parking.router import router as parking_router
 
@@ -41,8 +43,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Mori API",
-        version="0.2.0",
-        description="네이버·카카오 소셜 가입과 사용자별 주차 기록 저장·조회",
+        version="0.3.0",
+        description="소셜 가입, 최고 관리자 승인 기반 프로 권한, 사용자별 주차 기록 저장·조회",
         lifespan=lifespan,
     )
     app.state.session_factory = build_session_factory(engine)
@@ -66,6 +68,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(parking_router)
     app.include_router(auth_router)
     app.include_router(profile_router)
+    app.include_router(membership_router)
 
     @app.get("/health/live", response_model=HealthStatus, tags=["health"])
     def live() -> HealthStatus:
@@ -79,11 +82,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     def ready(session: DatabaseSession, response: Response) -> HealthStatus:
         # Check schema availability, not just whether a database accepts connections.
-        session.execute(select(User.id).limit(0))
+        session.execute(select(User).limit(0))
         session.execute(select(AccessToken.id).limit(0))
         session.execute(select(ParkingRecord.id).limit(0))
         for model in (SocialIdentity, AuthSession, OAuthFlow, LoginGrant, RefreshToken):
             session.execute(select(model).limit(0))
+        session.execute(select(AccessChange).limit(0))
         response.headers["Cache-Control"] = "no-store"
         return HealthStatus(status="ready")
 

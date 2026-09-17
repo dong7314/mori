@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, SecretStr, StringConstraints
 
+from mori.membership.types import AccountRole, AccountTier
+
 
 class Provider(StrEnum):
     NAVER = "naver"
@@ -41,6 +43,8 @@ class MeResponse(BaseModel):
     id: UUID
     display_name: str
     providers: list[Provider]
+    tier: AccountTier
+    role: AccountRole
 
 
 class ProviderAvailability(BaseModel):

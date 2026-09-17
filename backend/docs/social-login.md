@@ -107,7 +107,9 @@ S256 검증은 **Mori가 앱에 전달하는 교환 코드**를 원래 클라이
 | `GET /v1/auth/providers` | 없음 | `[{"provider":"naver","enabled":true}, ...]` |
 | `POST /v1/auth/refresh` | `{"refresh_token":"mori_rt_..."}` | 새 토큰 쌍; 기존 갱신 토큰 사용 완료 처리 |
 | `POST /v1/auth/logout` | Mori Bearer 액세스 토큰 | 현재 기기 세션 폐기, `204` |
-| `GET /v1/me` | Mori Bearer 액세스 토큰 | `{"id":"UUID","display_name":"이름","providers":["naver"]}` |
+| `GET /v1/me` | Mori Bearer 액세스 토큰 | `{"id":"UUID","display_name":"이름","providers":["naver"],"tier":"free","role":"user"}` |
+
+가입 시 기본 등급은 `free`, 역할은 `user`다. 소셜 로그인 요청으로 등급이나 관리자 역할을 지정할 수 없다. `pro`는 최고 관리자 승인으로만 부여한다. 재로그인은 기존 계정의 등급·역할을 유지한다. [프로 승인·관리자 설정](pro-access.md)을 참고한다.
 
 기존 액세스 토큰은 갱신 후에도 자신의 만료 시각까지 유효하다. 세션이 폐기되면 그 세션의 모든 액세스·갱신 토큰이 즉시 인증에 실패한다. 갱신해도 로그인 시 정한 세션 종료 시각은 늘어나지 않는다. 다른 기기 세션은 유지한다. 로그아웃은 Mori 세션 종료이며 소셜 제공자 로그아웃·연결 해제·회원 탈퇴를 수행하지 않는다.
 

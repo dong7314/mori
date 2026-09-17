@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
 from urllib.parse import parse_qs, urlsplit
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -28,6 +28,9 @@ from mori.auth.providers import get_provider_client
 from mori.cli import main
 from mori.config import Settings
 from mori.main import create_app
+from mori.membership.schemas import AccessDecision
+from mori.membership.service import change_pro_access, set_super_admin
+from mori.membership.types import AccountTier
 
 
 class ProviderStub:
@@ -171,6 +174,7 @@ def test_full_social_signup_login_and_parking(client, provider_stub, sessions, p
     assert pair_response.headers["Cache-Control"] == "no-store"
     me = client.get("/v1/me", headers=auth(pair))
     assert me.status_code == 200 and me.json()["providers"] == [provider]
+    assert me.json()["tier"] == "free" and me.json()["role"] == "user"
     saved = client.post(
         "/v1/parking-records",
         headers={**auth(pair), "Idempotency-Key": str(uuid4())},
@@ -586,3 +590,28 @@ def test_startup_validation_error_does_not_print_oauth_secrets(database_url):
         )
     assert "sensitive-naver-secret" not in str(error.value)
     assert "sensitive-kakao-secret" not in str(error.value)
+
+
+@pytest.mark.parametrize("provider", ["naver", "kakao"])
+def test_relogin_keeps_admin_approved_pro_access(client, provider_stub, sessions, provider):
+    operator = signin(client, provider, subject="operator")
+    member = signin(client, provider)
+    operator_id = client.get("/v1/me", headers=auth(operator)).json()["id"]
+    member_id = client.get("/v1/me", headers=auth(member)).json()["id"]
+    with sessions() as session:
+        set_super_admin(
+            session,
+            UUID(operator_id),
+            enabled=True,
+            decision=AccessDecision(reason="운영 관리자 지정"),
+        )
+        change_pro_access(
+            session,
+            UUID(operator_id),
+            UUID(member_id),
+            AccountTier.PRO,
+            AccessDecision(reason="프로 승인"),
+        )
+    second_login = signin(client, provider)
+    me = client.get("/v1/me", headers=auth(second_login)).json()
+    assert me["id"] == member_id and me["tier"] == "pro" and me["role"] == "user"

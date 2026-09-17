@@ -5,6 +5,7 @@ from alembic import context
 from mori.auth import models as auth_models  # noqa: F401
 from mori.config import Settings
 from mori.database import Base, build_engine
+from mori.membership import models as membership_models  # noqa: F401
 from mori.parking import models as parking_models  # noqa: F401
 
 config = context.config

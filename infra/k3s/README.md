@@ -30,7 +30,7 @@ MORI_KAKAO_CLIENT_SECRET=REPLACE_KAKAO_CLIENT_SECRET
 kubectl create namespace mori
 kubectl -n mori create secret generic mori-backend --from-env-file=backend/.env.production
 kubectl apply -f infra/k3s/migrate.yaml
-kubectl -n mori wait --for=condition=complete job/mori-migrate-0002 --timeout=120s
+kubectl -n mori wait --for=condition=complete job/mori-migrate-0003 --timeout=120s
 kubectl apply -f infra/k3s/backend.yaml
 kubectl -n mori rollout status deployment/mori-api
 kubectl -n mori port-forward service/mori-api 8000:8000
@@ -39,6 +39,8 @@ kubectl -n mori port-forward service/mori-api 8000:8000
 기존 Secret은 운영 환경의 Secret 관리 절차로 갱신한 뒤 Deployment를 재시작한다. 마이그레이션이 실패하면 새 API를 시작하지 않는다. 다음 릴리스는 Job 이름을 바꾸고 동시 마이그레이션을 실행하지 않는다. 모든 Pod의 시작 명령에 마이그레이션을 붙이지 않는다.
 
 `0002_social_login`은 기존 사용자·주차 기록을 보존하지만 신규 소셜 계정과 자동 연결하지 않는다. 이전 수동 사용자·토큰 발급 명령은 제거되었다. DB 백업과 인증 데이터는 Pod 수명과 분리한다.
+
+`0003_pro_access`는 기존 소셜 세션을 유지하며 모든 사용자에게 기본 무료 등급을 추가한다. 운영자가 먼저 소셜 가입한 다음 `/v1/me`의 ID로 `kubectl -n mori exec deployment/mori-api -- mori grant-super-admin --user-id <USER_UUID> --reason "최초 운영 관리자 지정"`을 실행한다. 이후 프로 승인은 최고 관리자 토큰으로 API에서 처리한다. [프로 승인 운영 문서](../../backend/docs/pro-access.md)를 참고한다.
 
 ## 운영 설정
 

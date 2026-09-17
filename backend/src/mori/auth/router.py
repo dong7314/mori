@@ -138,4 +138,10 @@ def me(auth: CurrentAuth, session: DatabaseSession):
         .where(SocialIdentity.user_id == auth.user.id)
         .order_by(SocialIdentity.provider)
     ).all()
-    return MeResponse(id=auth.user.id, display_name=auth.user.display_name, providers=providers)
+    return MeResponse(
+        id=auth.user.id,
+        display_name=auth.user.display_name,
+        providers=providers,
+        tier=auth.user.tier,
+        role=auth.user.role,
+    )
