@@ -2,7 +2,7 @@
 
 [전체 계획으로 돌아가기](../plan.md)
 
-갱신일: 2026-09-17 · 백엔드와 인프라 구현은 AI 담당이다. 제품 클라이언트는 휴대폰·태블릿 앱이다. 아래 API와 데이터 구조는 Mori의 제안 계약이며 Hermes에 이미 존재하는 API나 확정 스키마를 뜻하지 않는다.
+갱신일: 2026-09-20 · 백엔드와 인프라 구현은 AI 담당이다. 제품 클라이언트는 휴대폰·태블릿 앱이다. 아래 API와 데이터 구조는 Mori의 제안 계약이며 Hermes에 이미 존재하는 API나 확정 스키마를 뜻하지 않는다.
 
 ### 현재 `master` 구현 범위 — 2026-09-17
 
@@ -64,6 +64,8 @@
 
 Hermes의 공식 API를 내부에서 호출하는 Adapter를 둔다. 버전/이미지 digest를 고정하고, 사용할 실행·스트리밍·중단·세션 API를 해당 버전으로 검증한다. 프론트가 Hermes의 내부 응답 형식에 직접 의존하지 않도록 Mori 계약으로 변환한다. [Hermes API 문서](https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server).
 
+P1 공용 Gateway가 Knative Serving으로 전환되면 Adapter는 기존 Deployment Service가 아닌 클러스터 내부 Knative Route를 호출한다. 그 HTTP 요청이 공용 Pod를 0개에서 깨운다. Mori API·DB·예약 Worker는 상시 운영하며, 예약·장기 비동기 작업의 상태는 Knative 트래픽 지표가 아니라 Mori DB에서 관리한다. [공용 Hermes 설치·전환 절차](../architecture/knative-serving.md).
+
 초기 Mori 도구 후보:
 
 | 도구 | 역할 |
@@ -86,7 +88,7 @@ Hermes의 공식 API를 내부에서 호출하는 Adapter를 둔다. 버전/이�
 [아키텍처의 유휴 중지·재기동 설계](../architecture/plan.md#유휴-중지와-콜드-스타트)를 기준으로 한다. `AgentRun`은 사용자에게 맡은 일, `AgentRuntime`은 그 일을 실행할 환경이다. Pod가 없어도 run과 사용자 데이터는 존재한다.
 
 - runtime 상태는 `sleeping`, `starting`, `ready`, `busy`, `draining`, `failed`다. `sleeping`은 오류가 아니며, 무료 풀에서는 슬롯 할당 상태를 같은 앱용 대기 계약으로 변환한다.
-- API는 작업·outbox를 먼저 저장한다. Dispatcher는 사용자 단위 DB lease/잠금으로 깨우기를 합치고, Runtime Controller가 실제 Pod 수와 준비 상태를 맞춘다. 앱이 Kubernetes나 `/wake` 엔드포인트를 직접 호출하지 않는다.
+- API는 작업·outbox를 먼저 저장한다. 유료 사용자별 Pod에서는 Dispatcher가 사용자 단위 DB lease/잠금으로 깨우기를 합치고 Runtime Controller가 실제 Pod 수와 준비 상태를 맞춘다. P1 공용 Gateway에서는 내부 Knative Route로 실제 Hermes HTTP 요청을 보내 KPA가 깨우며, 비동기 작업의 완료까지 Pod가 살아 있어야 하는 경로는 별도 검증한다. 앱이 Kubernetes나 `/wake` 엔드포인트를 직접 호출하지 않는다.
 - 작업은 준비 전 `queued`다. `wait_reason`은 `agent_starting` 또는 `capacity` 등을 사용하고, 실제 업무 실행 때 `running`으로 전환한다. 준비 ETA는 관측값이 있을 때만 제공한다.
 - runtime의 `generation`, 작업의 실행 lease·시도 번호를 검증한다. 만료된 실행자의 도구 쓰기를 거부하고 외부 실행 결과가 불명확하면 조회·대조한 뒤 재시도한다. generation 검증만으로 파일 쓰기를 막을 수 없으므로 home의 단일 작성자 조건도 별도로 지킨다.
 - 중지 판단과 작업 배정은 원자적으로 조정한다. `draining`에는 새 작업을 배정하지 않으며, 처리·저장 중인 작업은 단순한 유휴 타이머로 종료하지 않는다.

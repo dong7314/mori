@@ -1,0 +1,78 @@
+# k3s의 공용 Hermes Gateway 콜드 스타트 — 설치·전환 절차
+
+[전체 계획](../plan.md) · [아키텍처](plan.md)
+
+갱신일: 2026-09-20 · 상태: **운영 절차 초안, 미설치·미검증**. 이 컴퓨터에서는 k3s 서버/worker 버전, 노드 자원, Traefik/ServiceLB 설정과 클러스터 접속을 확인하지 못했다. 아래 명령은 실제 클러스터에서 선행 조건을 확인한 뒤 실행한다.
+
+## 적용 범위와 위치
+
+- 미니 PC 1의 **k3s master/server에서 `sudo k3s kubectl`로 클러스터 전체에 Knative Serving을 설치**한다. 설치 명령을 master에서 실행한다고 모든 Pod가 master에서만 실행되는 것은 아니다.
+- 노트북 1의 k3s CPU worker에 공용 Hermes Gateway Pod를 배치한다. Pod는 HTTP 요청이 없으면 0개, 필요하면 최대 1개로 기동한다.
+- Mori API·PostgreSQL·예약/작업 Worker는 요청을 받을 수 있도록 계속 가동한다. Linux RTX 3090 eGPU 노트북의 llama.cpp `192.168.0.8:8080`도 k3s 밖에서 계속 가동한다. llama.cpp의 API 키는 k3s Secret으로 Hermes에만 제공한다.
+- Knative Serving의 controller, autoscaler, activator와 네트워크 구성요소는 설치 후 상시 자원을 사용한다. 절감 대상은 공용 Hermes 프로세스의 유휴 CPU·메모리다. Eventing은 HTTP 콜드 스타트에 필요하지 않다.
+- 이 절차는 **공용 Gateway P1 실험**이다. 유료 사용자별 Pod, 예약 사전 준비, 사용자 격리와 긴 비동기 작업의 수명주기는 [아키텍처](plan.md#유휴-중지와-콜드-스타트)의 별도 설계다.
+
+## 1. 설치 전 확인
+
+미니 PC 1에서 실행한다.
+
+```bash
+sudo k3s kubectl version
+sudo k3s kubectl get nodes -o wide
+sudo k3s kubectl get svc -A
+sudo k3s kubectl get pods -A
+sudo k3s kubectl -n mori get deploy,svc,pvc
+```
+
+2026-09-20 기준 지원 중인 Knative Serving `v1.23.0`의 **최소 Kubernetes 버전은 1.34**다. `kubectl` 클라이언트 버전만 보지 말고 `get nodes`의 server/worker Kubernetes 버전과 실제 API 서버 버전을 확인한다. 미달이면 k3s server와 worker 업그레이드·백업 계획을 먼저 세우고, 업그레이드 후 호환성을 다시 확인한다. 노트북 worker의 CPU·RAM·디스크와 상시 전원/절전 상태도 확인한다. [Knative 릴리스 표](https://github.com/knative/community/blob/main/mechanics/RELEASE-SCHEDULE.md), [설치 선행 조건](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/).
+
+k3s 기본 Traefik/ServiceLB가 이미 노드의 80/443 포트를 사용한다면, Kourier의 기본 `LoadBalancer` Service를 그대로 설치해 같은 포트를 점유시키지 않는다. 공용 Hermes는 클러스터 내부에서만 호출할 것이므로 **Kourier 설치 매니페스트의 gateway Service를 `ClusterIP`로 바꾼 뒤 적용**하는 안을 우선 검토한다. 기존 Traefik을 중단하거나 인터넷에 Hermes를 공개할 필요는 없다. Kourier 리소스 이름·포트·타입은 내려받은 해당 버전 매니페스트에서 확인하고, 변경본을 운영 설정으로 보관한다. [k3s 네트워킹](https://docs.k3s.io/networking/networking-services), [Kourier 구성](https://github.com/knative-extensions/net-kourier).
+
+## 2. Knative Serving 설치
+
+호환 버전과 자원을 확인한 뒤 미니 PC 1에서 Serving CRD → core → 네트워크 계층 순으로 적용한다. 아래 URL은 문서 작성 시점의 `v1.23.0` 예시이며 실제 설치 시 릴리스 호환성을 다시 확인한다.
+
+```bash
+sudo k3s kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.23.0/serving-crds.yaml
+sudo k3s kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.23.0/serving-core.yaml
+```
+
+Kourier `v1.23.0` 매니페스트는 [공식 설치 문서](https://knative.dev/docs/install/yaml-install/serving/install-serving-with-yaml/)의 URL에서 내려받아, 위 포트 점검 결과에 맞게 gateway Service를 `ClusterIP`로 수정한 후 적용한다. `metadata.namespace: kourier-system`의 gateway Service만 찾아 `spec.type: LoadBalancer`를 `ClusterIP`로 바꾸고, 다른 Service나 Deployment는 그대로 둔다. 이후 Kourier를 Serving의 네트워크 계층으로 지정한다.
+
+```bash
+curl -fL -o ./kourier-v1.23.0.cluster-local.yaml https://github.com/knative-extensions/net-kourier/releases/download/knative-v1.23.0/kourier.yaml
+# 파일의 kourier-system gateway Service를 검토하고 type을 ClusterIP로 수정
+sudo k3s kubectl apply -f ./kourier-v1.23.0.cluster-local.yaml
+sudo k3s kubectl patch configmap/config-network --namespace knative-serving --type merge --patch '{"data":{"ingress-class":"kourier.ingress.networking.knative.dev"}}'
+sudo k3s kubectl get pods -n knative-serving
+sudo k3s kubectl get pods,svc -n kourier-system
+```
+
+`./kourier-v1.23.0.cluster-local.yaml`은 공식 매니페스트를 내려받아 gateway Service를 검토·수정한 로컬 파일의 예시 이름이다. 설치 후 Serving controller/autoscaler/activator와 Kourier Pod가 Ready인지, Kourier Service가 의도한 `ClusterIP`인지 확인한다. Knative를 설치한 뒤에도 공용 Hermes는 아직 자동으로 콜드 스타트되지 않는다. 기존 Kubernetes `Deployment`를 Knative `Service`로 전환해야 한다.
+
+## 3. 기존 Hermes 매니페스트를 Knative Service로 전환
+
+`master/infra/k3s/hermes-shared.yaml`은 현재 **일반 Deployment `replicas: 1` + ClusterIP Service + `local-path` PVC** 예시다. 그대로 적용하면 상시 실행된다. 이 파일을 바로 Knative Service라고 간주하지 않는다.
+
+1. 기존 Gateway의 단일 요청과 `192.168.0.8:8080/v1` 연결을 먼저 검증한다. `/v1/models`의 실제 모델 ID로 `REPLACE_MODEL_ID`를 교체하고 API 키를 Secret에 넣는다. 이미지와 볼륨 백업·복구 방법도 확인한다.
+2. Knative Service는 예를 들어 `mori-hermes-knative`라는 **새 이름**으로 작성한다. 기존 Kubernetes Service `mori-hermes-shared`와 이름을 충돌시키지 않는다. `namespace: mori`, `networking.knative.dev/visibility: cluster-local`, KPA, `min-scale: "0"`, `max-scale: "1"`, `scale-down-delay: "10m"`를 사용한다. `containerPort: 8642`, `API_SERVER_HOST=0.0.0.0`, readiness 경로와 Secret 연결을 실제 Hermes 이미지에서 확인한다. [내부 Service](https://knative.dev/docs/serving/services/private-services/), [확장 범위와 지연](https://knative.dev/docs/serving/autoscaling/scale-bounds/).
+3. 기존 `nodeSelector: mori-agent: "true"`, `initContainers`, `fsGroup`, PVC 쓰기를 Knative Service에 옮길 경우 `knative-serving/config-features`에서 `kubernetes.podspec-nodeselector`, `kubernetes.podspec-init-containers`, `kubernetes.podspec-securitycontext`, `kubernetes.podspec-persistent-volume-claim`, `kubernetes.podspec-persistent-volume-write`를 허용해야 한다. 실제 매니페스트의 필드만 허용하고 적용 전에 admission 오류를 확인한다. [Serving 기능 플래그](https://knative.dev/docs/serving/configuration/feature-flags/), [PVC 지원](https://knative.dev/docs/serving/services/storage/).
+4. 기존 Deployment를 0개로 줄이고 **기존 Pod 종료와 home 기록 완료를 확인한 다음** 같은 PVC를 새 Knative Revision에 연결한다. `ReadWriteOnce`와 `max-scale: 1`만으로 기존 Deployment나 서로 다른 Revision의 동시 작성을 막을 수 없다. 새 Revision 배포 때도 old/new가 같은 home을 동시에 쓰지 않도록 유지보수 절차와 종료 확인이 필요하다. 초기 `local-path` PVC는 해당 worker에 묶이므로 다른 노드로 자동 이전된다고 가정하지 않는다.
+5. Mori Adapter의 Hermes 목적지를 기존 Service에서 `sudo k3s kubectl -n mori get ksvc mori-hermes-knative`에 표시되는 **클러스터 내부 Knative Route**로 바꾼다. Gateway 인증은 계속 적용한다. Knative Pod IP나 예전 Service로 직접 보내면 0개에서 깨우지 못한다. 실패 시 새 Route로 보내기를 중지하고 새 Pod 종료를 확인한 뒤 기존 Deployment를 1개로 복구한다.
+
+Knative는 **HTTP 트래픽**으로 확장한다. 빠른 `202 Accepted` 뒤에 Pod 안에서 오래 계속되는 작업, 예약 시각의 자체 타이머, 승인 대기, 장기 파일 작업을 Knative만으로 보호할 수 없다. 첫 검증은 HTTP 연결이 완료까지 유지되는 짧은 대화 요청으로 제한한다. 이후 DB에 저장된 작업과 실제 Pod 처리의 생명주기를 연결하고, 비동기 작업이 축소 전에 완료되거나 안전하게 재개됨을 확인한다. KPA의 유휴 10분은 이 검증을 대신하지 않는다. [Knative 요청 경로](https://knative.dev/docs/serving/request-flow/).
+
+## 4. 인수 확인
+
+```bash
+sudo k3s kubectl -n mori get ksvc,revision,pods
+sudo k3s kubectl -n mori get ksvc mori-hermes-knative
+```
+
+- Mori Adapter를 통한 인증된 짧은 대화 요청으로 Pod **0→1** 기동, 응답, llama.cpp 호출을 확인한다. 클러스터 내부 Route가 사용됐는지 확인한다.
+- 요청이 끝난 뒤 Pod **1→0**을 관찰한다. `scale-down-delay: 10m`는 즉시 종료 시각을 보장하는 값이 아니므로 실제 시간을 기록한다.
+- 0개 상태에서 다시 요청해 세션/home·기억이 보존되는지 확인한다. 콜드 스타트 p50/p95, 첫 토큰 시간, 실패율, PVC 재부착 시간, 유휴 전후 CPU·메모리를 기록한다.
+- Mori API의 주차/일정 조회와 예약 Worker가 Hermes Pod 0개일 때도 동작하는지 확인한다. GPU 노트북이 잠들거나 `8080` 접근이 끊겼을 때 AI 작업 실패와 기존 조회 경로를 구분한다.
+- 두 계정에서 profile·파일·도구 권한의 격리가 증명되기 전에는 공용 Gateway를 다중 사용자에게 열지 않는다.
+
+설치·전환 결과가 기록되기 전까지 이 문서는 실행 완료 보고가 아니다.

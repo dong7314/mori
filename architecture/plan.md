@@ -2,9 +2,9 @@
 
 [전체 계획으로 돌아가기](../plan.md)
 
-갱신일: 2026-09-17 · 상태: 앱 우선 방향과 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
+갱신일: 2026-09-20 · 상태: 앱 우선 방향, 공용 Hermes의 Knative Serving 콜드 스타트와 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
 
-`master` `bfadecf`에는 FastAPI·PostgreSQL API, Alembic 마이그레이션, 로컬 Docker Compose와 k3s 배포 예시가 있다. 실제 구현은 소셜 인증·Free/Pro 등급 승인·주차 기록까지다. 사용자는 GPU 노트북에서 llama.cpp를 이미 운영 중이라고 밝혔다. 아래 구조도의 Mori Worker, Hermes, 사용자별 Pod/PVC, 스케줄러와 Runtime Controller는 **설계 대상**이며 llama.cpp와의 연결·성능도 아직 검증하지 않았다. Pro 등급 변경이 전용 실행 환경 제공을 뜻하지 않는다.
+`master` `55652f6`에는 FastAPI·PostgreSQL API, Alembic 마이그레이션, 로컬 Docker Compose와 k3s 배포 예시, 공용 Hermes 일반 Deployment 초안이 있다. 실제 서비스 구현은 소셜 인증·Free/Pro 등급 승인·주차 기록까지다. 사용자는 GPU 노트북에서 llama.cpp를 이미 운영 중이라고 밝혔다. 아래 구조도의 Mori Worker, Hermes 실제 배포, Knative Serving, 사용자별 Pod/PVC, 스케줄러와 Runtime Controller는 **설계·검증 대상**이며 llama.cpp와의 연결·성능도 아직 검증하지 않았다. Pro 등급 변경이 전용 실행 환경 제공을 뜻하지 않는다.
 
 ## 현재 홈 네트워크와 배포 위치
 
@@ -29,8 +29,8 @@ GPU 노트북에는 ipTIME DHCP 예약 등으로 고정된 LAN 주소 또는 내
 초기 연결 순서는 다음과 같다.
 
 1. GPU 노트북의 기존 llama.cpp에서 `nvidia-smi`, `/health`, 인증된 `/v1/models`로 eGPU·모델 적재·실제 모델 ID를 확인한다. 현재 모델 ID와 컨텍스트 길이·동시 추론 설정은 아직 모른다. `/health`가 모델 적재 완료를 반환하는지 확인한다. 인증 키는 보호된 서비스 환경 파일 등에 두고 명령행 인자로 노출하지 않는다. [llama.cpp 서버](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md), [CUDA 컨테이너 이미지](https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md).
-2. k3s의 기존 CPU worker에 Hermes Gateway Pod와 내부 Service를 둔다. Hermes home은 재시작 뒤에도 유지되는 볼륨에 보관하고, 초기 로컬 볼륨을 쓰면 해당 노드에 고정하며 다른 노드로 자동 재배치된다고 가정하지 않는다. Hermes Pod에는 GPU를 요청하지 않는다.
-3. Hermes의 custom provider URL을 `http://192.168.0.8:8080/v1`로 설정하고, llama.cpp API 키와 `/v1/models`에서 확인한 모델 ID를 맞춘다. 비밀값은 Git이 아닌 운영 Secret에 둔다. Hermes API 서버는 내부 Service로만 제공하고 Mori Adapter만 호출한다. [Hermes 모델 제공자 설정](https://hermes-agent.nousresearch.com/docs/integrations/providers), [Hermes API 서버](https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server).
+2. k3s의 기존 CPU worker에 공용 Hermes Gateway를 둔다. `master`의 일반 Deployment 예시로 연결을 먼저 검증하고, 호환성 확인 뒤 Knative Service로 전환해 유휴 0개를 검증한다. Hermes home은 재시작 뒤에도 유지되는 볼륨에 보관하고, 초기 로컬 볼륨을 쓰면 해당 노드에 고정하며 다른 노드로 자동 재배치된다고 가정하지 않는다. Hermes Pod에는 GPU를 요청하지 않는다.
+3. Hermes의 custom provider URL을 `http://192.168.0.8:8080/v1`로 설정하고, llama.cpp API 키와 `/v1/models`에서 확인한 모델 ID를 맞춘다. 비밀값은 Git이 아닌 운영 Secret에 둔다. Hermes API 서버는 클러스터 내부에서만 제공하고 Mori Adapter만 호출한다. Knative 전환 뒤에는 Adapter가 Knative Route를 호출해야 0개에서 깨어난다. [Hermes 모델 제공자 설정](https://hermes-agent.nousresearch.com/docs/integrations/providers), [Hermes API 서버](https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server).
 4. Hermes Pod 안에서 GPU 서버의 `/health`·`/v1/models` 접근을 확인하고, Hermes 채팅 1회와 Mori 주차 도구 호출 1회를 검증한다. GPU 노트북 절전·재부팅·eGPU 분리 시 AI 작업은 대기/실패로 표시하되 기존 DB 조회는 유지한다.
 
 공용 Gateway의 사용자별 profile은 기억·세션·설정을 나누는 수단이다. 공식 문서상 profile 자체는 파일·터미널 접근의 보안 sandbox가 아니므로, 다중 사용자에게 열기 전 Mori 계정→profile 매핑, profile별 API 키, 도구 권한과 파일 실행 격리를 검증한다. 초기는 단일 사용자 또는 신뢰된 시험 계정으로 제한한다. [Hermes profile](https://hermes-agent.nousresearch.com/docs/user-guide/profiles/), [다중 profile Gateway](https://hermes-agent.nousresearch.com/docs/user-guide/multi-profile-gateways).
@@ -94,7 +94,7 @@ React 인앱 UI와 네이티브 기능을 브리지로 연결하는 방안을 �
 
 | 항목 | 무료 기본 사용자 | 유료 사용자 |
 | --- | --- | --- |
-| 실행 자원 | 제한된 공용 Worker/실행 슬롯을 나눠 쓴다. | 사용자 전용 실행 정의를 유지하고 Pod는 필요 시 0→1, 유휴 시 1→0으로 조절한다. |
+| 실행 자원 | P1에서는 Knative Serving으로 공용 Gateway Pod 0↔1을 검증한다. 다중 사용자용 도구 격리는 별도 Worker/실행 슬롯으로 검증한다. | 사용자 전용 실행 정의를 유지하고 Pod는 필요 시 0→1, 유휴 시 1→0으로 조절한다. |
 | Hermes 상태 | 사용자별 profile/home, 대화·기억·스킬 분리 | 사용자별 profile/home과 전용 영속 볼륨 |
 | LLM | 공용 추론 서버 | 같은 공용 추론 서버 |
 | 스케줄 | Mori 스케줄러가 필요 시 실행 요청 | Mori 스케줄러가 AI 작업 전에 깨우고, 준비된 전용 Pod로 실행 요청 |
@@ -106,13 +106,21 @@ React 인앱 UI와 네이티브 기능을 브리지로 연결하는 방안을 �
 
 하나의 Hermes 기본 홈과 프로세스를 모든 사용자에게 그대로 노출하는 구조는 채택하지 않는다. 공식 API 문서는 사용자별 config·memory·skills를 분리하기 위해 profiles를 안내한다. 세션 ID만 바꾸는 것으로 모든 저장 상태가 격리된다고 가정하지 않는다. [Hermes API 문서](https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server).
 
-초기 제안은 **공용 호스트/Worker가 요청 시 사용자별 격리 실행 환경을 시작하고, 그 사용자 저장 공간만 연결하는 방식**이다. 사용자마다 상시 전용 Pod를 유지하지 않으므로 자원을 공유할 수 있다. 격리 단위와 시작 비용은 A-03에서 검증한다.
+P1의 공용 Gateway 0↔1 검증은 단일 사용자 또는 신뢰된 시험 계정에서 수행한다. 무료 다중 사용자로 확장할 때에는 **공용 호스트/Worker가 요청 시 사용자별 격리 실행 환경을 시작하고, 그 사용자 저장 공간만 연결하는 방식**을 검증한다. Knative의 Pod 자동 확장만으로 사용자 간 도구·파일 격리가 생기지는 않는다. 격리 단위와 시작 비용은 A-03에서 검증한다.
 
 - 프로필 분리는 애플리케이션 상태 분리다. 임의 코드를 실행하는 환경의 보안 경계까지 보장하지는 않는다.
 - 파일·터미널·브라우저 실행은 해당 사용자 작업 공간만 볼 수 있는 제한된 컨테이너 등에서 수행한다.
 - 공용 프로세스에서 전역 환경 변수나 기본 홈을 요청마다 바꾸는 방식은 피한다.
 - 도구 접근은 백엔드가 발급한 사용자·작업 범위 인증으로 제한한다. 프롬프트의 ‘다른 사용자 데이터에 접근하지 말라’는 문구에 의존하지 않는다.
 - 격리가 검증되기 전에는 한 사람의 알파만 운영한다. 무료 다중 사용자 제공의 선행 조건으로 삼는다.
+
+### 공용 Hermes의 Knative Serving 콜드 스타트
+
+P1에서는 **공용 Hermes Gateway 한 개만** Knative Serving의 KPA로 유휴 0개·요청 시 최대 1개로 전환한다. Mori API·DB·예약 Worker는 계속 켜 두고, `192.168.0.8:8080`의 독립 llama.cpp도 그대로 운영한다. Knative Serving의 controller·autoscaler·activator·Kourier는 클러스터에 별도로 설치하는 공용 구성요소이므로, Hermes Pod가 0개가 되어도 이 구성요소의 자원 사용은 남는다. 설치 명령은 k3s master/server인 미니 PC 1에서 실행하지만 Hermes workload는 노트북 1의 worker에 배치한다.
+
+Mori Adapter는 인증과 작업 접수 후 **클러스터 내부 Knative Route**로 실제 Hermes HTTP 요청을 보낸다. 그 요청이 activator와 autoscaler를 거쳐 0개에서 Pod를 깨운다. 기존 일반 Deployment의 Service 주소를 계속 호출하거나 Pod IP를 직접 호출하면 이 경로를 검증할 수 없다. Knative Service는 `cluster-local`로 제한하고 외부에 Hermes API를 직접 공개하지 않는다. 첫 실험값은 KPA, `min-scale: "0"`, `max-scale: "1"`, `scale-down-delay: "10m"`이며 시작 시간·유휴 메모리·재기동 성공률을 실측해 조정한다.
+
+Knative의 확장 판단은 HTTP 트래픽을 기반으로 한다. `202`를 바로 반환하고 Pod 내부에서 장시간 작업을 계속하거나, 예약 시각·승인 대기·비동기 도구 실행만 존재하는 경우에는 HTTP 요청이 끝난 뒤 축소될 수 있다. 따라서 Mori DB 큐/Worker가 예약과 작업 상태를 소유하고, 긴 작업은 요청 연결을 유지하는 동기 호출부터 검증한다. 비동기 실행은 완료까지 활성 상태를 보장하는 별도 방식이나 안전한 continuation/재개를 검증한 뒤 허용한다. 사용자가 대시보드나 `GET /runs`를 조회하는 것만으로 Hermes를 깨우지 않는다. 자세한 설치 조건, k3s Traefik 포트 충돌과 기존 Deployment 전환 순서는 [Knative Serving 절차](knative-serving.md)에 둔다.
 
 ### 유료 Pod 운영과 등록 단위
 
@@ -130,15 +138,16 @@ Pod별 home/PVC, 서비스 인증, 비특권 실행, 최소 권한과 기본 차
 
 | 구성요소 | 유휴 시 정책 | 깨우는 조건 |
 | --- | --- | --- |
+| 공용 Hermes Gateway Pod | P1에서 Knative KPA로 0개, 요청 시 최대 1개 | 내부 Knative Route를 통과하는 실제 Hermes HTTP 요청 |
 | 유료 Hermes 실행 Pod | 사용자별 0개, 활성 시 1개 | 인증된 AI 요청, 유효한 후속 답변·승인, AI 예약 작업 |
 | 사용자 home / PVC | 유지, Pod 종료와 삭제 수명주기 분리 | 같은 저장 공간을 재연결 |
 | DB·파일·예약·위젯 snapshot | 유지 | 조회는 Mori API/Worker가 처리 |
-| API·스케줄러·Runtime Controller | 서버 운영 시간 동안 상시 가동 | Pod가 없는 상태에서도 요청을 접수하고 깨울 수 있어야 함 |
+| API·스케줄러·공용 Knative 구성요소·유료 Runtime Controller | 서버 운영 시간 동안 상시 가동 | Pod가 없는 상태에서도 요청을 접수하고 깨울 수 있어야 함 |
 | 공용 GPU 추론 서버 | 초기에는 모델을 적재한 상태 유지 | 사용자 Pod마다 모델을 다시 적재하지 않음 |
 
 이 정책이 줄이는 것은 유휴 Hermes 프로세스의 CPU·RAM 점유다. 영속 저장소, Kubernetes·DB 등의 기본 자원과 공용 GPU의 전력·VRAM까지 0으로 만들지는 않는다. GPU 자체 유휴 종료는 전체 사용자의 재적재 지연을 측정한 뒤 별도 결정한다.
 
-Kubernetes 실행 방식의 첫 후보는 사용자별 Deployment의 `replicas: 0/1`, 내부 Service, 독립적으로 관리하는 PVC다. 이미지 digest와 의존성을 고정해 미리 준비하며 부팅마다 패키지를 설치하지 않는다. Controller만 replica 수를 조절하고 배포 도구나 별도 autoscaler가 이를 덮어쓰지 않게 한다. [Deployment scaling](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#scaling-a-deployment).
+아래 실행 상태·요청 경로는 **유료 사용자별 Pod**의 Mori Controller 설계다. 첫 후보는 사용자별 Deployment의 `replicas: 0/1`, 내부 Service, 독립적으로 관리하는 PVC다. 이미지 digest와 의존성을 고정해 미리 준비하며 부팅마다 패키지를 설치하지 않는다. Controller만 replica 수를 조절하고 배포 도구나 별도 autoscaler가 이를 덮어쓰지 않게 한다. 공용 Gateway의 Knative KPA와는 별도 경로다. [Deployment scaling](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#scaling-a-deployment).
 
 #### 실행 상태와 요청 경로
 
@@ -190,7 +199,7 @@ AI가 필요한 코스피 정기 브리핑·검색·개인 스킬은 실행 예�
 
 #### 초기 구현과 조정할 값
 
-처음에는 DB 작업 큐와 작은 Runtime Controller를 사용한다. HTTP 트래픽만으로는 승인 대기·예약·도구 실행 여부를 알 수 없기 때문이다. KEDA/Knative 도입은 규모가 커질 때 비교한다. KEDA HTTP Add-on에는 0개인 backend가 준비될 때까지 요청을 보관하는 기능이 있으나, Mori의 작업 영속성·사용자 격리·단일 작성자까지 대신하지는 않는다. [KEDA cold-start 처리](https://keda.sh/http-add-on/0.15/user-guide/configure-cold-start/).
+공용 Gateway의 HTTP 콜드 스타트는 P1에서 Knative Serving으로 검증한다. 예약·승인 대기·도구 실행 여부는 HTTP 트래픽만으로 알 수 없으므로 Mori의 DB 작업 큐와 Worker가 계속 필요하다. 유료 사용자별 Pod는 작은 Runtime Controller로 0/1 제어와 단일 작성자·사전 준비를 검증한다. Knative를 설치했다는 이유만으로 이 Controller를 제거하거나 유료 Pod에도 같은 정책을 적용하지 않는다.
 
 | 항목 | 시작 제안 / 결정 기준 |
 | --- | --- |
