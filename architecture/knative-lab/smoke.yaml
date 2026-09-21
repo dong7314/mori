@@ -1,0 +1,41 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: coldstart-demo
+  namespace: mori-knative-test
+  labels:
+    networking.knative.dev/visibility: cluster-local
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/class: kpa.autoscaling.knative.dev
+        autoscaling.knative.dev/min-scale: "0"
+        autoscaling.knative.dev/max-scale: "1"
+        autoscaling.knative.dev/window: "60s"
+        autoscaling.knative.dev/scale-down-delay: "0s"
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: k3s-infra
+      tolerations:
+        - key: infra
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      containerConcurrency: 1
+      timeoutSeconds: 120
+      containers:
+        # Official disposable sample only; pin a tested digest for real Hermes.
+        - image: ghcr.io/knative/helloworld-go:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: TARGET
+              value: Mori
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi

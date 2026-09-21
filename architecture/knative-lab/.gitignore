@@ -1,0 +1,4 @@
+/serving/serving-core.yaml
+/kourier/kourier.yaml
+/serving-crds.yaml
+/rendered/

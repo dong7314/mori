@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: knative-client
+  namespace: mori-knative-test
+spec:
+  # Exercise the master -> worker Pod network used by Mori's future API.
+  nodeSelector:
+    kubernetes.io/hostname: k3s-server
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  containers:
+    - name: client
+      image: docker.io/library/busybox:1.37.0
+      command: ["sleep", "86400"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
