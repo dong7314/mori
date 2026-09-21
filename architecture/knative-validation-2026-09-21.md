@@ -92,6 +92,8 @@ Knative Serving/Kourier와 worker 내부 통신 규칙은 다음 Hermes 배포�
 
 다음 목표는 **공용 Hermes가 기존 llama.cpp를 호출하고, 자연어 주차 요청을 Mori DB에 저장·조회하는 첫 흐름**이다. 하드웨어 검증을 처음부터 반복하지 않는다.
 
+같은 날 후속 조회에서 worker requests 17,784Mi(74%)와 `mori` namespace 부재를 확인했다. 이는 위 설치 전 예약량 17,024Mi와 관측 시점이 다르다. 사용자 실행은 리소스 조회에서 멈췄고 namespace/Secret 생성·모델 ID 확인·Hermes 배포는 아직 미실행이다. 이후 추가한 SearXNG 검증 단계와 정확한 재개 명령은 [공용 Hermes 재개 절차](hermes-shared-resume.md), 검색 분리 방향은 [검색·경량화 설계](hermes-search-runtime.md)를 따른다. 이 기록의 과거 설치 수치를 덮어쓰지 않는다.
+
 1. **Hermes 배포 준비 (`master`):** 기존 `infra/k3s/hermes-shared.yaml`의 모델 ID placeholder와 latest 이미지를 실제 설정/검증된 digest로 교체하고 현재 worker의 selector/toleration, Secret, PVC 권한을 반영한다. worker에 배치한 Pod에서 기존 `192.168.0.8:8080/v1`에 접근하고 인증된 `/v1/models`로 모델 ID를 확인한다. API 키는 채팅·Git에 넣지 않는다. 기존 `llm/llama-llm` Service의 실제 연결 대상은 아직 미확인이므로 임의로 대체하지 않는다.
 2. **Hermes↔LLM 단일 요청:** 우선 일반 Deployment에서 인증된 짧은 대화 한 번을 끝까지 확인한다. 다중 사용자 개방 전까지 단일 사용자/신뢰된 시험 계정으로 제한한다. 프로세스 health 성공만으로 LLM 연결 성공을 판정하지 않는다.
 3. **실제 Hermes의 Knative 전환:** 추가 PVC/initContainer/securityContext 기능 플래그와 readiness·timeout·종료·단일 home 작성자 조건을 검증하고, 내부 Route 호출로 기동·응답·유휴 종료·home 보존을 확인한다. 같은 PVC를 쓰는 기존 Deployment와 새 Revision을 동시에 실행하지 않는다.

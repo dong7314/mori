@@ -2,6 +2,8 @@
 
 작성일: 2026-09-16 · 갱신일: 2026-09-21 · 관리 브랜치: `plan` · 상태: `master`·`poc` 구현 현황 반영, P1 진행 중
 
+**집에서 이어서 진행할 곳:** [공용 Hermes 테스트 재개 절차](architecture/hermes-shared-resume.md). 최신 사용자 출력에서 두 노드 Ready·local-path 사용 가능, `mori` namespace 없음까지 확인했다. namespace/Secret 생성과 모델 ID 확인·Hermes 배포는 아직 실행 결과가 없다. [검색·경량화 방향](architecture/hermes-search-runtime.md)도 구현 전 설계로 분리했다.
+
 ## 1. 만들려는 서비스
 
 **사용자가 말·채팅·파일로 일을 맡기면 일정과 생활 정보를 챙기고, 검색·계획·문서 작업을 처리하며, 자주 하는 일을 재사용 가능한 기능으로 익히는 개인 비서.**
@@ -49,6 +51,8 @@
 | --- | --- | --- |
 | [architecture/plan.md](architecture/plan.md) | 시스템 구조, 공용/전용 실행, 모델 서버, 스케줄링, 배포와 운영 | AI, 사용자 검토 |
 | [architecture/knative-serving.md](architecture/knative-serving.md) | k3s에서 Knative Serving 설치 조건, 공용 Hermes 전환·검증 순서 | AI, 사용자 검토 |
+| [공용 Hermes 재개 절차](architecture/hermes-shared-resume.md) | 최신 클러스터 상태, master에서 실행할 준비 명령, 배포 전 수정 사항, 대화·검색·주차 인수 순서 | AI 작성, 사용자 현장 실행 |
+| [Hermes 검색·경량화 방향](architecture/hermes-search-runtime.md) | 자체 호스팅 SearXNG, 본문/무거운 도구 분리, 공용 검색과 개인 이력, 이미지 정책 | AI, 구현·검증 전 |
 | [Knative 실습 파일](architecture/knative-lab/README.md) · [2026-09-21 검증 기록](architecture/knative-validation-2026-09-21.md) | 노드별 실행 절차, 재현 가능한 Kustomize 설정, 실제 설치·메트릭 복구·1→0→1 결과 | AI 작성, 사용자 현장 실행 |
 | [front/plan.md](front/plan.md) | 휴대폰·태블릿 앱 화면, 음성·대화, 개인화, 캘린더, OS 위젯, PoC 범위 | 실제 개발: 사용자 / 요청한 PoC: AI |
 | [back/plan.md](back/plan.md) | 도메인·데이터, Hermes 연결, 도구 권한, API, 자동화, 검증 기준 | AI |
@@ -142,12 +146,12 @@
 | F-01 | Front | 휴대폰·태블릿 세로/가로 앱형 PoC와 주차·코스피·Excel 예시 동선 | AI | 사용자 요청 | 진행 — `poc` `3ff0387`: 앱형 UI, 실제 로그인·주차 연결. 코스피 전용 동선 없음, Excel은 파일 이름만 첨부. 실기기·사용자 검토 전 |
 | F-02 | Front | React 인앱 WebView의 비서 대화·작업 결과·파일 전달 화면, 인증·API 연동 | 사용자 | API 계약, F-01 검토 | 제안 |
 | B-01 | Back | 인증, 사용자별 대화·기억·일정·파일·도구 API | AI | API 계약 합의 | 진행 — `master` `bfadecf`: 네이버·카카오 인증·세션·주차 저장/조회 API 구현. 대화·일정·파일·도구 API는 미구현 |
-| B-02 | Back | Hermes Adapter, 로컬 LLM, STT 연결 | AI | 기존 모델 API 접근·도구 호출 검증, 다중 사용자 공개 전 A-03 | 다음 착수 — 실제 Hermes↔llama.cpp 단일 요청 → Hermes Knative 전환 → Mori 주차 도구/Adapter. STT는 텍스트 흐름 완료 후 |
+| B-02 | Back | Hermes Adapter, 로컬 LLM, STT 연결 | AI | 기존 모델 API 접근·도구 호출 검증, 다중 사용자 공개 전 A-03 | 다음 착수 — 실제 Hermes↔llama.cpp 단일 요청 → SearXNG 도구 검증 → Hermes Knative 전환 → Mori 주차 도구/Adapter. STT는 텍스트 흐름 완료 후 |
 | B-03 | Back | 예약 실행, 중복 방지, 실패 복구, 알림 | AI | B-01 | 제안 |
 | B-04 | Back | 주차 조회 같은 반복 패턴 감지·개인 기능 자동 저장·설명·수정·권한 내 실행 | AI | B-01~03 | 제안 |
 | F-03 | Front | 앱 컨테이너·WebView·Native Bridge Adapter·홈 화면 위젯·알림·승인 응답 | 사용자 | 후보 컨테이너 실기기 검증, 브리지·서버 API 계약 | 제안 |
 | F-04 | Front | 휴대폰·태블릿 세로/가로, 앱/WebView 버전 호환·로그인·키보드·뒤로 가기·종료 후 복구 검증 | 사용자 | F-02, F-03 | 제안 |
-| B-05 | Back | 출처·확인 시각을 남기는 웹 검색, 코스피 정기 브리핑, 여행 계획·PDF 결과 | AI | B-02, B-03, 파일 저장소 | 제안 |
+| B-05 | Back | 출처·확인 시각을 남기는 웹 검색, 코스피 정기 브리핑, 여행 계획·PDF 결과 | AI | B-02, B-03, 파일 저장소 | 설계 — 자체 호스팅 SearXNG를 첫 검색 검증 후보로 선정. 검색·본문 추출·개인 이력 분리 방향 기록, 배포/연동 미완료. [상세](architecture/hermes-search-runtime.md) |
 | B-06 | Back | Excel 업로드·구조 확인·정리·원본 보존·결과 파일 전달 | AI | B-01, B-02, 파일 저장소 | 제안 |
 | B-07 | Back | 무료/유료 등급과 비서·위젯 등록 개수 집계·한도, 전환 시 기존 설정 보존 | AI | 한도·집계 정책 합의, B-01 | 진행 — `master` `bfadecf`: 관리자 승인·회수로 Free/Pro 등급 및 변경 이력 구현. 비서·위젯 등록·한도, 결제·전용 실행 환경은 미구현 |
 | F-05 | Front | 비서·위젯 등록/관리 화면과 한도 안내, 자동 학습 기능 수정·중지 UI | 사용자 | F-02, B-04, B-07 API 계약 | 제안 |
@@ -155,7 +159,8 @@
 | A-05 | Architecture | 유휴 중지·요청 시 재기동·예약 prewarm·단일 작성자 기술 검증 | AI | A-01, Hermes 버전·저장소·실험 환경 | 합의 — 기능 방향 반영, 시간·자원 값과 구현은 검증 전 |
 | A-06 | Architecture | Knative 기반 구축 및 공용 Hermes Gateway의 내부 Route·0↔1 전환 검증 | AI 작성 + 사용자 현장 실행 | A-01, Hermes 연결 | 진행 — Knative/Kourier 설치·worker 배치·테스트 앱 1→0→1 확인. 실제 Hermes·PVC·LLM 검증은 남음. [근거](architecture/knative-validation-2026-09-21.md) |
 | A-06a | Architecture | Knative 설치·테스트 앱으로 내부 요청과 유휴 종료/재기동 확인 | AI 작성 + 사용자 현장 실행 | k3s/자원/네트워크 확인 | 완료 — 2026-09-21 시스템 Pod 6개 Ready, Kourier ClusterIP, 테스트 Pod 0개 확인 후 새 Pod와 Hello Mori! 응답. 1.140초는 단일 테스트 요청 측정값 |
-| A-06b | Architecture | 실제 Hermes의 Knative 전환·home 유지·LLM 요청·종료 검증 | AI | A-06a, Hermes↔LLM 단일 요청 | 다음 착수 — 실제 Hermes Knative 매니페스트·추가 기능 플래그·단일 작성자·기동 시간 실측 필요 |
+| A-06b | Architecture | 실제 Hermes의 Knative 전환·home 유지·LLM 요청·종료 검증 | AI | A-06a, Hermes↔LLM 단일 요청 | 준비 전 — 일반 Deployment의 실제 대화·검색 검증 후 전환. Knative 매니페스트·추가 기능 플래그·단일 작성자·기동 시간 실측 필요 |
+| A-06c | Architecture | 공용 Hermes 일반 Deployment 첫 실행 | AI 작성 + 사용자 현장 실행 | 실제 모델 ID, Secret, 고정 이미지·worker 배치 설정 | 다음 착수 — 2026-09-21 리소스 조회 완료, `mori` namespace 없음. 준비 명령·배포 파일 수정·실행 모두 미완료. [재개 절차](architecture/hermes-shared-resume.md) |
 | B-08 | Back | DB 큐·Runtime Controller·generation/lease·준비 상태·취소/재개 계약 구현 | AI | A-03, A-05, B-01~03 | 제안 |
 | F-06 | Front | 실행 준비·용량 대기·기동 실패·재접속 복구 UX | 사용자 / 요청한 PoC는 AI | B-08 계약 | 제안 |
 
@@ -239,4 +244,12 @@ GPU 노트북의 llama.cpp는 운영 중이라는 사용자 설명을 받았지�
 
 테스트 요청의 `real 1.140s`는 단순 앱의 단일 관측값이며 Hermes/LLM 성능이나 p95가 아니다. 테스트 리소스·namespace와 master에 복사한 설치 압축 파일/디렉터리의 삭제 방법을 안내했으며, 삭제 완료 출력은 받지 않았다. Knative/Kourier는 후속 개발에 유지하고 설치 원본은 이 브랜치에 보관한다. [상세 결과와 한계](architecture/knative-validation-2026-09-21.md), [노드별 재현 절차](architecture/knative-lab/README.md).
 
-**다음 개발 목표:** `master`에서 실제 Hermes Gateway와 기존 llama.cpp의 단일 요청을 연결하고, Hermes의 Knative 전환·상태 보존을 검증한 뒤 Mori Adapter와 주차 저장/조회 도구를 완성한다. “지하 2층 C구역 C36에 주차했어”가 인증된 사용자 DB 기록으로 저장되고 재조회되는 것이 첫 인수 기준이다. 기존 주차 API를 재사용하며 하드웨어 검증부터 반복하지 않는다. 현재 Free/Pro는 최고 관리자 승인·회수 정책이며 결제 기능은 이 단계에 포함하지 않는다.
+**다음 개발 목표:** `master`에서 실제 Hermes Gateway와 기존 llama.cpp의 단일 요청을 연결하고, SearXNG 검색 도구 호출을 검증한 뒤 Hermes의 Knative 전환·상태 보존과 Mori Adapter·주차 저장/조회 도구를 완성한다. “지하 2층 C구역 C36에 주차했어”가 인증된 사용자 DB 기록으로 저장되고 재조회되는 것이 첫 제품 인수 기준이다. 검색은 주차 저장 도구의 필수 의존성은 아니다. 기존 주차 API를 재사용하며 하드웨어 검증부터 반복하지 않는다. 현재 Free/Pro는 최고 관리자 승인·회수 정책이며 결제 기능은 이 단계에 포함하지 않는다.
+
+## 14. 2026-09-21 공용 Hermes 준비 현황과 재개 지점
+
+최신 사용자 출력에서 `k3s-server`/`k3s-infra` Ready, 기본 `local-path`, worker taint와 namespace `mori` 부재를 확인했다. worker 메모리 requests는 Knative 설치 후 17,784Mi(74%)이며 이전 17,024Mi 기록과 관측 시점이 다르다. 미예약 약 5.9GiB는 실제 가용 메모리나 Hermes의 필요량을 뜻하지 않는다.
+
+사용자는 집에서 후속 명령을 실행할 예정이다. **namespace 생성·`/v1/models` 모델 ID 조회·Secret 생성·Hermes 배포·Harbor 이미지 등록은 아직 완료하지 않았다.** 다음 실행 순서는 [재개 문서](architecture/hermes-shared-resume.md)에 있으며, 지금 실행할 준비 명령과 AI가 `master`의 초안을 수정한 뒤 실행할 배포 명령을 구분한다. 첫 연결에는 공식 고정 이미지를 사용하고 자체 경량 이미지 제작은 후속 검증으로 둔다.
+
+외부 검색 API 비용을 피하려는 요구에 맞춰 SearXNG 자체 호스팅을 첫 검색 후보로 정리했다. 공용/개인 Hermes가 검색 서비스를 공유해도 사용자 기록은 Mori DB와 사용자별 상태에 분리한다. 본문 추출·브라우저·파일 처리는 별도 기능이며, Crawl4AI/Firecrawl 등은 후속 후보다. [근거·제약·인수 기준](architecture/hermes-search-runtime.md). 문서 갱신을 배포나 기능 구현 완료로 계산하지 않는다.

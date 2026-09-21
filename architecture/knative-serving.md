@@ -6,6 +6,8 @@
 
 재현 가능한 설치 설정은 **[노드별 실습 가이드와 Kustomize 파일](knative-lab/README.md)**에 있다. master에서 명령을 실행하고 workload는 worker에 배치하며, master UFW는 비활성 유지·worker UFW만 보완한다. 이미 설치된 클러스터에서는 설치를 반복하지 않고 3절의 실제 Hermes 준비·전환으로 진행한다.
 
+**현재 재개 지점:** 최신 출력에서 `mori` namespace가 없었다. 실제 Hermes 일반 Deployment도 아직 실행하지 않았으므로 먼저 [공용 Hermes 재개 절차](hermes-shared-resume.md)의 namespace·모델 ID·Secret 준비와 고정 이미지 배포·대화 검증을 진행한다. 사용자에게 안내한 준비 명령의 실행 결과는 아직 받지 않았다. 첫 대화와 SearXNG 도구 검증 이후 이 문서의 실제 Knative 전환으로 돌아온다.
+
 ## 적용 범위와 위치
 
 - 미니 PC 1의 **k3s master/server에서 `sudo k3s kubectl`로 클러스터 전체에 Knative Serving을 설치**한다. 설치 명령을 master에서 실행한다고 모든 Pod가 master에서만 실행되는 것은 아니다.
