@@ -2,7 +2,7 @@
 
 [전체 계획으로 돌아가기](../plan.md)
 
-갱신일: 2026-09-20 · 백엔드와 인프라 구현은 AI 담당이다. 제품 클라이언트는 휴대폰·태블릿 앱이다. 아래 API와 데이터 구조는 Mori의 제안 계약이며 Hermes에 이미 존재하는 API나 확정 스키마를 뜻하지 않는다.
+갱신일: 2026-09-21 · 백엔드와 인프라 구현은 AI 담당이다. 제품 클라이언트는 휴대폰·태블릿 앱이다. 아래 API와 데이터 구조는 Mori의 제안 계약이며 Hermes에 이미 존재하는 API나 확정 스키마를 뜻하지 않는다.
 
 ### 현재 `master` 구현 범위 — 2026-09-17
 
@@ -13,7 +13,15 @@
 | 등급 | 최고 관리자 CLI 역할 지정, Pro 승인·회수 API와 변경 이력. 기본 등급 Free | 결제·구독, 비서/위젯 등록·집계·한도, Pro 전용 실행 환경 |
 | 운영 | Alembic 마이그레이션, OpenAPI, Docker Compose·k3s 배포 예시, PostgreSQL 통합 테스트 코드 | 운영 배포·부하 실측, Hermes/LLM/STT, DB 작업 큐·스케줄러·Runtime Controller |
 
-기준 커밋은 `master` `bfadecf`다. 2026-09-17 상태 점검에서는 Docker 엔진과 `uv`를 사용할 수 없어 PostgreSQL 통합 테스트를 재실행하지 못했다. 따라서 아래 설계 계약을 모두 구현된 API로 읽지 않는다.
+API 기능 기준은 `master` `bfadecf`이며 현재 `master` `55652f6`에는 공용 Hermes 일반 Deployment 초안이 추가됐다. 2026-09-17 상태 점검에서는 Docker 엔진과 `uv`를 사용할 수 없어 PostgreSQL 통합 테스트를 재실행하지 못했다. 따라서 아래 설계 계약을 모두 구현된 API로 읽지 않는다.
+
+### 2026-09-21 인프라 선행 검증과 다음 백엔드 작업
+
+Knative Serving/Kourier 설치 및 테스트 앱의 1→0→1·응답을 확인했다. 이는 새로운 Mori API나 Hermes Adapter가 구현됐다는 뜻은 아니다. [실제 검증 기록](../architecture/knative-validation-2026-09-21.md).
+
+다음 순서는 실제 Hermes↔기존 llama.cpp 단일 요청, Hermes Knative 전환과 home 보존, 인증된 Mori Adapter와 `parking.save`/`parking.latest` 도구 연결이다. 기존 주차 서비스의 소유권·멱등성을 재사용한다. 입력 “지하 2층 C구역 C36에 주차했어”가 계정별 DB에 저장되고 이후 질문으로 조회되는 것을 첫 인수 기준으로 한다. 에이전트는 여러 차례 LLM·도구 호출을 수행할 수 있으며, 사용자/작업 권한은 모델 인자가 아니라 서버 인증 문맥에서 주입한다.
+
+짧은 내부 Hermes 호출은 완료까지 HTTP 연결을 유지하며 검증한다. 앱의 작업 접수·상태 조회와 영속 작업 처리는 이 통합 단계에서 구현하고, HTTP 종료 뒤 Pod 안에만 남은 백그라운드 작업을 제품 기능으로 제공하지 않는다. STT·캘린더·예약·파일 작업·Pro 전용 runtime은 이 첫 흐름 이후에 확장한다.
 
 ## 1. 책임 분리
 

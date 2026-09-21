@@ -1,6 +1,6 @@
 # Mori 프로젝트 설계 초안
 
-작성일: 2026-09-16 · 갱신일: 2026-09-20 · 관리 브랜치: `plan` · 상태: `master`·`poc` 구현 현황 반영, P1 진행 중
+작성일: 2026-09-16 · 갱신일: 2026-09-21 · 관리 브랜치: `plan` · 상태: `master`·`poc` 구현 현황 반영, P1 진행 중
 
 ## 1. 만들려는 서비스
 
@@ -24,7 +24,7 @@
 | 무료 사용자 | 공용 비서 실행 자원을 이용하면서 일정·대화·검색·계획·파일 관리 등 기본적으로 모든 기능을 쓴다. 비서 및 위젯 등록 수는 각각 최대 약 3개로 제한하는 방향이다. |
 | 유료 사용자 | 개인 전용 비서를 이용하고 비서 및 위젯 등록 수에 정해진 개수 제한을 두지 않는다. 기본 기능 자체는 무료 사용자와 같다. |
 | 유휴 실행 자원 | 사용자별 Hermes Pod는 유휴 시 중지하고 AI 요청·예약 작업에 맞춰 재기동한다. 개인화 데이터와 예약은 Pod와 독립적으로 보존한다. |
-| 공용 Hermes 콜드 스타트 | Mori 백엔드와 독립 llama.cpp 서버는 계속 운영한다. k3s의 공용 Hermes Gateway만 Knative Serving으로 요청 시 0→1개, 유휴 시 1→0개로 운영하는 방향을 택한다. 클러스터 설치·실제 동작은 아직 검증 전이다. |
+| 공용 Hermes 콜드 스타트 | Mori 백엔드와 독립 llama.cpp 서버는 계속 운영한다. k3s의 공용 Hermes Gateway만 Knative Serving으로 요청 시 0→1개, 유휴 시 1→0개로 운영하는 방향을 택한다. 2026-09-21 Knative 설치와 테스트 앱 1→0→1 전환은 확인했으며, 실제 Hermes 전환·연동은 다음 단계다. |
 | 주력 경험 | 말하기·채팅으로 일정 관리, 인터넷 검색과 정기 브리핑, 계획 작성, Excel·문서 정리를 맡긴다. |
 | 개인화 | 자주 시키는 일을 비서가 기능(개인 스킬)으로 만들고 저장해 다시 실행한다. |
 | 첫 화면 | 채팅 목록 대신 개인화된 대시보드와 바로 실행하는 버튼을 제공한다. |
@@ -49,6 +49,7 @@
 | --- | --- | --- |
 | [architecture/plan.md](architecture/plan.md) | 시스템 구조, 공용/전용 실행, 모델 서버, 스케줄링, 배포와 운영 | AI, 사용자 검토 |
 | [architecture/knative-serving.md](architecture/knative-serving.md) | k3s에서 Knative Serving 설치 조건, 공용 Hermes 전환·검증 순서 | AI, 사용자 검토 |
+| [Knative 실습 파일](architecture/knative-lab/README.md) · [2026-09-21 검증 기록](architecture/knative-validation-2026-09-21.md) | 노드별 실행 절차, 재현 가능한 Kustomize 설정, 실제 설치·메트릭 복구·1→0→1 결과 | AI 작성, 사용자 현장 실행 |
 | [front/plan.md](front/plan.md) | 휴대폰·태블릿 앱 화면, 음성·대화, 개인화, 캘린더, OS 위젯, PoC 범위 | 실제 개발: 사용자 / 요청한 PoC: AI |
 | [back/plan.md](back/plan.md) | 도메인·데이터, Hermes 연결, 도구 권한, API, 자동화, 검증 기준 | AI |
 
@@ -113,7 +114,7 @@
 
 외부 캘린더 동기화는 별도 범위 합의 후 적절한 단계에 넣는다. 무료와 유료는 기본 기능이 같고, 개인 전용 비서와 비서·위젯 등록 개수가 차이점이다. 정확한 무료 한도, 가격, 결제 서비스, 동시 실행량과 파일 용량 정책은 아직 정하지 않았다.
 
-**현재 단계는 P1 진행 중이다.** `poc`의 앱형 화면과 실제 로그인·주차 연결, `master`의 인증·주차 API는 마련됐다. 사용자 설명에 따르면 독립 GPU 노트북에서 llama.cpp가 운영 중이다. Hermes Gateway와 Knative Serving은 아직 배포·연결하지 않았고 노드 자원·네트워크·k3s 버전도 검증하지 않았다. 코스피 전용 PoC 흐름, 실제 Excel 처리, 앱 컨테이너·OS 위젯, Hermes/모델 도구 호출, 3090 실측과 실행 환경 격리·재기동 검증은 남아 있다. Pro 등급을 관리자 승인으로 변경할 수 있지만 개인 전용 실행 환경과 결제·등록 한도는 없다. 따라서 P1 전체나 P2 개인 사용 알파가 완료된 것으로 보지 않는다.
+**현재 단계는 P1 진행 중이다.** `poc`의 앱형 화면과 실제 로그인·주차 연결, `master`의 인증·주차 API는 마련됐다. 사용자 설명에 따르면 독립 GPU 노트북에서 llama.cpp가 운영 중이다. 2026-09-21 사용자 출력으로 k3s 버전·노드 자원, UFW 메트릭 복구, Knative Serving/Kourier 설치와 테스트 앱 1→0→1을 확인했다. 실제 Hermes Gateway 배포·llama.cpp 연결·PVC 재개는 아직 검증하지 않았다. 코스피 전용 PoC 흐름, 실제 Excel 처리, 앱 컨테이너·OS 위젯, Hermes/모델 도구 호출, 3090 실측과 실행 환경 격리·재기동 검증은 남아 있다. Pro 등급을 관리자 승인으로 변경할 수 있지만 개인 전용 실행 환경과 결제·등록 한도는 없다. 따라서 P1 전체나 P2 개인 사용 알파가 완료된 것으로 보지 않는다.
 
 ## 6. 브랜치와 협업 방식
 
@@ -135,13 +136,13 @@
 
 | ID | 영역 | 작업 | 담당 | 선행 조건 | 상태 |
 | --- | --- | --- | --- | --- | --- |
-| A-01 | Architecture | 출시 플랫폼, 호스트 사양, 운영 범위 확정 | 사용자 + AI | 문서 검토 | 진행 — 5대 LAN 배치, k3s server/worker 각 1대, 별도 Linux RTX 3090 eGPU 노트북의 llama.cpp `192.168.0.8:8080` 운영 확인(사용자 설명). 나머지 장비의 클러스터 참여 여부와 CPU·RAM·스토리지·절전/상시 가동·외부 접속 범위 미확인 |
+| A-01 | Architecture | 출시 플랫폼, 호스트 사양, 운영 범위 확정 | 사용자 + AI | 문서 검토 | 진행 — 5대 LAN 배치, k3s server/worker 각 1대, 별도 Linux RTX 3090 eGPU 노트북의 llama.cpp `192.168.0.8:8080` 운영 확인(사용자 설명). 2026-09-21 k3s 1.34.3, master 192.168.0.100(4코어/약 15.4GiB), worker 192.168.0.20(12코어/약 23.3GiB)와 UFW 상태 확인. 나머지 장비 용도·저장소 여유/복구·절전/상시 가동 정책은 미확인 |
 | A-02 | Architecture | Qwen3.8 세부 모델·양자화·추론 엔진을 3090에서 측정 | AI | A-01, 하드웨어 접근 | 제안 |
 | A-03 | Architecture | 무료 공용 실행의 사용자 상태·도구 격리 검증 | AI | Hermes 버전 선정 | 제안 |
 | F-01 | Front | 휴대폰·태블릿 세로/가로 앱형 PoC와 주차·코스피·Excel 예시 동선 | AI | 사용자 요청 | 진행 — `poc` `3ff0387`: 앱형 UI, 실제 로그인·주차 연결. 코스피 전용 동선 없음, Excel은 파일 이름만 첨부. 실기기·사용자 검토 전 |
 | F-02 | Front | React 인앱 WebView의 비서 대화·작업 결과·파일 전달 화면, 인증·API 연동 | 사용자 | API 계약, F-01 검토 | 제안 |
 | B-01 | Back | 인증, 사용자별 대화·기억·일정·파일·도구 API | AI | API 계약 합의 | 진행 — `master` `bfadecf`: 네이버·카카오 인증·세션·주차 저장/조회 API 구현. 대화·일정·파일·도구 API는 미구현 |
-| B-02 | Back | Hermes Adapter, 로컬 LLM, STT 연결 | AI | A-02, A-03 | 제안 |
+| B-02 | Back | Hermes Adapter, 로컬 LLM, STT 연결 | AI | 기존 모델 API 접근·도구 호출 검증, 다중 사용자 공개 전 A-03 | 다음 착수 — 실제 Hermes↔llama.cpp 단일 요청 → Hermes Knative 전환 → Mori 주차 도구/Adapter. STT는 텍스트 흐름 완료 후 |
 | B-03 | Back | 예약 실행, 중복 방지, 실패 복구, 알림 | AI | B-01 | 제안 |
 | B-04 | Back | 주차 조회 같은 반복 패턴 감지·개인 기능 자동 저장·설명·수정·권한 내 실행 | AI | B-01~03 | 제안 |
 | F-03 | Front | 앱 컨테이너·WebView·Native Bridge Adapter·홈 화면 위젯·알림·승인 응답 | 사용자 | 후보 컨테이너 실기기 검증, 브리지·서버 API 계약 | 제안 |
@@ -152,7 +153,9 @@
 | F-05 | Front | 비서·위젯 등록/관리 화면과 한도 안내, 자동 학습 기능 수정·중지 UI | 사용자 | F-02, B-04, B-07 API 계약 | 제안 |
 | A-04 | Architecture | 유료 전용 실행 환경·자원 한도·데이터 이전·복구 | AI | A-03, A-05, 자원 실측, 요금제 정책 | 제안 |
 | A-05 | Architecture | 유휴 중지·요청 시 재기동·예약 prewarm·단일 작성자 기술 검증 | AI | A-01, Hermes 버전·저장소·실험 환경 | 합의 — 기능 방향 반영, 시간·자원 값과 구현은 검증 전 |
-| A-06 | Architecture | k3s 호환성·Traefik/ServiceLB 포트 충돌 확인, Knative Serving 설치, 공용 Hermes Gateway의 내부 Route·0↔1 전환 검증 | AI | A-01, k3s/노드 버전·자원 확인, Hermes 연결 | 합의 — [설치·전환 절차](architecture/knative-serving.md) 문서화. 클러스터 설치·배포·실측 전 |
+| A-06 | Architecture | Knative 기반 구축 및 공용 Hermes Gateway의 내부 Route·0↔1 전환 검증 | AI 작성 + 사용자 현장 실행 | A-01, Hermes 연결 | 진행 — Knative/Kourier 설치·worker 배치·테스트 앱 1→0→1 확인. 실제 Hermes·PVC·LLM 검증은 남음. [근거](architecture/knative-validation-2026-09-21.md) |
+| A-06a | Architecture | Knative 설치·테스트 앱으로 내부 요청과 유휴 종료/재기동 확인 | AI 작성 + 사용자 현장 실행 | k3s/자원/네트워크 확인 | 완료 — 2026-09-21 시스템 Pod 6개 Ready, Kourier ClusterIP, 테스트 Pod 0개 확인 후 새 Pod와 Hello Mori! 응답. 1.140초는 단일 테스트 요청 측정값 |
+| A-06b | Architecture | 실제 Hermes의 Knative 전환·home 유지·LLM 요청·종료 검증 | AI | A-06a, Hermes↔LLM 단일 요청 | 다음 착수 — 실제 Hermes Knative 매니페스트·추가 기능 플래그·단일 작성자·기동 시간 실측 필요 |
 | B-08 | Back | DB 큐·Runtime Controller·generation/lease·준비 상태·취소/재개 계약 구현 | AI | A-03, A-05, B-01~03 | 제안 |
 | F-06 | Front | 실행 준비·용량 대기·기동 실패·재접속 복구 UX | 사용자 / 요청한 PoC는 AI | B-08 계약 | 제안 |
 
@@ -205,7 +208,7 @@ GPU 노트북의 llama.cpp는 운영 중이라는 사용자 설명을 받았지�
 
 `poc`에는 27개 자동 테스트와 휴대폰 세로·가로 및 태블릿 세로의 브라우저 확인 기록이 있다. 이번 상태 점검에서 `npm run check`, `npm test`(27개), `npm run build`가 통과했다. `master`에는 PostgreSQL 통합 테스트가 있으나 이번 점검 환경에서 Docker 엔진과 `uv`를 사용할 수 없어 재실행하지 못했다. 로컬 API·PoC 서버도 실행 중이지 않았다. 공급자 실계정 로그인, 실제 iOS/Android의 회전·키보드·안전 영역·마이크 권한은 별도 검증이 필요하다.
 
-현재 장비 배치에 따른 Hermes·llama.cpp 실행 판단과 네트워크·저장소·장애 검증 순서는 [아키텍처의 홈 네트워크 배치](architecture/plan.md#현재-홈-네트워크와-배포-위치)에 정리했다. 이는 사용자 설명에 기반한 운영 설계이며, GPU 노트북이나 k3s 클러스터에 실제 배포한 기록은 아니다.
+현재 장비 배치에 따른 Hermes·llama.cpp 실행 판단과 네트워크·저장소·장애 검증 순서는 [아키텍처의 홈 네트워크 배치](architecture/plan.md#현재-홈-네트워크와-배포-위치)에 정리했다. GPU 노트북/Hermes 연결은 설계·검증 대상으로 남아 있으며, 실제 k3s Knative 기반 설치 기록은 [2026-09-21 검증 기록](architecture/knative-validation-2026-09-21.md)에 분리했다.
 
 ## 11. 2026-09-16 앱 우선 결정
 
@@ -228,4 +231,12 @@ GPU 노트북의 llama.cpp는 운영 중이라는 사용자 설명을 받았지�
 
 유휴 10분은 실험 시작값이다. 5·10·30분 정책, cold-start p50/p95, 시작 실패·예약 지연·메모리 사용을 비교한 뒤 정한다. 공용 GPU 서버는 초기에는 모델을 적재한 채 유지하는 제안이며 GPU 자체 중지는 별도 검증한다.
 
-공용 Hermes의 설치·전환은 [Knative Serving 절차](architecture/knative-serving.md), 유료 사용자별 상태 전이와 기동·종료 절차는 [아키텍처](architecture/plan.md#유휴-중지와-콜드-스타트), DB·API 계약은 [백엔드](back/plan.md#실행-환경의-수명주기와-업무-작업), 준비 대기·실패 문구는 [프론트](front/plan.md#유휴-상태에서-다시-부탁할-때)에 정리했다. 공용 Gateway의 첫 검증은 P1/A-06, 유료 실행 설계 검증은 A-05와 P4/A-04·B-08에서 수행한다. 현재는 문서 설계이며 Knative 설치나 Pod 자동 중지를 구현한 상태가 아니다.
+공용 Hermes의 설치·전환은 [Knative Serving 절차](architecture/knative-serving.md), 유료 사용자별 상태 전이와 기동·종료 절차는 [아키텍처](architecture/plan.md#유휴-중지와-콜드-스타트), DB·API 계약은 [백엔드](back/plan.md#실행-환경의-수명주기와-업무-작업), 준비 대기·실패 문구는 [프론트](front/plan.md#유휴-상태에서-다시-부탁할-때)에 정리했다. 공용 Gateway의 첫 검증은 P1/A-06, 유료 실행 설계 검증은 A-05와 P4/A-04·B-08에서 수행한다. 2026-09-21 Knative 설치와 테스트 앱의 자동 중지·재기동을 확인했다. 실제 공용 Hermes와 Pro 전용 runtime의 자동 중지·복원은 아직 완료하지 않았다.
+
+## 13. 2026-09-21 Knative 기반 설치·검증 완료와 다음 작업
+
+사용자가 master에서 설치 명령을 실행하고 제공한 출력으로 Knative Serving/Kourier Pod 6개의 worker 배치·Ready, ClusterIP, 테스트 앱의 유휴 종료→0개→새 요청으로 재기동과 응답을 확인했다. worker의 메트릭 수집 문제는 UFW TCP 10250 허용 후 복구됐다. 외부 SSH 접속 문제는 포트포워딩의 포트 오설정이었다. master UFW는 비활성을 유지하고 worker의 내부 통신 규칙을 보완하는 절차로 진행했다.
+
+테스트 요청의 `real 1.140s`는 단순 앱의 단일 관측값이며 Hermes/LLM 성능이나 p95가 아니다. 테스트 리소스·namespace와 master에 복사한 설치 압축 파일/디렉터리의 삭제 방법을 안내했으며, 삭제 완료 출력은 받지 않았다. Knative/Kourier는 후속 개발에 유지하고 설치 원본은 이 브랜치에 보관한다. [상세 결과와 한계](architecture/knative-validation-2026-09-21.md), [노드별 재현 절차](architecture/knative-lab/README.md).
+
+**다음 개발 목표:** `master`에서 실제 Hermes Gateway와 기존 llama.cpp의 단일 요청을 연결하고, Hermes의 Knative 전환·상태 보존을 검증한 뒤 Mori Adapter와 주차 저장/조회 도구를 완성한다. “지하 2층 C구역 C36에 주차했어”가 인증된 사용자 DB 기록으로 저장되고 재조회되는 것이 첫 인수 기준이다. 기존 주차 API를 재사용하며 하드웨어 검증부터 반복하지 않는다. 현재 Free/Pro는 최고 관리자 승인·회수 정책이며 결제 기능은 이 단계에 포함하지 않는다.

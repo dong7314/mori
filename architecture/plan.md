@@ -2,19 +2,19 @@
 
 [전체 계획으로 돌아가기](../plan.md)
 
-갱신일: 2026-09-20 · 상태: 앱 우선 방향, 공용 Hermes의 Knative Serving 콜드 스타트와 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
+갱신일: 2026-09-21 · 상태: 앱 우선 방향, 공용 Hermes의 Knative Serving 콜드 스타트와 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
 
-`master` `55652f6`에는 FastAPI·PostgreSQL API, Alembic 마이그레이션, 로컬 Docker Compose와 k3s 배포 예시, 공용 Hermes 일반 Deployment 초안이 있다. 실제 서비스 구현은 소셜 인증·Free/Pro 등급 승인·주차 기록까지다. 사용자는 GPU 노트북에서 llama.cpp를 이미 운영 중이라고 밝혔다. 아래 구조도의 Mori Worker, Hermes 실제 배포, Knative Serving, 사용자별 Pod/PVC, 스케줄러와 Runtime Controller는 **설계·검증 대상**이며 llama.cpp와의 연결·성능도 아직 검증하지 않았다. Pro 등급 변경이 전용 실행 환경 제공을 뜻하지 않는다.
+`master` `55652f6`에는 FastAPI·PostgreSQL API, Alembic 마이그레이션, 로컬 Docker Compose와 k3s 배포 예시, 공용 Hermes 일반 Deployment 초안이 있다. 실제 서비스 구현은 소셜 인증·Free/Pro 등급 승인·주차 기록까지다. 사용자는 GPU 노트북에서 llama.cpp를 이미 운영 중이라고 밝혔다. 2026-09-21 Knative Serving/Kourier 설치와 테스트 앱의 1→0→1은 사용자 출력으로 확인했다. 아래 구조도의 Mori Worker, Hermes 실제 배포, 사용자별 Pod/PVC, 스케줄러와 Runtime Controller는 **설계·검증 대상**이며 llama.cpp와의 연결·성능도 아직 검증하지 않았다. Pro 등급 변경이 전용 실행 환경 제공을 뜻하지 않는다.
 
 ## 현재 홈 네트워크와 배포 위치
 
-2026-09-17 사용자 설명을 기준으로 한 장비 현황이다. 클러스터와 장비 사양을 원격에서 확인한 결과는 아니다. 다섯 장비 모두 ipTIME에 연결되어 있다. GPU 노트북의 주소 `192.168.0.8`, llama.cpp 포트 `8080`, API 키 설정은 사용자에게 확인했다. 다른 장비의 IP 주소, CPU·RAM·디스크, 실제 전원·절전 상태는 아직 확인되지 않았다.
+2026-09-17 사용자 설명과 2026-09-21 사용자가 제공한 k3s/설치 출력에 근거한다. AI가 원격 접속해 조사한 결과는 아니다. 다섯 장비 모두 ipTIME에 연결되어 있다. GPU 노트북의 주소 `192.168.0.8`, llama.cpp 포트 `8080`, API 키 설정은 사용자에게 확인했다. 두 k3s 노드의 버전은 `v1.34.3+k3s1`이며 IP·CPU·RAM과 Knative 배치는 확인됐다. 실제 전원·절전 정책과 저장소 여유/복구는 아직 검증하지 않았다.
 
 | 장비 | 현재 알려진 상태 | Mori 초기 배치 판단 |
 | --- | --- | --- |
-| 미니 PC 1 | k3s master/server 노드 | 기존 제어 평면 유지. Mori API·DB의 실제 배치와 여유 자원은 확인 후 결정 |
+| 미니 PC 1 | `k3s-server`, `192.168.0.100`, 4코어/약 15.4GiB, UFW 비활성 | 설치 명령 실행. 기존 제어 평면 유지. Mori API·DB의 실제 배치는 별도 결정 |
 | 미니 PC 2·3 | ipTIME에 연결. k3s 참여 여부와 용도는 미확인 | 첫 Hermes↔LLM 연결에 필수는 아님. 필요하면 이후 CPU Worker·저장소 후보로 검토 |
-| 노트북 1 | 미니 PC 1에 연결된 기존 k3s worker | **공용 Hermes Gateway Pod**의 첫 배치 후보. CPU·RAM·절전·영속 볼륨을 확인하고 노드에 고정 |
+| 노트북 1 | `k3s-infra`, `192.168.0.20`, 12코어/약 23.3GiB, `infra=true:NoSchedule`, UFW 활성 | Knative/Kourier Pod 6개 설치·Ready 확인. 공용 Hermes의 다음 배치 대상. selector/toleration과 영속 볼륨 검증 필요 |
 | 노트북 2 | Linux, RTX 3090 eGPU, ipTIME 연결. `192.168.0.8:8080`에서 llama.cpp 운영 중이며 API 키 설정됨(사용자 설명) | **k3s 밖의 독립 llama.cpp 서버**. 실행 상태·모델 ID·클러스터에서의 접근은 현장 검증 필요 |
 
 ```text
@@ -22,14 +22,14 @@
                                              → llama.cpp(Linux GPU 노트북, 사설 LAN)
 ```
 
-GPU 노트북을 k3s worker로 합류시키지 않는다. Hermes만 기존 k3s에서 실행하고, llama.cpp는 GPU 노트북의 systemd 서비스 또는 재시작 정책을 둔 컨테이너로 운영한다. 모델은 GPU 서버에서 한 번 적재하고 여러 Hermes 요청이 같은 추론 API를 공유한다. 실제 구현 전에는 노트북 1의 상시 가동·자원 상태를 확인한다. 절전이나 자원 부족이 있다면 미니 PC 2·3 중 한 대를 k3s CPU worker로 추가해 Hermes 배치를 옮기는 안을 검토한다.
+GPU 노트북을 k3s worker로 합류시키지 않는다. Hermes만 기존 k3s에서 실행하고, llama.cpp는 GPU 노트북의 systemd 서비스 또는 재시작 정책을 둔 컨테이너로 운영한다. 모델은 GPU 서버에서 한 번 적재하고 여러 Hermes 요청이 같은 추론 API를 공유한다. 자원 스냅샷은 확인했으며 노트북 1의 상시 가동·절전 정책과 지속 부하는 별도 확인한다. 절전이나 자원 부족이 있다면 미니 PC 2·3 중 한 대를 k3s CPU worker로 추가해 Hermes 배치를 옮기는 안을 검토한다.
 
 GPU 노트북에는 ipTIME DHCP 예약 등으로 고정된 LAN 주소 또는 내부 DNS 이름을 부여한다. `llama-server`는 LAN에서 도달 가능한 주소에 바인딩하고, GPU 노트북 방화벽은 Hermes Pod에서 실제로 관측되는 출발지의 추론 요청만 허용한다. 서버 API 키를 설정하고 모델 API를 인터넷에 직접 공개하지 않는다. 동일 공유기 연결만으로 Pod에서 GPU 노트북까지 통신된다고 단정하지 않고, 게스트망/AP 격리·호스트 방화벽·Pod egress를 실제로 확인한다. 휴대폰이 집 밖에서 접근하는 경로는 별도 결정 사항이다.
 
 초기 연결 순서는 다음과 같다.
 
-1. GPU 노트북의 기존 llama.cpp에서 `nvidia-smi`, `/health`, 인증된 `/v1/models`로 eGPU·모델 적재·실제 모델 ID를 확인한다. 현재 모델 ID와 컨텍스트 길이·동시 추론 설정은 아직 모른다. `/health`가 모델 적재 완료를 반환하는지 확인한다. 인증 키는 보호된 서비스 환경 파일 등에 두고 명령행 인자로 노출하지 않는다. [llama.cpp 서버](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md), [CUDA 컨테이너 이미지](https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md).
-2. k3s의 기존 CPU worker에 공용 Hermes Gateway를 둔다. `master`의 일반 Deployment 예시로 연결을 먼저 검증하고, 호환성 확인 뒤 Knative Service로 전환해 유휴 0개를 검증한다. Hermes home은 재시작 뒤에도 유지되는 볼륨에 보관하고, 초기 로컬 볼륨을 쓰면 해당 노드에 고정하며 다른 노드로 자동 재배치된다고 가정하지 않는다. Hermes Pod에는 GPU를 요청하지 않는다.
+1. 이미 운영 중인 GPU 장비 검증을 반복하기보다, worker에 배치한 Pod에서 기존 llama.cpp의 `/health`와 인증된 `/v1/models`로 실제 연결과 모델 ID를 확인한다. 현재 모델 ID와 컨텍스트 길이·동시 추론 설정은 아직 모른다. `/health`가 모델 적재 완료를 반환하는지 확인한다. 인증 키는 보호된 서비스 환경 파일 등에 두고 명령행 인자로 노출하지 않는다. [llama.cpp 서버](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md), [CUDA 컨테이너 이미지](https://github.com/ggml-org/llama.cpp/blob/master/docs/docker.md).
+2. k3s의 기존 CPU worker에 공용 Hermes Gateway를 둔다. `master`의 일반 Deployment 예시로 연결을 먼저 검증하고, 이미 설치한 Knative의 Service로 전환해 실제 Hermes의 유휴 0개와 상태 보존을 검증한다. Hermes home은 재시작 뒤에도 유지되는 볼륨에 보관하고, 초기 로컬 볼륨을 쓰면 해당 노드에 고정하며 다른 노드로 자동 재배치된다고 가정하지 않는다. Hermes Pod에는 GPU를 요청하지 않는다.
 3. Hermes의 custom provider URL을 `http://192.168.0.8:8080/v1`로 설정하고, llama.cpp API 키와 `/v1/models`에서 확인한 모델 ID를 맞춘다. 비밀값은 Git이 아닌 운영 Secret에 둔다. Hermes API 서버는 클러스터 내부에서만 제공하고 Mori Adapter만 호출한다. Knative 전환 뒤에는 Adapter가 Knative Route를 호출해야 0개에서 깨어난다. [Hermes 모델 제공자 설정](https://hermes-agent.nousresearch.com/docs/integrations/providers), [Hermes API 서버](https://hermes-agent.nousresearch.com/docs/user-guide/features/api-server).
 4. Hermes Pod 안에서 GPU 서버의 `/health`·`/v1/models` 접근을 확인하고, Hermes 채팅 1회와 Mori 주차 도구 호출 1회를 검증한다. GPU 노트북 절전·재부팅·eGPU 분리 시 AI 작업은 대기/실패로 표시하되 기존 DB 조회는 유지한다.
 
@@ -67,9 +67,11 @@ flowchart TD
     Scheduler[예약 실행 Worker] --> DB
     Scheduler --> Queue
     Scheduler --> Notify[알림 전송 / 위젯 데이터 준비]
-    Queue --> Controller[Runtime Controller / 깨우기·중지·복구]
-    Controller --> Shared[무료: 공용 풀의 격리 실행 슬롯]
-    Controller --> Dedicated[유료: 사용자별 Hermes Pod 0 또는 1]
+    Queue --> Worker[Mori 작업 Worker / 작업 상태·실행]
+    Worker --> Route[공용 Knative 내부 Route / Activator·KPA]
+    Route --> Shared[Free: 공용 Hermes Pod 0 또는 1 / 계정별 격리 필요]
+    Worker --> Controller[Pro Runtime Controller / 깨우기·중지·복구]
+    Controller --> Dedicated[Pro: 사용자별 Hermes Pod 0 또는 1]
     Shared <--> SharedHome[(계정별로 분리한 영속 home)]
     Dedicated <--> Home[(사용자 전용 영속 home / PVC)]
     Shared --> LLM[공용 Qwen 추론 서버 / RTX 3090]
@@ -115,6 +117,8 @@ P1의 공용 Gateway 0↔1 검증은 단일 사용자 또는 신뢰된 시험 �
 - 격리가 검증되기 전에는 한 사람의 알파만 운영한다. 무료 다중 사용자 제공의 선행 조건으로 삼는다.
 
 ### 공용 Hermes의 Knative Serving 콜드 스타트
+
+**현재 상태(2026-09-21):** Knative/Kourier 설치와 단순 테스트 앱의 1→0→1·응답은 확인됐다. 테스트 요청 `real 1.140s`는 Hermes 기동 시간이나 LLM 성능이 아니다. worker UFW의 메트릭 수집 복구, 설치 설정, 실측 범위는 [검증 기록](knative-validation-2026-09-21.md)에 둔다. 다음 설명은 실제 Hermes에 적용할 설계이며 전환 완료를 뜻하지 않는다.
 
 P1에서는 **공용 Hermes Gateway 한 개만** Knative Serving의 KPA로 유휴 0개·요청 시 최대 1개로 전환한다. Mori API·DB·예약 Worker는 계속 켜 두고, `192.168.0.8:8080`의 독립 llama.cpp도 그대로 운영한다. Knative Serving의 controller·autoscaler·activator·Kourier는 클러스터에 별도로 설치하는 공용 구성요소이므로, Hermes Pod가 0개가 되어도 이 구성요소의 자원 사용은 남는다. 설치 명령은 k3s master/server인 미니 PC 1에서 실행하지만 Hermes workload는 노트북 1의 worker에 배치한다.
 
@@ -306,4 +310,4 @@ Mori DB와 Hermes home은 용도가 다르므로 함께 백업한다. DB는 제�
 - 재기동 뒤 대화·개인 스킬·설정·원본/결과 파일이 같고, 다른 사용자의 데이터가 연결되지 않는다.
 - scale-to-zero·업데이트·무료↔유료 전환·해지 작업이 경합해도 실행 generation과 저장 공간의 단일 작성자를 유지한다.
 
-2026-09-17 공식 자료를 확인해 콜드 스타트 관련 근거를 추가했다. 위 상태 모델·API·Controller·시간 값은 Mori 설계 제안이며 아직 배포·측정하지 않았다.
+2026-09-17 공식 자료를 확인해 콜드 스타트 관련 근거를 추가했다. 위 상태 모델·API·Controller·Hermes 시간 값은 Mori 설계 제안이다. 2026-09-21 설치·측정한 범위는 Knative 기반과 단순 테스트 앱으로 한정하며 [별도 기록](knative-validation-2026-09-21.md)에서 확인한다.
