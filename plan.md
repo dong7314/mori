@@ -2,7 +2,7 @@
 
 작성일: 2026-09-16 · 갱신일: 2026-09-23 · 관리 브랜치: `plan` · 상태: `master`·`poc` 구현 현황 반영, P1 진행 중
 
-**현재 재개 지점:** 공용 Hermes Pod Running·PVC Bound·health 200, Pod→llama.cpp 직접 호출 200을 확인했다. GPU 노트북에서 로컬 GGUF·96K·슬롯 1·Q8 캐시 명령의 정상 동작을 보고받았으며, 최종 인증 및 Hermes 경유 실제 대화를 다시 확인해야 한다. [2026-09-23 실행·오류 해결 기록](architecture/hermes-llama-validation-2026-09-23.md) · [기존 재개 절차](architecture/hermes-shared-resume.md) · [검색·경량화 설계](architecture/hermes-search-runtime.md).
+**현재 재개 지점:** 공용 Hermes 일반 Deployment가 worker에서 실행되고, PVC Bound·health 200과 실제 한국어 인사 답변을 확인했다. 첫 대화 연동은 통과했다. 다음은 현장 설정·시험 스크립트·인증 거부 동작 보완 및 SearXNG 검색 도구 검증이다. [첫 대화 성공 기록](architecture/hermes-shared-validation-2026-09-23.md) · [별도 이슈 기록](architecture/hermes-llama-validation-2026-09-23.md) · [기존 재개 절차](architecture/hermes-shared-resume.md).
 
 ## 1. 만들려는 서비스
 
@@ -52,6 +52,7 @@
 | [architecture/plan.md](architecture/plan.md) | 시스템 구조, 공용/전용 실행, 모델 서버, 스케줄링, 배포와 운영 | AI, 사용자 검토 |
 | [architecture/knative-serving.md](architecture/knative-serving.md) | k3s에서 Knative Serving 설치 조건, 공용 Hermes 전환·검증 순서 | AI, 사용자 검토 |
 | [공용 Hermes 재개 절차](architecture/hermes-shared-resume.md) | 최신 클러스터 상태, master에서 실행할 준비 명령, 배포 전 수정 사항, 대화·검색·주차 인수 순서 | AI 작성, 사용자 현장 실행 |
+| [Hermes 첫 대화 검증](architecture/hermes-shared-validation-2026-09-23.md) · [연결·GPU 이슈 기록](architecture/hermes-llama-validation-2026-09-23.md) | 실제 Pod/PVC/인사 응답, 인증·컨텍스트·OOM 조치와 남은 검증 | 사용자 출력 기반 기록 |
 | [Hermes 검색·경량화 방향](architecture/hermes-search-runtime.md) | 자체 호스팅 SearXNG, 본문/무거운 도구 분리, 공용 검색과 개인 이력, 이미지 정책 | AI, 구현·검증 전 |
 | [Knative 실습 파일](architecture/knative-lab/README.md) · [2026-09-21 검증 기록](architecture/knative-validation-2026-09-21.md) | 노드별 실행 절차, 재현 가능한 Kustomize 설정, 실제 설치·메트릭 복구·1→0→1 결과 | AI 작성, 사용자 현장 실행 |
 | [front/plan.md](front/plan.md) | 휴대폰·태블릿 앱 화면, 음성·대화, 개인화, 캘린더, OS 위젯, PoC 범위 | 실제 개발: 사용자 / 요청한 PoC: AI |
@@ -118,7 +119,7 @@
 
 외부 캘린더 동기화는 별도 범위 합의 후 적절한 단계에 넣는다. 무료와 유료는 기본 기능이 같고, 개인 전용 비서와 비서·위젯 등록 개수가 차이점이다. 정확한 무료 한도, 가격, 결제 서비스, 동시 실행량과 파일 용량 정책은 아직 정하지 않았다.
 
-**현재 단계는 P1 진행 중이다.** `poc`의 앱형 화면과 실제 로그인·주차 연결, `master`의 인증·주차 API는 마련됐다. 사용자 설명에 따르면 독립 GPU 노트북에서 llama.cpp가 운영 중이다. 2026-09-21 사용자 출력으로 k3s 버전·노드 자원, UFW 메트릭 복구, Knative Serving/Kourier 설치와 테스트 앱 1→0→1을 확인했다. 2026-09-23 공용 Hermes 일반 Deployment의 Running·PVC Bound, Pod→llama.cpp 직접 호출 200과 GPU 서버 96K 실행 성공 보고를 추가했다. 최종 설정에서 Hermes 경유 대화·인증과 PVC 데이터 재개는 아직 검증하지 않았다. 코스피 전용 PoC 흐름, 실제 Excel 처리, 앱 컨테이너·OS 위젯, Hermes/모델 도구 호출, 3090 실측과 실행 환경 격리·재기동 검증은 남아 있다. Pro 등급을 관리자 승인으로 변경할 수 있지만 개인 전용 실행 환경과 결제·등록 한도는 없다. 따라서 P1 전체나 P2 개인 사용 알파가 완료된 것으로 보지 않는다.
+**현재 단계는 P1 진행 중이다.** `poc`의 앱형 화면과 실제 로그인·주차 연결, `master`의 인증·주차 API는 마련됐다. 사용자 설명에 따르면 독립 GPU 노트북에서 llama.cpp가 운영 중이다. 2026-09-21 사용자 출력으로 k3s 버전·노드 자원, UFW 메트릭 복구, Knative Serving/Kourier 설치와 테스트 앱 1→0→1을 확인했다. 2026-09-23 공용 Hermes 일반 Deployment의 Running·PVC Bound, Pod→llama.cpp 직접 호출 200과 GPU 서버 96K 실행 성공 보고를 추가했고, 이후 Hermes 경유 실제 인사 응답까지 확인했다. 무인증/잘못된 키 거부, PVC 데이터 재개·부하 성능은 아직 검증하지 않았다. 코스피 전용 PoC 흐름, 실제 Excel 처리, 앱 컨테이너·OS 위젯, Hermes/모델 도구 호출, 3090 실측과 실행 환경 격리·재기동 검증은 남아 있다. Pro 등급을 관리자 승인으로 변경할 수 있지만 개인 전용 실행 환경과 결제·등록 한도는 없다. 따라서 P1 전체나 P2 개인 사용 알파가 완료된 것으로 보지 않는다.
 
 ## 6. 브랜치와 협업 방식
 
@@ -146,7 +147,7 @@
 | F-01 | Front | 휴대폰·태블릿 세로/가로 앱형 PoC와 주차·코스피·Excel 예시 동선 | AI | 사용자 요청 | 진행 — `poc` `3ff0387`: 앱형 UI, 실제 로그인·주차 연결. 코스피 전용 동선 없음, Excel은 파일 이름만 첨부. 실기기·사용자 검토 전 |
 | F-02 | Front | React 인앱 WebView의 비서 대화·작업 결과·파일 전달 화면, 인증·API 연동 | 사용자 | API 계약, F-01 검토 | 제안 |
 | B-01 | Back | 인증, 사용자별 대화·기억·일정·파일·도구 API | AI | API 계약 합의 | 진행 — `master` `bfadecf`: 네이버·카카오 인증·세션·주차 저장/조회 API 구현. 대화·일정·파일·도구 API는 미구현 |
-| B-02 | Back | Hermes Adapter, 로컬 LLM, STT 연결 | AI | 기존 모델 API 접근·도구 호출 검증, 다중 사용자 공개 전 A-03 | 다음 착수 — 실제 Hermes↔llama.cpp 단일 요청 → SearXNG 도구 검증 → Hermes Knative 전환 → Mori 주차 도구/Adapter. STT는 텍스트 흐름 완료 후 |
+| B-02 | Back | Hermes Adapter, 로컬 LLM, STT 연결 | AI | 기존 모델 API 접근·도구 호출 검증, 다중 사용자 공개 전 A-03 | 진행 — Hermes↔llama.cpp 첫 대화 통과. 다음은 SearXNG 도구 검증 → Hermes Knative 전환 → Mori 주차 도구/Adapter. 재현 설정·시험 판정 보완 필요, STT는 제품 텍스트 흐름 완료 후 |
 | B-03 | Back | 예약 실행, 중복 방지, 실패 복구, 알림 | AI | B-01 | 제안 |
 | B-04 | Back | 주차 조회 같은 반복 패턴 감지·개인 기능 자동 저장·설명·수정·권한 내 실행 | AI | B-01~03 | 제안 |
 | F-03 | Front | 앱 컨테이너·WebView·Native Bridge Adapter·홈 화면 위젯·알림·승인 응답 | 사용자 | 후보 컨테이너 실기기 검증, 브리지·서버 API 계약 | 제안 |
@@ -157,10 +158,11 @@
 | F-05 | Front | 비서·위젯 등록/관리 화면과 한도 안내, 자동 학습 기능 수정·중지 UI | 사용자 | F-02, B-04, B-07 API 계약 | 제안 |
 | A-04 | Architecture | 유료 전용 실행 환경·자원 한도·데이터 이전·복구 | AI | A-03, A-05, 자원 실측, 요금제 정책 | 제안 |
 | A-05 | Architecture | 유휴 중지·요청 시 재기동·예약 prewarm·단일 작성자 기술 검증 | AI | A-01, Hermes 버전·저장소·실험 환경 | 합의 — 기능 방향 반영, 시간·자원 값과 구현은 검증 전 |
-| A-06 | Architecture | Knative 기반 구축 및 공용 Hermes Gateway의 내부 Route·0↔1 전환 검증 | AI 작성 + 사용자 현장 실행 | A-01, Hermes 연결 | 진행 — Knative/Kourier 설치·worker 배치·테스트 앱 1→0→1 확인. 실제 Hermes·PVC·LLM 검증은 남음. [근거](architecture/knative-validation-2026-09-21.md) |
+| A-06 | Architecture | Knative 기반 구축 및 공용 Hermes Gateway의 내부 Route·0↔1 전환 검증 | AI 작성 + 사용자 현장 실행 | A-01, Hermes 연결 | 진행 — Knative/Kourier·샘플 1→0→1 및 일반 Deployment의 Hermes 대화 확인. 실제 Hermes Knative 전환·PVC 복원은 남음. [근거](architecture/knative-validation-2026-09-21.md) |
 | A-06a | Architecture | Knative 설치·테스트 앱으로 내부 요청과 유휴 종료/재기동 확인 | AI 작성 + 사용자 현장 실행 | k3s/자원/네트워크 확인 | 완료 — 2026-09-21 시스템 Pod 6개 Ready, Kourier ClusterIP, 테스트 Pod 0개 확인 후 새 Pod와 Hello Mori! 응답. 1.140초는 단일 테스트 요청 측정값 |
 | A-06b | Architecture | 실제 Hermes의 Knative 전환·home 유지·LLM 요청·종료 검증 | AI | A-06a, Hermes↔LLM 단일 요청 | 준비 전 — 일반 Deployment의 실제 대화·검색 검증 후 전환. Knative 매니페스트·추가 기능 플래그·단일 작성자·기동 시간 실측 필요 |
-| A-06c | Architecture | 공용 Hermes 일반 Deployment 첫 실행 | AI 작성 + 사용자 현장 실행 | 실제 모델 ID, Secret, 고정 이미지·worker 배치 설정 | 진행 — worker Pod Running·PVC Bound·health 200, Pod→LLM 직접 호출 200 확인. 96K/Q8/슬롯 1 로컬 모델 실행 성공 보고. 최종 인증·Hermes 경유 대화 및 저장소 배포 파일 동기화는 남음. [실행 기록](architecture/hermes-llama-validation-2026-09-23.md) |
+| A-06c | Architecture | 공용 Hermes 일반 Deployment 첫 실행 | AI 작성 + 사용자 현장 실행 | 실제 모델 ID, Secret, 고정 이미지·worker 배치 설정 | 완료 — 2026-09-23 worker Running·5Gi PVC Bound·health 200과 실제 한국어 답변 확인. 단일 사용자 첫 실행 범위. [근거](architecture/hermes-shared-validation-2026-09-23.md) |
+| A-06d | Architecture | 현장 Hermes/모델 설정·시험 파일 동기화와 인증 거부 검증 | AI 작성 + 사용자 현장 실행 | A-06c, 이슈 기록 | 다음 착수 — 프로필 secret 범위·실제 imageID·오류 응답 성공 오판정·잘못된 키 거부 확인. `master` 배포 초안 동기화 미완료 |
 | B-08 | Back | DB 큐·Runtime Controller·generation/lease·준비 상태·취소/재개 계약 구현 | AI | A-03, A-05, B-01~03 | 제안 |
 | F-06 | Front | 실행 준비·용량 대기·기동 실패·재접속 복구 UX | 사용자 / 요청한 PoC는 AI | B-08 계약 | 제안 |
 
@@ -189,11 +191,11 @@
 
 Qwen 공식 모델 카드에서 `Qwen/Qwen3.8-27B`를 확인했다. 이는 후보 확인이며 사용자 모델을 27B로 확정하거나 RTX 3090에서의 속도·동시 처리량을 검증한 것은 아니다. [Qwen3.8-27B 모델 카드](https://huggingface.co/Qwen/Qwen3.8-27B).
 
-GPU 노트북의 llama.cpp는 운영 중이라는 사용자 설명을 받았지만, 이 작업 환경에서는 접속·모델·성능을 검증하지 못했다. Hermes 설치, 모바일 위젯, 부하 테스트도 아직 수행하지 않았다. 상세 문서의 기술 조합과 수치 중 ‘제안’, ‘예시’, ‘목표’로 표시한 내용은 측정 결과가 아니다.
+GPU 노트북의 llama.cpp는 운영 중이라는 사용자 설명을 받았지만, 이 작업 환경에서는 직접 접속·모델·성능을 검증하지 못했다. 2026-09-23 사용자 출력으로 Hermes 일반 Deployment와 첫 대화는 확인했다. 모바일 위젯, 실제 Hermes 콜드 스타트, 부하 테스트는 아직 수행하지 않았다. 상세 문서의 기술 조합과 수치 중 ‘제안’, ‘예시’, ‘목표’로 표시한 내용은 측정 결과가 아니다.
 
 ## 10. PoC 현재 상태와 구현 기록
 
-현재 비교 기준은 `poc`의 `3ff0387`과 `master`의 `55652f6`이다. 아래 앞선 커밋은 변화 이력이며, 현재 동작은 최신 `poc`의 소스·README와 `master` API를 기준으로 한다. `master`에는 공용 Hermes 일반 Deployment 초안이 추가됐지만 실제 배포·연결 검증 기록은 없다.
+현재 비교 기준은 `poc`의 `3ff0387`과 `master`의 `55652f6`이다. 아래 앞선 커밋은 변화 이력이며, 현재 동작은 최신 `poc`의 소스·README와 `master` API를 기준으로 한다. `master`에는 공용 Hermes 일반 Deployment 초안이 있다. 이후 별도 전달한 실험 파일로 현장 배포·첫 대화를 확인했으며, 제품 초안과 현장 수정 설정의 동기화는 아직 남아 있다.
 
 | 커밋 | 반영 내용 |
 | --- | --- |
@@ -248,8 +250,18 @@ GPU 노트북의 llama.cpp는 운영 중이라는 사용자 설명을 받았지�
 
 ## 14. 2026-09-21 공용 Hermes 준비 현황과 재개 지점
 
+이 절은 당시 상태의 이력이다. 현재는 배포·첫 대화가 완료됐으며 아래 15절을 따른다.
+
 최신 사용자 출력에서 `k3s-server`/`k3s-infra` Ready, 기본 `local-path`, worker taint와 namespace `mori` 부재를 확인했다. worker 메모리 requests는 Knative 설치 후 17,784Mi(74%)이며 이전 17,024Mi 기록과 관측 시점이 다르다. 미예약 약 5.9GiB는 실제 가용 메모리나 Hermes의 필요량을 뜻하지 않는다.
 
 사용자는 집에서 후속 명령을 실행할 예정이다. **namespace 생성·`/v1/models` 모델 ID 조회·Secret 생성·Hermes 배포·Harbor 이미지 등록은 아직 완료하지 않았다.** 다음 실행 순서는 [재개 문서](architecture/hermes-shared-resume.md)에 있으며, 지금 실행할 준비 명령과 AI가 `master`의 초안을 수정한 뒤 실행할 배포 명령을 구분한다. 첫 연결에는 공식 고정 이미지를 사용하고 자체 경량 이미지 제작은 후속 검증으로 둔다.
 
 외부 검색 API 비용을 피하려는 요구에 맞춰 SearXNG 자체 호스팅을 첫 검색 후보로 정리했다. 공용/개인 Hermes가 검색 서비스를 공유해도 사용자 기록은 Mori DB와 사용자별 상태에 분리한다. 본문 추출·브라우저·파일 처리는 별도 기능이며, Crawl4AI/Firecrawl 등은 후속 후보다. [근거·제약·인수 기준](architecture/hermes-search-runtime.md). 문서 갱신을 배포나 기능 구현 완료로 계산하지 않는다.
+
+## 15. 2026-09-23 공용 Hermes 첫 대화 성공과 다음 작업
+
+사용자 출력에서 worker의 공용 Hermes `1/1 Running`·재시작 0회, 5Gi local-path PVC Bound를 확인했다. 이후 master의 `chat-test.py`가 health HTTP 200과 “안녕하세요! 오늘 어떤 일이 필요하신가요?”라는 실제 응답을 반환했다. 일반 Deployment의 Hermes↔기존 llama.cpp 단일 대화는 통과로 기록한다. [증거·검증 범위](architecture/hermes-shared-validation-2026-09-23.md).
+
+사이드 채팅에서 기록한 API 키 오류, 프로필 secret scope 원인 후보, 51,200 컨텍스트의 최소 64,000 검사 실패, 96K 증설 OOM과 Q8 캐시·슬롯 1·로컬 GGUF 실행 과정은 [별도 이슈 기록](architecture/hermes-llama-validation-2026-09-23.md)에 보존했다. 실제 답변 성공만으로 최종 인증 강제·성능·모든 원인을 확정하지 않는다.
+
+다음 작업은 **현장 설정/시험 스크립트/인증 거부 검증 정리 → SearXNG 검색 도구 → 실제 Hermes Knative 전환·상태 보존 → Mori Adapter·주차 저장/조회**다. 검색은 주차 도구의 필수 의존성은 아니다. 현재 공용 Pod는 상시 실행되며 사용자 격리·주차 DB 저장·검색·실제 Hermes 콜드 스타트는 미완료다. Oracle A1은 검토 후보이고 이번 검증은 집 worker에서 수행했다.

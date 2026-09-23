@@ -2,11 +2,11 @@
 
 [전체 계획](../plan.md) · [아키텍처](plan.md)
 
-갱신일: 2026-09-21 · 상태: **Knative 기반 설치·테스트 앱의 1→0→1 확인, 실제 Hermes 전환은 미완료.** 사용자가 서버에서 실행한 출력에 근거하며 직접 원격 점검한 결과는 아니다. [검증 기록](knative-validation-2026-09-21.md).
+갱신일: 2026-09-23 · 상태: **Knative 기반·테스트 앱 1→0→1과 일반 Deployment의 Hermes 대화 확인, 실제 Hermes Knative 전환은 미완료.** 사용자가 서버에서 실행한 출력에 근거하며 직접 원격 점검한 결과는 아니다. [Knative 검증 기록](knative-validation-2026-09-21.md) · [Hermes 대화 결과](hermes-shared-validation-2026-09-23.md).
 
 재현 가능한 설치 설정은 **[노드별 실습 가이드와 Kustomize 파일](knative-lab/README.md)**에 있다. master에서 명령을 실행하고 workload는 worker에 배치하며, master UFW는 비활성 유지·worker UFW만 보완한다. 이미 설치된 클러스터에서는 설치를 반복하지 않고 3절의 실제 Hermes 준비·전환으로 진행한다.
 
-**현재 재개 지점:** 최신 출력에서 `mori` namespace가 없었다. 실제 Hermes 일반 Deployment도 아직 실행하지 않았으므로 먼저 [공용 Hermes 재개 절차](hermes-shared-resume.md)의 namespace·모델 ID·Secret 준비와 고정 이미지 배포·대화 검증을 진행한다. 사용자에게 안내한 준비 명령의 실행 결과는 아직 받지 않았다. 첫 대화와 SearXNG 도구 검증 이후 이 문서의 실제 Knative 전환으로 돌아온다.
+**현재 재개 지점:** `mori`의 공용 Hermes 일반 Deployment와 5Gi PVC가 준비됐고 실제 인사 응답을 확인했다. [기존 준비 절차](hermes-shared-resume.md)의 생성 단계를 반복하지 않는다. 현장 프로필·모델 설정과 저장소 초안을 대조하고, SearXNG 도구 검증 이후 이 문서의 실제 Knative 전환으로 돌아온다. 일반 Service 포트포워딩 성공은 Knative Route·scale-to-zero 검증이 아니다.
 
 ## 적용 범위와 위치
 

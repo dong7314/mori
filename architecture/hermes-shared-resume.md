@@ -2,7 +2,7 @@
 
 [전체 계획](../plan.md) · [아키텍처](plan.md) · [검색·경량화 방향](hermes-search-runtime.md) · [Knative 검증 기록](knative-validation-2026-09-21.md)
 
-갱신일: 2026-09-23. **현재는 공용 Hermes Pod Running·PVC Bound·health 200과 Pod→llama.cpp 직접 호출 200을 확인했고, GPU 노트북에서 로컬 GGUF·96K·슬롯 1·Q8 캐시 명령의 정상 동작을 보고받았다.** [오류 해결 과정과 최종 실행 명령](hermes-llama-validation-2026-09-23.md)을 먼저 읽는다. 다음은 최종 서버 인증과 Hermes 경유 실제 대화 재시험이다.
+갱신일: 2026-09-23. **공용 Hermes Pod Running·PVC Bound·health 200에 이어 Hermes 경유 실제 한국어 인사 응답까지 확인했다.** [첫 대화 성공 기록](hermes-shared-validation-2026-09-23.md)과 [이슈·GPU 실행 설정](hermes-llama-validation-2026-09-23.md)을 먼저 읽는다. 다음은 재현 설정·인증 거부 동작·시험 스크립트 판정 보완과 SearXNG 검색 도구 검증이다. 일반 대화는 통과했으며 같은 배포를 처음부터 반복하지 않는다.
 
 아래 1~7절은 2026-09-21 당시 준비 절차를 보존한 기록이다. namespace/Secret 미생성·Hermes 미배포라는 표현과 체크리스트는 당시 상태이며, 이미 생성한 리소스를 다시 만들지 않는다. 시험용 전달 파일과 저장소 `master` 배포 초안의 일치 여부는 별도 확인한다. 이번 문서 수정으로 클러스터를 변경하지 않았다.
 
