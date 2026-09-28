@@ -1,5 +1,7 @@
 # 공용 Hermes 일반 Deployment — 첫 대화 연동 성공
 
+> 2026-09-23 첫 대화 시점의 기록이다. 이후 검색·이미지·본문 추출 성공과 남은 검증은 [2026-09-28 기록](hermes-web-validation-2026-09-28.md)을 참조한다. 이후 실습 리소스 삭제와 이미지/YAML 구현은 [전환 기록](runtime-image-transition.md)에 있다. 아래의 미검증 표시는 당시 기준이다.
+
 [전체 계획](../plan.md) · [이슈와 GPU 설정 기록](hermes-llama-validation-2026-09-23.md) · [기존 준비 절차](hermes-shared-resume.md) · [검색 설계](hermes-search-runtime.md)
 
 기록일: 2026-09-23. **사용자가 실행한 `chat-test.py`에서 실제 한국어 인사 응답을 확인했다.** 근거는 이 대화에 제공한 Pod/PVC 조회와 테스트 출력이며, AI가 클러스터에 원격 접속해 검증한 결과는 아니다. 서버·제품 코드 변경 없이 `plan`의 상태와 다음 작업만 갱신한다.
