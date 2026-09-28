@@ -1,6 +1,6 @@
 # 기존 k3s에 Mori API 배포
 
-이 디렉터리는 배포 예시다. 기존 GPU·Hermes·클러스터를 수정하지 않는다. 실제 적용 전에 이미지 저장소, PostgreSQL 연결 주소, 소셜 앱 키와 공개 API 주소를 준비한다. PostgreSQL 배포·스토리지 정책은 별도로 구성한다.
+이 문서의 본문은 Mori API 배포 예시다. Hermes·SearXNG의 독립적인 재배포는 [런타임 배포 가이드](hermes-shared.md)를 따른다. 실제 적용 전에 이미지 저장소, PostgreSQL 연결 주소, 소셜 앱 키와 공개 API 주소를 준비한다. PostgreSQL 배포·스토리지 정책은 별도로 구성한다.
 
 기존 k3s worker에서 공용 Hermes Gateway를 실행하고 별도 Linux GPU 노트북의 llama.cpp에 연결하는 절차는 [hermes-shared.md](hermes-shared.md)를 참고한다. 해당 배포는 Mori API 배포와 별도로 적용한다.
 
@@ -54,4 +54,12 @@ kubectl -n mori port-forward service/mori-api 8000:8000
 - `mori prune-auth`를 운영 스케줄러에서 주기적으로 실행해 만료된 인증 데이터를 정리한다. 예: `kubectl -n mori exec deployment/mori-api -- mori prune-auth`.
 - 운영 시 마이그레이션 계정과 API의 제한된 DML 계정을 분리하면 Job과 Deployment가 각각 다른 Secret을 참조하도록 바꾼다.
 
-실제 클러스터 배포와 실제 소셜 계정 검증은 아직 수행하지 않았다. Hermes Pod·에이전트 전용 인증·작업 큐는 다음 구현 범위다.
+실제 클러스터 배포와 실제 소셜 계정 검증은 아직 수행하지 않았다. Hermes 검색 호출 어댑터는 단일 테스트 계정 범위로 구현했다. 사용자별 격리·에이전트의 주차 저장 인증·작업 큐는 다음 구현 범위다.
+
+## 기존 Hermes 검색 연결
+
+백엔드 배포 후 [검색 연동 절차](../../backend/docs/assistant-search.md)에 따라 `backend-hermes-search.patch.yaml`의 테스트 사용자 UUID를 수정하고 strategic merge patch로 적용한다. 기존 `mori-hermes` Secret의 `API_SERVER_KEY`를 참조한다. 운영 중인 Hermes ConfigMap·PVC·이미지는 이 패치가 변경하지 않는다. 먼저 소셜 로그인과 DB 연결을 준비하고, Hermes 공용 home의 소유자만 테스트 계정으로 지정한다.
+
+## 페이지·소셜 로그인 없이 임시 토큰으로 검사
+
+[master 전용 임시 토큰 절차](../../backend/docs/assistant-test-token.md)를 따른다. `backend-hermes-test-token.patch.yaml`로 활성화하며 검색 API에만 적용한다. 이 경우 소셜 앱 키·테스트 사용자 UUID는 필요 없지만 API readiness를 위한 PostgreSQL·기존 마이그레이션은 필요하다. 종료 시 비활성화와 HTTP 401을 확인한다.
