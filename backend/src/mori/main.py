@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import select
 
+from mori.assistant.router import router as assistant_router
 from mori.auth.models import (
     AccessToken,
     AuthSession,
@@ -43,8 +44,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Mori API",
-        version="0.3.0",
-        description="소셜 가입, 최고 관리자 승인 기반 프로 권한, 사용자별 주차 기록 저장·조회",
+        version="0.4.0",
+        description="소셜 가입, 프로 권한, 주차 기록 및 테스트 계정의 Hermes 웹 검색",
         lifespan=lifespan,
     )
     app.state.session_factory = build_session_factory(engine)
@@ -69,6 +70,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(profile_router)
     app.include_router(membership_router)
+    app.include_router(assistant_router)
 
     @app.get("/health/live", response_model=HealthStatus, tags=["health"])
     def live() -> HealthStatus:

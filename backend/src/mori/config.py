@@ -1,4 +1,6 @@
+import re
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -21,6 +23,53 @@ class Settings(BaseSettings):
     naver_client_secret: SecretStr = SecretStr("")
     kakao_client_id: str = ""
     kakao_client_secret: SecretStr = SecretStr("")
+    hermes_base_url: str = ""
+    hermes_api_key: SecretStr = SecretStr("")
+    hermes_test_user_id: UUID | None = None
+    hermes_timeout_seconds: int = Field(default=300, ge=10, le=600)
+    assistant_test_token_enabled: bool = False
+    assistant_test_token: SecretStr = SecretStr("")
+
+    @model_validator(mode="after")
+    def require_explicit_test_token(self):
+        if self.assistant_test_token_enabled and not re.fullmatch(
+            r"mori_lab_[A-Za-z0-9_-]{64}", self.assistant_test_token.get_secret_value()
+        ):
+            raise ValueError("Generate a test token with scripts/create_assistant_test_token.py")
+        return self
+
+    @field_validator("hermes_api_key")
+    @classmethod
+    def validate_hermes_key(cls, value: SecretStr) -> SecretStr:
+        if any(not 33 <= ord(c) <= 126 for c in value.get_secret_value()):
+            raise ValueError("Hermes key must contain only visible ASCII characters")
+        return value
+
+    @field_validator("hermes_base_url")
+    @classmethod
+    def validate_hermes_url(cls, value: str) -> str:
+        if not value:
+            return value
+        parsed = urlsplit(value)
+        _ = parsed.port
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+            or parsed.path not in {"", "/"}
+            or "\\" in value
+            or any(ord(c) <= 32 or ord(c) == 127 for c in value)
+        ):
+            raise ValueError("Hermes URL must be an HTTP(S) origin without credentials or paths")
+        return value.rstrip("/")
+
+    @field_validator("hermes_test_user_id", mode="before")
+    @classmethod
+    def empty_test_user(cls, value):
+        return None if value == "" else value
 
     @field_validator("database_url")
     @classmethod

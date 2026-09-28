@@ -1,0 +1,24 @@
+# Temporary internal test only. Apply AFTER creating mori-assistant-test Secret.
+# kubectl patch deployment mori-api --type strategic --patch-file <this file>
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: MORI_HERMES_BASE_URL
+              value: http://mori-hermes-shared.mori.svc.cluster.local:8642
+            - name: MORI_HERMES_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mori-hermes
+                  key: API_SERVER_KEY
+            - name: MORI_HERMES_TIMEOUT_SECONDS
+              value: "300"
+            - name: MORI_ASSISTANT_TEST_TOKEN_ENABLED
+              value: "true"
+            - name: MORI_ASSISTANT_TEST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mori-assistant-test
+                  key: MORI_ASSISTANT_TEST_TOKEN

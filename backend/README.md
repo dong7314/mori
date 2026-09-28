@@ -1,6 +1,6 @@
 # Mori Backend
 
-네이버·카카오 소셜 가입·로그인, 무료·프로 권한 관리, 사용자별 주차 저장·조회를 제공한다. Hermes와 자연어 대화는 아직 연결하지 않았다. 주차 API가 이후 Hermes 도구의 저장 경로가 된다.
+네이버·카카오 소셜 가입·로그인, 무료·프로 권한 관리, 사용자별 주차 저장·조회를 제공한다. 지정한 테스트 계정의 웹 검색 요청을 Hermes에 전달하는 API를 제공한다. 대화 저장·사용자별 Hermes 격리와 자연어 주차 저장은 아직 연결하지 않았다. 주차 API가 이후 Hermes 도구의 저장 경로가 된다.
 
 ## 실행 환경
 
@@ -113,3 +113,7 @@ API 계약을 바꾸면 `uv run python scripts/export_openapi.py`로 문서를 �
 Docker 이미지는 UID 10001로 실행한다. `/health/live`는 프로세스, `/health/ready`는 DB와 스키마 접근을 확인한다. 기본 명령은 OAuth 콜백 코드가 URL 로그에 남지 않도록 Uvicorn access log를 끈다. Ingress·APM에서도 인증 요청의 쿼리·쿠키·본문·Authorization 헤더 수집을 제외한다.
 
 [k3s 예시](../infra/k3s/README.md)는 API Deployment·내부 Service·별도 마이그레이션 Job을 제공한다. 실제 클러스터 배포는 수행하지 않았다.
+
+## Hermes 검색 연동
+
+`POST /v1/assistant/search`로 로그인한 테스트 계정의 검색 요청을 Hermes에 전달한다. 실제 도구 실행 결과를 확인해 답변·출처·도구 상태를 반환한다. 기본은 비활성이며, 소셜 로그인 경로는 공용 profile을 소유한 단일 테스트 계정만 허용한다. 로그인 없이 master에서 검사할 때는 명시적으로 켜는 [임시 검색 토큰](docs/assistant-test-token.md)을 사용한다. [API 계약·환경 설정·배포·실제 검사](docs/assistant-search.md)를 따른다.
