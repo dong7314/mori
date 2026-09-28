@@ -1,0 +1,43 @@
+# Reconstructed from the validated engine combination. Use the pinned release's
+# built-in Naver parser; the old live ConfigMap was deleted, not exported.
+use_default_settings:
+  engines:
+    keep_only:
+      - google
+      - brave
+      - naver
+      - google images
+      - naver images
+general:
+  instance_name: Mori Search
+  debug: false
+search:
+  autocomplete: ""
+  default_lang: ko-KR
+  formats: [html, json]
+server:
+  port: 8080
+  bind_address: 0.0.0.0
+  limiter: false
+  public_instance: false
+  image_proxy: false
+valkey:
+  url: false
+outgoing:
+  request_timeout: 5.0
+  max_request_timeout: 10.0
+  pool_connections: 20
+categories_as_tabs:
+  general:
+  images:
+engines:
+  - name: google
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: naver
+    disabled: false
+  - name: google images
+    disabled: false
+  - name: naver images
+    disabled: false

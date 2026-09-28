@@ -1,0 +1,3 @@
+name: mori_extract
+version: 0.1.0
+description: Local HTML extraction provider using the existing Mori Trafilatura environment.

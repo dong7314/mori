@@ -1,0 +1,12 @@
+# Apply separately: deleting the application overlay must not delete user state.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mori-hermes-shared-home
+  namespace: mori
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi

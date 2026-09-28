@@ -1,0 +1,26 @@
+gateway:
+  multiplex_profiles: false
+providers:
+  lan_llama:
+    api: http://192.168.0.8:8080/v1
+    key_env: LLAMA_API_KEY
+    transport: chat_completions
+model:
+  provider: custom:lan_llama
+  default: ggml-org/Qwen3.8-27B-GGUF:Q4_K_M
+  # Keep this consistent with the existing GPU server; not a performance guarantee.
+  context_length: 98304
+web:
+  search_backend: searxng
+  extract_backend: mori-local
+  extract_timeout: 90
+  keyless_fallback: false
+  keyless_rescue: false
+plugins:
+  enabled:
+    - mori_images
+    - mori_extract
+platform_toolsets:
+  api_server:
+    - web
+    - mori_images

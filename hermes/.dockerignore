@@ -1,0 +1,10 @@
+*
+!Dockerfile
+!requirements.lock
+!bootstrap.py
+!plugins/
+!plugins/**
+!checks/
+!checks/**
+**/__pycache__/
+**/*.pyc

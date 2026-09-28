@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mori-searxng
+  template:
+    metadata:
+      labels:
+        app: mori-searxng
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      initContainers:
+      - name: copy-config
+        image: docker.io/searxng/searxng@sha256:5286edb35782454ab8a102c5eff6b54bff745853191b46aeead95f225aa6dfb6
+        command:
+        - /bin/sh
+        - -ec
+        args:
+        - cp /bootstrap/settings.yml /etc/searxng/settings.yml
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 250m
+            memory: 128Mi
+        volumeMounts:
+        - name: bootstrap
+          mountPath: /bootstrap
+          readOnly: true
+        - name: config
+          mountPath: /etc/searxng
+      containers:
+      - name: searxng
+        image: docker.io/searxng/searxng@sha256:5286edb35782454ab8a102c5eff6b54bff745853191b46aeead95f225aa6dfb6
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: GRANIAN_HOST
+          value: 0.0.0.0
+        - name: GRANIAN_WORKERS
+          value: '1'
+        - name: GRANIAN_BLOCKING_THREADS
+          value: '2'
+        - name: SEARXNG_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: searxng-secret
+              key: SEARXNG_SECRET
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: '1'
+            memory: 1Gi
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 36
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 3
+        volumeMounts:
+        - name: config
+          mountPath: /etc/searxng
+        - name: cache
+          mountPath: /var/cache/searxng
+      volumes:
+      - name: bootstrap
+        configMap:
+          name: searxng-config
+      - name: config
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}

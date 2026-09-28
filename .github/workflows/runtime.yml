@@ -1,0 +1,29 @@
+name: Hermes runtime
+on:
+  push:
+    branches: [master]
+    paths: ["hermes/**", "scripts/runtime/**", "scripts/smoke/**", "infra/k3s/base/**", "infra/k3s/overlays/**", "infra/k3s/storage/**", ".github/workflows/runtime.yml"]
+  pull_request:
+    paths: ["hermes/**", "scripts/runtime/**", "scripts/smoke/**", "infra/k3s/base/**", "infra/k3s/overlays/**", "infra/k3s/storage/**", ".github/workflows/runtime.yml"]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install --require-hashes -r hermes/requirements.lock
+      - run: python -m pip install ruff==0.16.8 PyYAML==6.0.3
+      - run: ruff check --config hermes/ruff.toml hermes scripts/runtime scripts/smoke
+      - run: ruff format --config hermes/ruff.toml --check hermes scripts/runtime scripts/smoke
+      - run: python -m unittest discover -s hermes/tests -v
+      - uses: azure/setup-kubectl@v4
+        with:
+          version: v1.34.3
+      - run: python scripts/runtime/validate_manifests.py
+      - run: docker build --platform linux/amd64 -t mori-hermes:ci hermes
+      - run: python scripts/runtime/check_image.py --image mori-hermes:ci

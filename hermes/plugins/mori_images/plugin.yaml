@@ -1,0 +1,5 @@
+name: mori_images
+version: 0.1.0
+description: Search image metadata through Mori's internal SearXNG service.
+provides_tools:
+  - mori_image_search
