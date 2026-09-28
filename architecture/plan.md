@@ -8,7 +8,7 @@
 
 ## 현재 홈 네트워크와 배포 위치
 
-**최신 재개 상태(2026-09-28):** 현장 도구 시험을 마친 뒤 사용자 요청으로 Hermes/SearXNG 리소스와 Hermes PVC/PV를 삭제했다. 이미지·선언적 YAML·CLI는 구현했고 로컬 amd64 기동·33개 런타임 테스트 및 157개 백엔드 테스트를 통과했다. 다음은 Harbor 등록, 새 PVC 재배포와 실환경 회귀다. Mori API도 k3s 미배포이며 실제 Hermes Knative 전환은 후속이다. 본문 추출은 같은 Hermes 이미지의 별도 venv에서 실행한다. [현장 증거](hermes-web-validation-2026-09-28.md) · [API 구현](../back/hermes-search-implementation-2026-09-28.md) · [새 배포 순서](runtime-image-transition.md).
+**최신 재개 상태(2026-09-28):** 현장 도구 시험을 마친 뒤 사용자 요청으로 Hermes/SearXNG 리소스와 Hermes PVC/PV를 삭제했다. 이미지·당시 Kustomize 구성·CLI는 구현했고 로컬 amd64 기동·33개 런타임 테스트 및 157개 백엔드 테스트를 통과했다. 이후 배포 방식에서 Kustomize를 제외했다. 일반 Kubernetes YAML을 `master`에 작성·검증한 뒤 Harbor 등록, 새 PVC 재배포와 실환경 회귀를 진행한다. Mori API도 k3s 미배포이며 실제 Hermes Knative 전환은 후속이다. 본문 추출은 같은 Hermes 이미지의 별도 venv에서 실행한다. [현장 증거](hermes-web-validation-2026-09-28.md) · [API 구현](../back/hermes-search-implementation-2026-09-28.md) · [배포 전환 기록](runtime-image-transition.md).
 
 2026-09-17 사용자 설명과 2026-09-21 사용자가 제공한 k3s/설치 출력에 근거한다. AI가 원격 접속해 조사한 결과는 아니다. 다섯 장비 모두 ipTIME에 연결되어 있다. GPU 노트북의 주소 `192.168.0.8`, llama.cpp 포트 `8080`, API 키 설정은 사용자에게 확인했다. 두 k3s 노드의 버전은 `v1.34.3+k3s1`이며 IP·CPU·RAM과 Knative 배치는 확인됐다. 실제 전원·절전 정책과 저장소 여유/복구는 아직 검증하지 않았다.
 
@@ -52,7 +52,7 @@ model:
   # context_length: 65536  # 서버에서 같은 길이를 검증한 뒤 설정
 ```
 
-`model.default`는 GPU 노트북의 실제 `/v1/models` 결과와 일치시킨다. 적용용 설정은 `master`의 `infra/k3s/base/hermes/config.yaml`, 배치는 `infra/k3s/overlays/home-dev`에 있다. 이전 단일 YAML은 제거했다. 이미지 digest를 지정한 로컬 overlay로 적용하며 실제 재배포 검증은 남아 있다.
+`model.default`는 GPU 노트북의 실제 `/v1/models` 결과와 일치시킨다. `master`의 `infra/k3s/base/hermes/config.yaml`과 `infra/k3s/overlays/home-dev`는 당시 Kustomize 구현 파일이다. 이전 단일 YAML은 제거됐고, 이를 대신할 일반 Kubernetes YAML은 아직 작성되지 않았다. 새 매니페스트에 실제 이미지 digest와 설정을 반영하고 서버 dry-run·diff를 확인한 뒤 배포한다.
 
 ## 1. 전체 구조
 

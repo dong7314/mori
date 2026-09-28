@@ -4,9 +4,9 @@
 
 갱신일: 2026-09-28 · 상태: **Knative 기반·테스트 앱 1→0→1과 일반 Deployment의 Hermes 대화 확인, 실제 Hermes Knative 전환은 미완료.** 사용자가 서버에서 실행한 출력에 근거하며 직접 원격 점검한 결과는 아니다. [Knative 검증 기록](knative-validation-2026-09-21.md) · [Hermes 대화 결과](hermes-shared-validation-2026-09-23.md).
 
-재현 가능한 설치 설정은 **[노드별 실습 가이드와 Kustomize 파일](knative-lab/README.md)**에 있다. master에서 명령을 실행하고 workload는 worker에 배치하며, master UFW는 비활성 유지·worker UFW만 보완한다. 이미 설치된 클러스터에서는 설치를 반복하지 않는다. 실제 Hermes 전환 착수 전 아래 현재 재개 지점의 선행 작업을 완료한다.
+2026-09-21 설치 당시 사용한 설정과 명령은 **[노드별 실습 기록](knative-lab/README.md)**에 보존한다. 이 기록의 Kustomize 파일은 과거 Knative 기반 설치를 설명할 뿐, 이후 Hermes/SearXNG 배포 계획에 포함되지 않는다. master에서 명령을 실행하고 workload는 worker에 배치하며, master UFW는 비활성 유지·worker UFW만 보완한다. 이미 설치된 클러스터에서는 설치를 반복하지 않는다. 실제 Hermes 전환 착수 전 아래 현재 재개 지점의 선행 작업을 완료한다.
 
-**현재 재개 지점:** 일반 Deployment에서 대화·검색·이미지 후보·본문 추출까지 통과했다. [9월 28일 기록](hermes-web-validation-2026-09-28.md). 이후 사용자 요청으로 실습 리소스/PVC를 삭제하고 정식 이미지·YAML을 구현했다. 지금은 [Harbor 등록·새 PVC 재배포·회귀](runtime-image-transition.md)가 우선이고 실제 Hermes Knative 전환은 후속이다. 기존 Knative 설치는 반복하지 않고, 새 runtime Secret은 최신 배포 가이드로 준비한다. 일반 Service 호출 성공은 Knative Route·scale-to-zero 검증이 아니다.
+**현재 재개 지점:** 일반 Deployment에서 대화·검색·이미지 후보·본문 추출까지 통과했다. [9월 28일 기록](hermes-web-validation-2026-09-28.md). 이후 사용자 요청으로 실습 리소스/PVC를 삭제하고 정식 이미지·당시 YAML을 구현했다. 지금은 [일반 YAML 배포 경로 작성, Harbor 등록·새 PVC 재배포·회귀](runtime-image-transition.md)가 우선이고 실제 Hermes Knative 전환은 후속이다. 기존 Knative 설치는 반복하지 않고, 새 runtime Secret은 일반 YAML 배포 절차와 함께 준비한다. 일반 Service 호출 성공은 Knative Route·scale-to-zero 검증이 아니다.
 
 ## 적용 범위와 위치
 
@@ -36,13 +36,13 @@ k3s 기본 Traefik/ServiceLB가 이미 노드의 80/443 포트를 사용한다�
 
 2026-09-21 Serving/Kourier 1.23.0을 설치했고 시스템 Pod 6개가 `k3s-infra`에서 Ready임을 확인했다. `kourier`와 `kourier-internal`은 모두 ClusterIP다. 설치 파일은 [knative-lab](knative-lab/README.md)에 보관한다.
 
-재설치가 필요하면 해당 가이드대로 공식 CRD → worker 배치·toleration을 반영한 Serving → ClusterIP로 수정한 Kourier 순서로 적용한다. 원본 core/Kourier 매니페스트를 직접 적용하면 현재 배치·Service·HPA 설정이 덮어써질 수 있으므로 저장된 Kustomize 설정에서 생성한 파일을 사용한다. master에 임시로 복사한 파일은 삭제 가능하고 Git의 원본에서 다시 생성할 수 있다.
+재설치가 필요해지면 당시 실습 기록을 참고해 공식 CRD → worker 배치·toleration을 반영한 Serving → ClusterIP로 수정한 Kourier 순서를 다시 검토한다. 원본 core/Kourier 매니페스트를 그대로 적용하면 현재 배치·Service·HPA 설정이 덮어써질 수 있다. 재설치용 일반 YAML과 검증 절차는 별도 작업으로 작성해야 하며, 당시 Kustomize 생성 파일을 향후 배포 절차로 지정하지 않는다.
 
 설치만으로 기존 Hermes Deployment가 Knative Service로 바뀌지는 않는다. 아래는 아직 실행하지 않은 실제 Hermes 전환 절차다.
 
 ## 3. 기존 Hermes 매니페스트를 Knative Service로 전환
 
-`master/infra/k3s/hermes-shared.yaml`은 현재 **일반 Deployment `replicas: 1` + ClusterIP Service + `local-path` PVC** 예시다. 그대로 적용하면 상시 실행된다. 또한 현재 worker에는 초안의 `mori-agent=true` 라벨이 없고 `infra=true:NoSchedule` taint가 있으므로 배치 설정부터 보완해야 한다. 이 파일을 바로 Knative Service라고 간주하지 않는다.
+초기 `master/infra/k3s/hermes-shared.yaml`은 **일반 Deployment `replicas: 1` + ClusterIP Service + `local-path` PVC** 예시였지만 이후 제거됐다. 일반 Deployment는 상시 실행된다. 현재 worker에는 초안의 `mori-agent=true` 라벨이 없고 `infra=true:NoSchedule` taint가 있으므로 새 일반 YAML과 향후 Knative Service 모두 배치 설정을 맞춰야 한다.
 
 1. 기존 Gateway의 단일 요청과 `192.168.0.8:8080/v1` 연결을 먼저 검증한다. `/v1/models`의 실제 모델 ID로 `REPLACE_MODEL_ID`를 교체하고 API 키를 Secret에 넣는다. 이미지와 볼륨 백업·복구 방법도 확인한다.
 2. Knative Service는 예를 들어 `mori-hermes-knative`라는 **새 이름**으로 작성한다. 기존 Kubernetes Service `mori-hermes-shared`와 이름을 충돌시키지 않는다. `namespace: mori`, `networking.knative.dev/visibility: cluster-local`, KPA, `min-scale: "0"`, `max-scale: "1"`, `scale-down-delay: "10m"`를 사용한다. `containerPort: 8642`, `API_SERVER_HOST=0.0.0.0`, readiness 경로와 Secret 연결을 실제 Hermes 이미지에서 확인한다. [내부 Service](https://knative.dev/docs/serving/services/private-services/), [확장 범위와 지연](https://knative.dev/docs/serving/autoscaling/scale-bounds/).

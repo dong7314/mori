@@ -2,7 +2,7 @@
 
 작성일: 2026-09-16 · 갱신일: 2026-09-28 · 관리 브랜치: `plan` · 상태: `master`·`poc` 구현 현황 반영, P1 진행 중
 
-**현재 재개 지점:** 공용 Hermes의 대화·일반 검색·이미지 후보·본문 추출·검색→추출을 현장에서 검증한 뒤, 사용자 요청으로 Hermes/SearXNG 실습 리소스와 Hermes PVC/PV를 삭제했다. `master`에는 검색 API·검색 전용 임시 인증(`7a19b61`), 도구를 포함한 Hermes 이미지·Kustomize·검사 CLI(`2e2a397`), 재배포 안내(`8fe2f85`)를 커밋했다. 백엔드 157개·런타임 33개 테스트와 로컬 amd64 이미지 기동 검증을 통과했다. **다음은 Harbor에 이미지 등록 → Git의 YAML로 worker에 새 PVC 재배포 → 실제 GPU·검색 도구 회귀 → Mori API 통합이다.** Harbor 등록·클러스터 재배포는 아직 하지 않았다. master의 실습 폴더/압축 파일 삭제 완료는 별도 확인이 필요하다. [현장 상세 기록](architecture/hermes-web-validation-2026-09-28.md) · [API 구현 기록](back/hermes-search-implementation-2026-09-28.md) · [이미지·YAML 구현 및 재개 순서](architecture/runtime-image-transition.md).
+**현재 재개 지점:** 공용 Hermes의 대화·일반 검색·이미지 후보·본문 추출·검색→추출을 현장에서 검증한 뒤, 사용자 요청으로 Hermes/SearXNG 실습 리소스와 Hermes PVC/PV를 삭제했다. `master`에는 검색 API·검색 전용 임시 인증(`7a19b61`), 도구를 포함한 Hermes 이미지·당시 Kustomize 구성·검사 CLI(`2e2a397`), 당시 재배포 안내(`8fe2f85`)를 커밋했다. 백엔드 157개·런타임 33개 테스트와 로컬 amd64 이미지 기동 검증을 통과했다. **2026-09-28 결정: 이후 배포 계획에서 Kustomize를 제외한다. 다음은 `master`에 일반 Kubernetes YAML 배포 경로 작성·검증 → Harbor 이미지 등록과 digest 확정 → 새 PVC와 함께 worker 재배포 → 실제 GPU·검색 도구 회귀 → Mori API 통합이다.** 일반 YAML 배포 경로는 아직 구현·배포하지 않았다. master의 실습 폴더/압축 파일 삭제 완료는 별도 확인이 필요하다. [현장 상세 기록](architecture/hermes-web-validation-2026-09-28.md) · [API 구현 기록](back/hermes-search-implementation-2026-09-28.md) · [이미지·YAML 전환 기록](architecture/runtime-image-transition.md).
 
 ## 1. 만들려는 서비스
 
@@ -59,7 +59,7 @@
 | [9월 28일 검색·이미지·추출 검증](architecture/hermes-web-validation-2026-09-28.md) | 실행 위치·로그·CAPTCHA/품질 이슈·검사기 수정·실습 파일·검증 한계 | 사용자 출력·실습 코드 기반 |
 | [Mori 검색 API·임시 인증 구현](back/hermes-search-implementation-2026-09-28.md) | master `7a19b61`·API 계약·검색 전용 토큰·로컬 테스트·미배포 범위 | AI |
 | [정식 이미지·개발 YAML 전환](architecture/runtime-image-transition.md) | 실습 삭제 확인·이미지/선언적 배포 구현·로컬 검증·노드별 재개 순서 | 코드/로컬 검증 완료, Harbor·재배포 대기 |
-| [Knative 실습 파일](architecture/knative-lab/README.md) · [2026-09-21 검증 기록](architecture/knative-validation-2026-09-21.md) | 노드별 실행 절차, 재현 가능한 Kustomize 설정, 실제 설치·메트릭 복구·1→0→1 결과 | AI 작성, 사용자 현장 실행 |
+| [Knative 실습 파일](architecture/knative-lab/README.md) · [2026-09-21 검증 기록](architecture/knative-validation-2026-09-21.md) | 당시 노드별 설치·Kustomize 재현 기록과 실제 메트릭 복구·1→0→1 결과. 이후 Hermes 배포 계획에서는 제외 | AI 작성, 사용자 현장 실행 |
 | [front/plan.md](front/plan.md) | 휴대폰·태블릿 앱 화면, 음성·대화, 개인화, 캘린더, OS 위젯, PoC 범위 | 실제 개발: 사용자 / 요청한 PoC: AI |
 | [back/plan.md](back/plan.md) | 도메인·데이터, Hermes 연결, 도구 권한, API, 자동화, 검증 기준 | AI |
 
@@ -202,7 +202,7 @@ GPU 노트북의 llama.cpp는 운영 중이라는 사용자 설명을 받았지�
 
 ## 10. PoC 현재 상태와 구현 기록
 
-화면 기준은 `poc` `3ff0387`이며 이번 작업에서 변경하지 않았다. 제품 코드는 `master` `8fe2f85`를 기준으로 한다. 아래 표는 이전 구현 이력이고, 9월 28일 후속 커밋은 `7a19b61`(검색 API·임시 인증), `2e2a397`(Hermes 이미지·Kustomize·검사/CI), `8fe2f85`(재배포 문서)다. 초기 `55652f6`의 단일 `hermes-shared.yaml`은 새 Kustomize 구성으로 대체했다. 새 코드의 실제 Harbor 등록·k3s 재배포 완료를 뜻하지 않는다.
+화면 기준은 `poc` `3ff0387`이며 이번 작업에서 변경하지 않았다. 제품 코드는 `master` `8fe2f85`를 기준으로 한다. 아래 표는 이전 구현 이력이고, 9월 28일 후속 커밋은 `7a19b61`(검색 API·임시 인증), `2e2a397`(Hermes 이미지·Kustomize·검사/CI), `8fe2f85`(당시 재배포 문서)다. 초기 `55652f6`의 단일 `hermes-shared.yaml`은 당시 Kustomize 구성으로 대체했지만, 이 구성은 이후 배포 방식에서 제외했다. 새 코드의 실제 Harbor 등록·k3s 재배포 완료를 뜻하지 않는다.
 
 | 커밋 | 반영 내용 |
 | --- | --- |
@@ -287,7 +287,7 @@ GPU 노트북의 llama.cpp는 운영 중이라는 사용자 설명을 받았지�
 | 실습 클러스터 | 사용자 출력으로 Hermes/SearXNG Deployment·Service·ConfigMap·Secret, Hermes PVC와 관련 PV 삭제 확인. Pod도 없음 |
 | 유지 범위 | mori/mori-tools namespace 및 기존 k3s·Knative/Kourier·Harbor·DB·MinIO·GPU 환경은 이번 정리 대상에서 제외 |
 | Mori 검색 API | `7a19b61`, 검색 증거 검증·출처 응답·검색 전용 임시 토큰. 백엔드 157개 테스트 통과, 실제 API 통합 미실행 |
-| 이미지·YAML | `2e2a397`, 공식 base + Mori 플러그인/추출 venv, 고정 SearXNG, Kustomize/Secret/PVC/CLI/CI 구현 |
+| 이미지·YAML | `2e2a397`, 공식 base + Mori 플러그인/추출 venv, 고정 SearXNG, 당시 Kustomize/Secret/PVC/CLI/CI 구현. 일반 YAML 배포 경로는 미구현 |
 | 런타임 검증 | 33개 테스트, Ruff·Kustomize 검증, amd64 빌드 및 네트워크 없는 정상 entrypoint 기동/인증 검사 통과 |
 | 파일 정리 | master 실습 폴더·압축 파일의 삭제 완료는 출력으로 확인하지 못함. 클러스터 삭제와 구분 |
 | 미실행 | Harbor 이미지 push, 새 YAML 적용, 새 이미지의 GPU/외부 검색 회귀, Mori API 실환경 통합 |
@@ -300,10 +300,11 @@ GPU 노트북의 llama.cpp는 운영 중이라는 사용자 설명을 받았지�
 | `2e2a397` | 고정 Hermes 이미지, 이미지/본문 도구, home 초기화, SearXNG 설정, Kustomize/Secret/PVC, 검사 및 CI |
 | `8fe2f85` | 노드별 빌드·배포·회귀·롤백 안내와 로컬 검증 범위 |
 
-1. **빌드 머신:** 검증한 소스에서 `linux/amd64` 이미지를 Harbor에 등록하고 실제 digest를 확보한다.
-2. **k3s master:** 같은 소스 버전에서 namespace·Secret·새 PVC를 준비하고 이미지 digest로 overlay를 생성한다. 렌더링·서버 dry-run·diff 후 적용한다.
-3. **k3s worker:** YAML이 `k3s-infra`에 Hermes/SearXNG를 배치한다. worker에서 수동 pip 설치하지 않는다.
-4. **k3s master:** `scripts/smoke/runtime.py`로 health/인증, 직접 검색·두 이미지 엔진, 모델 검색·이미지·추출·검색→추출을 확인한다. GPU는 기존 `192.168.0.8:8080`을 사용한다.
-5. **제품 연결:** Mori API를 준비해 임시 검색 토큰 또는 지정 소셜 계정으로 실제 통합한다. 이어서 기존 주차 서비스에 Hermes 도구를 연결해 자연어 저장→DB 확인→재조회를 구현한다.
+1. **제품 코드 `master`:** Hermes/SearXNG용 일반 Kubernetes YAML을 작성한다. Namespace·Secret·ConfigMap·PVC·Deployment·Service의 적용 순서, 이미지 digest 교체 방법과 설정 변경 시 재시작 방법을 문서화하고 검증한다. 기존 Kustomize 파일이나 생성된 overlay를 다음 배포에 사용하지 않는다.
+2. **빌드 머신:** 검증한 소스에서 `linux/amd64` 이미지를 Harbor에 등록하고 실제 digest를 확보한다.
+3. **k3s master:** Secret과 새 PVC를 준비하고 실제 이미지 digest를 반영한 일반 YAML에 `kubectl apply --dry-run=server -f`, `kubectl diff -f`를 수행한 뒤 순서대로 `kubectl apply -f`한다. 비밀 값은 Git에 넣지 않는다.
+4. **k3s worker:** YAML이 `k3s-infra`에 Hermes/SearXNG를 배치한다. worker에서 수동 pip 설치하지 않는다.
+5. **k3s master:** `scripts/smoke/runtime.py`로 health/인증, 직접 검색·두 이미지 엔진, 모델 검색·이미지·추출·검색→추출을 확인한다. GPU는 기존 `192.168.0.8:8080`을 사용한다.
+6. **제품 연결:** Mori API를 준비해 임시 검색 토큰 또는 지정 소셜 계정으로 실제 통합한다. 이어서 기존 주차 서비스에 Hermes 도구를 연결해 자연어 저장→DB 확인→재조회를 구현한다.
 
-실행 명령과 실제 파일 경로는 [이미지·YAML 전환 기록](architecture/runtime-image-transition.md)에 모았다. 정식 이미지란 코드와 의존성을 재현 가능하게 묶었다는 뜻이며, 의존성을 제거한 최소 이미지·다중 사용자 격리·실제 Hermes Knative 전환 완료는 아니다. Oracle 합류·결제·예약·OS 위젯·PDF/Excel 생성은 후속 범위다. 이번 Git push와 실제 Harbor push/클러스터 배포는 구분한다.
+기존 구현의 명령과 파일 경로는 [이미지·YAML 전환 기록](architecture/runtime-image-transition.md)에 보존했다. 일반 YAML의 실제 경로와 명령은 `master`에 구현한 뒤 확정한다. 정식 이미지란 코드와 의존성을 재현 가능하게 묶었다는 뜻이며, 의존성을 제거한 최소 이미지·다중 사용자 격리·실제 Hermes Knative 전환 완료는 아니다. Oracle 합류·결제·예약·OS 위젯·PDF/Excel 생성은 후속 범위다. 이번 Git push와 실제 Harbor push/클러스터 배포는 구분한다.
