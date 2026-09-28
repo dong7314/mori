@@ -2,7 +2,7 @@
 
 [전체 계획](../plan.md) · [아키텍처](plan.md) · [공용 Hermes 재개 절차](hermes-shared-resume.md)
 
-갱신일: 2026-09-21. 사용자 의도는 보유한 서버에서 검색을 운영해 외부 검색 API 비용을 피하고, 공용/개인 Hermes를 가볍게 유지하는 것이다. **SearXNG를 첫 검증 후보로 삼으며 아직 배포·연동하지 않았다.** 이하 분리 구조와 자원 정책은 설계안이고 경량 이미지는 존재하지 않는다.
+갱신일: 2026-09-28. 사용자 의도는 보유한 서버에서 검색을 운영해 외부 검색 API 비용을 피하고 공용/개인 Hermes를 가볍게 유지하는 것이다. **SearXNG 배포·모델 검색, 이미지 후보 도구, 같은 Hermes Pod의 로컬 본문 추출까지 실험 검증했다.** [상세 증거](hermes-web-validation-2026-09-28.md). 실습 리소스 삭제 후 도구를 포함한 이미지·YAML을 `master` `2e2a397`에 구현하고 로컬 기동을 검증했다. 다음은 Harbor 등록·worker 재배포다. 의존성을 제거한 경량 이미지와 개인 실행 환경은 미완료다. [전환 기록](runtime-image-transition.md).
 
 ## 1. 실행 이미지와 자원 제한
 
@@ -16,7 +16,8 @@
 
 | 후보 | 역할과 연결 | 현재 판단 |
 | --- | --- | --- |
-| SearXNG | 외부 검색 엔진들의 결과를 집계. Hermes 기본 `searxng` provider와 JSON API로 연결 | 첫 자체 호스팅 검색 후보 |
+| SearXNG | 외부 검색 엔진들의 결과를 집계. Hermes 기본 `searxng` provider와 JSON API로 연결 | 현장 배포·web_search 시험 통과 후 삭제. Google/Naver/Brave 설정 코드화, 재배포 대기 |
+| Trafilatura + Mori provider | 기존 Hermes의 전용 Python 환경에서 HTML 본문 추출, `mori-local` → `web_extract` 연결 | 직접 추출·검색 후 추출 검증, 새 Pod 없음 |
 | YaCy | 직접 크롤링·색인하거나 P2P 색인 사용, 컨테이너 제공 | 특정 범위 자체 색인에는 검토 가능. 일반 웹의 범위·최신성을 직접 운영해야 하므로 초기 모리의 우선안은 아님 |
 | Crawl4AI | URL 본문 수집·브라우저 처리, 자체 호스팅 API/MCP | 후속 본문 추출 후보. Hermes 도구/어댑터 연결과 버전별 API 검증 필요 |
 | Firecrawl 자체 호스팅 | Hermes가 사용자 지정 API 주소를 지원. 본문 수집·추출 등 제공 | 연결 후보지만 API/Worker·브라우저·큐·DB 등 구성 요소가 많아 초기 경량화 목적과 비교 필요 |
@@ -25,34 +26,34 @@ SearXNG는 인터넷 전체를 자체 색인하는 서버가 아니다. API 키/
 
 Tavily/Brave 등 외부 API의 무료 한도도 비교했지만, 현재의 우선 검증은 자체 호스팅이다. 무료 제공량·요금표를 설계 의존성으로 두지 않는다. 공급자별 원문 저장·재사용 조건도 동일하다고 가정하지 않는다.
 
-## 3. 초기 k3s 배치 제안
+## 3. 현장에서 검증한 구조와 재배포 대상
 
 ```mermaid
 flowchart TD
-    Mori[Mori API / 사용자·작업 문맥] --> Shared[Free 공용 Hermes]
-    Mori --> Personal[Pro 개인 Hermes — 후속]
+    Test[master의 Python 검사 스크립트] --> Shared[worker의 공용 Hermes Deployment]
+    Mori[Mori 검색 API / 로컬 구현·k3s 미배포] -. 통합 검증 전 .-> Shared
     Shared --> LLM[기존 llama.cpp / 192.168.0.8:8080]
-    Personal --> LLM
     Shared --> Search[공용 SearXNG / 내부 Service]
-    Personal --> Search
-    Search --> Upstream[설정한 외부 검색 엔진]
-    Shared -. 필요한 URL 본문 .-> Extract[본문 추출 Worker — 후속]
-    Personal -. 필요한 URL 본문 .-> Extract
-    Mori --> DB[(사용자별 대화·작업·검색 이력)]
+    Search --> Upstream[Google·Naver·Brave / 이미지 Google·Naver]
+    Shared --> Extract[같은 Pod의 mori-local / Trafilatura subprocess]
+    Extract --> Page[공개 URL의 HTML 본문]
 ```
 
+위 그림은 삭제 전 검증한 연결 및 새 YAML의 재배포 대상이다. 사용자별 Mori 이력 DB·Pro runtime·별도 브라우저/파일 Worker는 후속 설계이며 배포 완료로 표시하지 않는다.
+
 - 배포 명령은 master에서 실행하고 SearXNG workload는 `k3s-infra`의 selector/toleration에 맞춘다.
-- 초기에는 공유 Deployment 1개와 ClusterIP로 구성하는 안이다. 별도 검색 GPU, 사용자별 검색 Pod, 공개 Ingress/포트포워딩은 필요하지 않다.
+- 새 구성도 공유 Deployment 1개와 ClusterIP를 사용한다. 별도 검색 GPU, 사용자별 검색 Pod, 공개 Ingress/포트포워딩은 필요하지 않다.
 - SearXNG 설정은 ConfigMap/Secret으로 관리하고 JSON 출력을 활성화한다. 이미지 버전/digest를 고정한다. Valkey를 요구하는 limiter 등 기능을 선택하면 그 의존성도 함께 배포한다. 이를 무조건 단일 Pod로 모두 해결된다고 보지 않는다.
 - 초기 공유 검색은 상시 운영을 제안한다. 개인 Hermes의 scale-to-zero와 검색 서비스의 수명을 분리한다. 자원 requests/limits·동시 검색 수는 부하를 측정해 정한다.
 - JSON 검색에 브라우저 Pod가 필수인 것은 아니다. 링크 본문이나 JavaScript 페이지 처리는 별도로 붙인다.
 
-설정 방향 예시(아직 적용하지 않음): Service 이름 `searxng`, namespace `mori-tools`, Service port 8080을 **그렇게 배포했을 때** 사용하는 주소다. 현재 존재하는 리소스가 아니다.
+검증에 사용한 연결 설정의 핵심은 아래와 같다. 전체 ConfigMap·플러그인 설정을 대체하는 apply용 YAML은 아니다. 실제 Service는 `mori-tools/searxng:8080`이다.
 
 ```yaml
 # Hermes config.yaml
 web:
   search_backend: searxng
+  extract_backend: mori-local
   keyless_fallback: false
   keyless_rescue: false
 ```
@@ -69,7 +70,7 @@ search:
     - json
 ```
 
-외부 무료 서비스로 자동 전환되지 않게 fallback/rescue를 끄는 방향이며 고정한 Hermes 버전에서 키를 확인한다. SearXNG는 Hermes의 `web_search`만 제공한다. `web_extract`까지 동작한다고 간주하지 않으며 본문 제공자를 정하기 전 해당 호출은 제공하지 않는다. Crawl4AI를 기본 provider 이름으로 임의 지정하지 않는다.
+fallback/rescue는 꺼 둔다. SearXNG는 `web_search`만 제공하며 `web_extract`는 별도로 설치한 `mori_extract` 플러그인이 등록한 `mori-local` provider가 담당한다. 해당 플러그인 없이 provider 이름만 설정해서 동작하는 것은 아니다. 실습에서는 Trafilatura 2.2.0을 PVC의 venv에 설치했으며 새 이미지에서는 `/opt/mori/plugins`와 `/opt/mori/extract-venv`로 코드·의존성 위치를 분리했다. Crawl4AI/Firecrawl 도입은 현재 필수 작업이 아니다.
 
 ## 4. 공유 검색과 개인 기록
 
@@ -80,20 +81,27 @@ search:
 - 공용 SearXNG에는 검색에 필요한 질의만 보내고 개인 대화 전체나 내부 사용자 식별자를 불필요하게 넘기지 않는다.
 - 개인화 이력은 Mori DB와 사용자별 Hermes 상태에 둔다. 공유 검색 로그를 개인 기억 저장소로 사용하지 않는다.
 - 검색/본문/브라우저 캐시, 쿠키, 파일, 삭제 범위는 사용자 경계에 맞춘다. 도구 분리만으로 사용자 격리가 보장되지는 않는다.
-- 본문 추출 Worker에는 내부 주소·리다이렉트 검증, 응답 크기·시간·동시 실행 제한을 둔다. 웹페이지 지시는 실행 권한으로 취급하지 않는다.
+- 로컬 추출 worker에는 공개 주소·리다이렉트 검증, 응답 크기·시간 제한을 구현했다. 별도 Worker로 분리하더라도 같은 경계를 유지하고 동시 실행 한도를 실측한다. 웹페이지 지시는 실행 권한으로 취급하지 않는다.
 
-## 5. 구현 순서와 인수 기준
+## 5. 현재 상태와 인수 기준
 
-1. 공식 이미지로 공용 Hermes↔기존 llama.cpp 일반 대화를 확인한다.
-2. SearXNG의 고정 이미지·설정·내부 Service를 준비하고 JSON 검색의 비어 있지 않은 결과와 upstream 오류를 확인한다.
-3. Hermes에서 실제 `web_search` 호출과 도구 결과를 받은 뒤의 후속 모델 응답을 확인한다. 모델이 기억으로 답하거나 검색했다고 주장한 것만으로 통과시키지 않는다.
-4. 한국어 질의·검색 실패·연속 요청을 검증하고 동시성·timeout·일시 차단 시 동작을 정한다. 공용 서비스 전체의 호출량을 관리한다.
-5. Mori Adapter에 사용자별 도구 이력을 연결한다. 최소 두 계정으로 이력/결과 접근 격리를 검증한다.
-6. 필요해지면 자체 호스팅 본문 추출과 파일 Worker를 추가하고 Hermes 이미지의 불필요한 패키지를 제거한다. 기능 회귀·기동 시간·메모리를 측정한다.
+| 구간 | 상태 | 다음 확인 |
+| --- | --- | --- |
+| 공용 Hermes↔llama.cpp 대화 | 현장 통과 | 정식 이미지 교체 후 회귀 |
+| SearXNG JSON·모델 web_search | 현장 통과 | 재구성한 settings의 한국어 질의 회귀·차단/부하 |
+| 이미지 후보·모델 간접 호출 | 현장 통과 | 실제 이미지 로딩·관련성·프론트 표시 |
+| 로컬 web_extract·검색 후 추출 | 현장 통과 | 고정 의존성의 실환경 적용, 다른 사이트·실패 회귀 |
+| Mori 검색 Adapter·임시 인증 | 로컬 구현·모의 상류 테스트 | 실제 API→Hermes 호출·인증 비활성화 |
+| 사용자별 도구 이력·격리 | 미구현 | 두 계정의 접근 경계와 삭제/보관 계약 |
+| 별도 브라우저·파일 Worker | 후속 | 현재 로컬 추출 한계·자원 측정 후 필요 범위 결정 |
+
+검색 품질은 상위 결과 관련성·기관 일치·출처·최신성으로 따로 평가한다. CAPTCHA 없는 몇 회의 결과를 장기 안정성으로 일반화하지 않는다. 환승 도구는 미구현이며 지도 검색 카테고리 추가만으로 해결된 것으로 보지 않는다.
+
+실습 삭제와 이미지/YAML 구현은 완료했고 현재 우선순위는 [Harbor 등록 → 새 PVC 재배포 → 실환경 회귀](runtime-image-transition.md)다. 이후 주차 도구를 연결한다. 검색은 주차 저장의 필수 의존성이 아니며 실제 Hermes Knative 전환도 별도 단계로 관리한다.
 
 ## 공식 근거
 
-2026-09-21 확인. 제품 버전 선택 시 구현과 문서의 차이를 다시 확인한다.
+아래 외부 문서는 2026-09-21 설계 당시 참고한 근거다. 이번 갱신은 사용자 실행 로그와 실습 코드에 근거하며 외부 문서를 새로 확인한 기록은 아니다. 제품 버전 선택 시 구현과 문서의 차이를 다시 확인한다.
 
 - [Hermes Web Search & Extract](https://hermes-agent.nousresearch.com/docs/user-guide/features/web-search): SearXNG, 검색/추출 분리, self-hosted Firecrawl 주소, keyless 설정.
 - [Hermes Docker](https://hermes-agent.nousresearch.com/docs/user-guide/docker): 공식 이미지, Gateway API, `/opt/data` 상태 보존.

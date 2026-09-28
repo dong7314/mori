@@ -2,13 +2,13 @@
 
 [전체 계획으로 돌아가기](../plan.md)
 
-갱신일: 2026-09-23 · 상태: 앱 우선 방향, 공용 Hermes의 Knative Serving 콜드 스타트와 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
+갱신일: 2026-09-28 · 상태: 앱 우선 방향, 공용 Hermes의 Knative Serving 콜드 스타트와 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
 
-`master` `55652f6`에는 FastAPI·PostgreSQL API, Alembic 마이그레이션, 로컬 Docker Compose와 k3s 배포 예시, 공용 Hermes 일반 Deployment 초안이 있다. 실제 서비스 구현은 소셜 인증·Free/Pro 등급 승인·주차 기록까지다. 사용자는 GPU 노트북에서 llama.cpp를 이미 운영 중이라고 밝혔다. 2026-09-21 Knative Serving/Kourier 설치와 테스트 앱의 1→0→1은 사용자 출력으로 확인했다. 공용 Hermes 일반 Deployment는 이후 worker Running·PVC Bound와 Pod→llama.cpp 직접 호출 200, Hermes 경유 실제 인사 응답을 확인했다. 아래 구조도의 Mori Worker, 사용자별 Pod/PVC, 스케줄러와 Runtime Controller는 **설계·검증 대상**이며 인증 거부·부하 성능·상태 복원도 추가 검증해야 한다. Pro 등급 변경이 전용 실행 환경 제공을 뜻하지 않는다.
+`master`에는 FastAPI·PostgreSQL API, 소셜 인증·Free/Pro 등급 승인·주차 기록과 Alembic/Compose/k3s 예시가 있다. 9월 28일 `7a19b61`에 검색 API·임시 인증, `2e2a397`에 Hermes 이미지·Kustomize·검사 CLI, `8fe2f85`에 배포 안내를 커밋했다. 2026-09-21 Knative/Kourier 및 샘플 1→0→1, 이후 공용 Hermes의 첫 대화·검색·추출은 사용자 현장 출력으로 확인했다. 실습 리소스는 이후 삭제됐으며 새 이미지 배포는 대기 중이다. 아래 구조도의 Mori Worker, 사용자별 Pod/PVC, 스케줄러와 Runtime Controller는 **설계·검증 대상**이다. Pro 등급 변경이 전용 실행 환경 제공을 뜻하지 않는다.
 
 ## 현재 홈 네트워크와 배포 위치
 
-**최신 재개 상태(2026-09-23):** 공용 Hermes Pod가 worker에서 Running, 5Gi PVC Bound, health 200이며 Pod→GPU 직접 호출 200을 확인했다. GPU 서버의 51,200 컨텍스트 제한과 96K 단순 증설 OOM을 거쳐 로컬 GGUF·96K·슬롯 1·Q8 캐시 명령의 정상 동작을 보고받았다. [이슈 기록](hermes-llama-validation-2026-09-23.md)에 실행 명령과 검증 한계를 보존했다. 이후 [Hermes 경유 실제 인사 응답](hermes-shared-validation-2026-09-23.md)까지 확인했다. 다음은 현장 설정·인증 거부·시험 판정 보완과 SearXNG 검색이다. [기존 준비 절차](hermes-shared-resume.md)의 이미 완료한 생성 단계를 반복하지 않는다.
+**최신 재개 상태(2026-09-28):** 현장 도구 시험을 마친 뒤 사용자 요청으로 Hermes/SearXNG 리소스와 Hermes PVC/PV를 삭제했다. 이미지·선언적 YAML·CLI는 구현했고 로컬 amd64 기동·33개 런타임 테스트 및 157개 백엔드 테스트를 통과했다. 다음은 Harbor 등록, 새 PVC 재배포와 실환경 회귀다. Mori API도 k3s 미배포이며 실제 Hermes Knative 전환은 후속이다. 본문 추출은 같은 Hermes 이미지의 별도 venv에서 실행한다. [현장 증거](hermes-web-validation-2026-09-28.md) · [API 구현](../back/hermes-search-implementation-2026-09-28.md) · [새 배포 순서](runtime-image-transition.md).
 
 2026-09-17 사용자 설명과 2026-09-21 사용자가 제공한 k3s/설치 출력에 근거한다. AI가 원격 접속해 조사한 결과는 아니다. 다섯 장비 모두 ipTIME에 연결되어 있다. GPU 노트북의 주소 `192.168.0.8`, llama.cpp 포트 `8080`, API 키 설정은 사용자에게 확인했다. 두 k3s 노드의 버전은 `v1.34.3+k3s1`이며 IP·CPU·RAM과 Knative 배치는 확인됐다. 실제 전원·절전 정책과 저장소 여유/복구는 아직 검증하지 않았다.
 
@@ -16,7 +16,7 @@
 | --- | --- | --- |
 | 미니 PC 1 | `k3s-server`, `192.168.0.100`, 4코어/약 15.4GiB, UFW 비활성 | 설치 명령 실행. 기존 제어 평면 유지. Mori API·DB의 실제 배치는 별도 결정 |
 | 미니 PC 2·3 | ipTIME에 연결. k3s 참여 여부와 용도는 미확인 | 첫 Hermes↔LLM 연결에 필수는 아님. 필요하면 이후 CPU Worker·저장소 후보로 검토 |
-| 노트북 1 | `k3s-infra`, `192.168.0.20`, 12코어/약 23.3GiB, `infra=true:NoSchedule`, UFW 활성 | Knative/Kourier Pod 6개 설치·Ready 확인. 공용 Hermes 일반 Deployment Running·5Gi PVC Bound·첫 대화 확인. 상태 복원은 미검증 |
+| 노트북 1 | `k3s-infra`, `192.168.0.20`, 12코어/약 23.3GiB, `infra=true:NoSchedule`, UFW 활성 | Knative/Kourier Pod 6개 설치·Ready 확인. 공용 Hermes Running·5Gi PVC·첫 대화를 시험한 뒤 실습 삭제. 새 이미지 재배포·상태 복원은 미검증 |
 | 노트북 2 | Linux, RTX 3090 eGPU, ipTIME 연결. `192.168.0.8:8080`에서 llama.cpp 운영 중이며 API 키 설정됨(사용자 설명) | **k3s 밖의 독립 llama.cpp 서버**. 96K/Q8/슬롯 1 실행 성공 보고와 Hermes 경유 첫 대화 확인. 최종 인증 거부·부하 실측 필요 |
 
 ```text
@@ -52,7 +52,7 @@ model:
   # context_length: 65536  # 서버에서 같은 길이를 검증한 뒤 설정
 ```
 
-`model.default`는 GPU 노트북의 실제 `/v1/models` 결과와 일치시킨다. 적용용 초안은 `master`의 `infra/k3s/hermes-shared.yaml`에 있으며, 모델 ID 교체와 클러스터 검증이 남아 있다.
+`model.default`는 GPU 노트북의 실제 `/v1/models` 결과와 일치시킨다. 적용용 설정은 `master`의 `infra/k3s/base/hermes/config.yaml`, 배치는 `infra/k3s/overlays/home-dev`에 있다. 이전 단일 YAML은 제거했다. 이미지 digest를 지정한 로컬 overlay로 적용하며 실제 재배포 검증은 남아 있다.
 
 ## 1. 전체 구조
 
@@ -81,7 +81,7 @@ flowchart TD
     Shared --> Tools[인증된 Mori 도구 API]
     Dedicated --> Tools
     Tools --> API
-    Shared --> Search[공용 SearXNG / 자체 호스팅 검증 후보]
+    Shared --> Search[공용 SearXNG / 일반·이미지 검색 검증]
     Dedicated --> Search
     Search --> Engines[설정한 외부 검색 엔진]
     Tools --> Jobs[본문·브라우저·파일 처리 Worker / 후속]
@@ -89,7 +89,7 @@ flowchart TD
     API --> Files
 ```
 
-그림의 상자는 논리적인 책임이다. 초기에는 단일 백엔드 코드베이스의 API·Worker·제어 프로세스로 구성한다. 제품은 휴대폰·태블릿 앱이며 브라우저는 개발·PoC 확인에 사용한다. 앱은 Mori API에 연결한다. Hermes·DB·Pod 관리 API는 클러스터 내부에 두고, GPU API는 별도 Linux 노트북의 사설 LAN에서 Mori 측 호출만 받는다.
+위 그림은 목표 구조이며 배포 현황도가 아니다. 큐·Runtime Controller·계정별 home·실제 Hermes Knative는 아직 구현/검증 전이다. 현재 연결은 [검색 실행 구조](hermes-search-runtime.md#3-현장에서-검증한-구조와-재배포-대상)를 참조한다. 그림의 상자는 논리적인 책임이다. 초기에는 단일 백엔드 코드베이스의 API·Worker·제어 프로세스로 구성한다. 제품은 휴대폰·태블릿 앱이며 브라우저는 개발·PoC 확인에 사용한다. 앱은 Mori API에 연결한다. Hermes·DB·Pod 관리 API는 클러스터 내부에 두고, GPU API는 별도 Linux 노트북의 사설 LAN에서 Mori 측 호출만 받는다.
 
 React 인앱 UI와 네이티브 기능을 브리지로 연결하는 방안을 검증한다. 앱 컨테이너는 Capacitor와 React Native + WebView를 비교한 뒤 선택한다. OS 위젯은 별도 구현하고, 열린 WebView나 사용자 Hermes Pod에 의존하지 않는 조회 경로를 둔다. 화면·위젯·브리지는 실제 제품에서 사용자 담당이다. [프론트 앱 설계](../front/plan.md#10-휴대폰태블릿-앱-우선-설계).
 
@@ -97,11 +97,11 @@ React 인앱 UI와 네이티브 기능을 브리지로 연결하는 방안을 �
 
 간단한 기록 조회, 캘린더 조회, 이미 정해진 알림 전송에는 LLM을 호출하지 않는다. 자연어 해석, 여러 도구를 조합하는 작업, 스킬 생성처럼 필요한 부분에만 Hermes와 LLM을 사용한다.
 
-### 2026-09-21 검색·이미지 분리 방향
+### 2026-09-28 검색·이미지·본문 실행 상태
 
-외부 검색 API 비용을 피하려는 요구에 맞춰 SearXNG를 공유 내부 서비스로 운영하는 안부터 검증한다. 검색 실행을 공유해도 사용자별 검색 이력·기억은 Mori DB와 계정별 Hermes 상태에 둔다. SearXNG는 검색 결과를 집계하며 링크 본문 추출·브라우저·문서 처리는 별도 기능이다. upstream 차단이나 운영 자원 비용까지 없어지는 것은 아니다.
+외부 검색 API 비용을 피하려는 요구에 맞춰 SearXNG를 공유 내부 Service로 배포하고 Hermes 연결을 검증했다. 검색 실행을 공유해도 사용자별 검색 이력·기억은 Mori DB와 계정별 Hermes 상태에 둔다. SearXNG는 검색 결과를 집계하며 링크 본문 추출·브라우저·문서 처리는 별도 기능이다. upstream 차단이나 운영 자원 비용까지 없어지는 것은 아니다.
 
-첫 Hermes 연결은 공식 고정 이미지를 사용하고, 이후 공용/개인에 같은 모리 전용 경량 이미지를 적용하는 안을 검토한다. CPU/RAM은 Pod별 requests/limits로 다르게 설정한다. 브라우저·파일·음성 처리를 분리하고 어떤 의존성을 제거할지는 기능 회귀와 자원을 측정해 정한다. 자체 이미지·Harbor 등록·검색 Pod·본문 Worker는 아직 구현/배포하지 않았다. [후보 비교·연결 설정·이력 설계](hermes-search-runtime.md).
+첫 Hermes 연결은 공식 고정 이미지를 사용하고, 이후 공용/개인에 같은 모리 전용 경량 이미지를 적용하는 안을 검토한다. CPU/RAM은 Pod별 requests/limits로 다르게 설정한다. 브라우저·파일·음성 처리를 분리하고 어떤 의존성을 제거할지는 기능 회귀와 자원을 측정해 정한다. 검색 Pod와 같은 Hermes Pod의 `mori_extract`·Trafilatura 2.2.0을 현장에서 검증한 뒤 실습 리소스를 삭제했다. 별도 본문 Worker Pod는 없다. 도구를 포함한 Hermes 이미지와 선언적 설정은 `2e2a397`에 구현했고, Harbor 등록·실제 재배포·회귀가 남아 있다. 의존성을 제거한 최소 이미지는 아직 아니다. [후보 비교·연결 설정·이력 설계](hermes-search-runtime.md).
 
 ## 2. 무료 공용 실행과 유료 전용 Pod
 
@@ -280,7 +280,7 @@ Hermes에도 자체 cron이 있다. 다만 제품 예약 작업을 Mori와 Herme
 - 무료/유료 전환에서 사용자 저장 공간의 동시 쓰기를 막고, 작업을 잠시 비운 뒤 라우팅을 원자적으로 전환한다.
 - 실패하면 이전 라우팅을 유지하며, 이전·해지 과정에서 데이터가 바로 삭제되지 않게 한다. 보관 정책은 별도 확정한다.
 
-초기 백엔드는 Python + FastAPI와 PostgreSQL로 구현을 시작했다. Hermes 연동·음성·문서 처리는 아직 없으며 기술·자원 요구를 검증해야 한다. Redis, 별도 벡터 DB, 메시지 브로커, 다수 마이크로서비스는 필요성이 생기면 추가한다.
+초기 백엔드는 Python + FastAPI와 PostgreSQL로 구현을 시작했다. Hermes 검색 연동 API는 로컬 구현·검증 단계이며 실제 k3s 통합은 남아 있다. 자연어 주차 도구·음성·문서 생성은 아직 없다. Redis, 별도 벡터 DB, 메시지 브로커, 다수 마이크로서비스는 필요성이 생기면 추가한다.
 
 ## 6. 장애·데이터·운영
 

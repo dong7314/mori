@@ -2,9 +2,9 @@
 
 [전체 계획](../plan.md) · [아키텍처](plan.md) · [검색·경량화 방향](hermes-search-runtime.md) · [Knative 검증 기록](knative-validation-2026-09-21.md)
 
-갱신일: 2026-09-23. **공용 Hermes Pod Running·PVC Bound·health 200에 이어 Hermes 경유 실제 한국어 인사 응답까지 확인했다.** [첫 대화 성공 기록](hermes-shared-validation-2026-09-23.md)과 [이슈·GPU 실행 설정](hermes-llama-validation-2026-09-23.md)을 먼저 읽는다. 다음은 재현 설정·인증 거부 동작·시험 스크립트 판정 보완과 SearXNG 검색 도구 검증이다. 일반 대화는 통과했으며 같은 배포를 처음부터 반복하지 않는다.
+갱신일: 2026-09-28. **첫 대화에 이어 검색·이미지 후보·본문 추출·검색→추출을 통과했다.** 최신 상태는 [9월 28일 검증 기록](hermes-web-validation-2026-09-28.md), 이후 실습 리소스/PVC를 삭제했고 정식 이미지·YAML·검사 CLI를 구현·로컬 검증했다. 현재 다시 시작할 작업은 [Harbor 등록·새 PVC 재배포](runtime-image-transition.md)를 기준으로 한다. 아래 첫 배포 명령을 반복 적용하지 않는다. 기존 [첫 대화](hermes-shared-validation-2026-09-23.md)와 [GPU 이슈](hermes-llama-validation-2026-09-23.md)는 날짜별 기록으로 보존한다.
 
-아래 1~7절은 2026-09-21 당시 준비 절차를 보존한 기록이다. namespace/Secret 미생성·Hermes 미배포라는 표현과 체크리스트는 당시 상태이며, 이미 생성한 리소스를 다시 만들지 않는다. 시험용 전달 파일과 저장소 `master` 배포 초안의 일치 여부는 별도 확인한다. 이번 문서 수정으로 클러스터를 변경하지 않았다.
+아래 1~7절은 2026-09-21 당시 준비 절차를 보존한 기록이다. namespace/Secret 미생성·Hermes 미배포라는 표현과 체크리스트는 당시 상태이며, 현재 재배포에 그대로 사용하지 않는다. 삭제한 리소스의 재생성은 최신 Git YAML과 새 Secret/PVC 절차를 따른다. 시험용 전달 파일과 저장소 `master` 배포 초안의 일치 여부는 별도 확인한다. 이번 문서 수정으로 클러스터를 변경하지 않았다.
 
 ## 1. 확인한 사실과 아직 하지 않은 일
 

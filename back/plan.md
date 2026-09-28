@@ -2,9 +2,9 @@
 
 [전체 계획으로 돌아가기](../plan.md)
 
-갱신일: 2026-09-23 · 백엔드와 인프라 구현은 AI 담당이다. 제품 클라이언트는 휴대폰·태블릿 앱이다. 아래 API와 데이터 구조는 Mori의 제안 계약이며 Hermes에 이미 존재하는 API나 확정 스키마를 뜻하지 않는다.
+갱신일: 2026-09-28 · 백엔드와 인프라 구현은 AI 담당이다. 제품 클라이언트는 휴대폰·태블릿 앱이다. 아래 API와 데이터 구조는 Mori의 제안 계약이며 Hermes에 이미 존재하는 API나 확정 스키마를 뜻하지 않는다.
 
-### 현재 `master` 구현 범위 — 2026-09-17
+### 기존 커밋의 `master` 구현 범위 — 2026-09-17
 
 | 영역 | 구현된 내용 | 아직 없는 내용 |
 | --- | --- | --- |
@@ -13,9 +13,11 @@
 | 등급 | 최고 관리자 CLI 역할 지정, Pro 승인·회수 API와 변경 이력. 기본 등급 Free | 결제·구독, 비서/위젯 등록·집계·한도, Pro 전용 실행 환경 |
 | 운영 | Alembic 마이그레이션, OpenAPI, Docker Compose·k3s 배포 예시, PostgreSQL 통합 테스트 코드 | 운영 배포·부하 실측, Hermes/LLM/STT, DB 작업 큐·스케줄러·Runtime Controller |
 
-API 기능 기준은 `master` `bfadecf`이며 현재 `master` `55652f6`에는 공용 Hermes 일반 Deployment 초안이 추가됐다. 2026-09-17 상태 점검에서는 Docker 엔진과 `uv`를 사용할 수 없어 PostgreSQL 통합 테스트를 재실행하지 못했다. 따라서 아래 설계 계약을 모두 구현된 API로 읽지 않는다.
+위 과거 API 기능 기준은 `master` `bfadecf`이며 `55652f6`에서 공용 Hermes 일반 Deployment 초안을 추가했다. 최신 코드는 아래 9월 28일 커밋과 검증 기록을 따른다. 2026-09-17 상태 점검에서는 Docker 엔진과 `uv`를 사용할 수 없어 PostgreSQL 통합 테스트를 재실행하지 못했다. 따라서 아래 설계 계약을 모두 구현된 API로 읽지 않는다.
 
-### 2026-09-23 인프라 선행 검증과 다음 백엔드 작업
+### 2026-09-23 인프라 선행 검증 당시의 백엔드 계획
+
+> 당시 순서를 보존한 기록이다. 현재 검색 Adapter 구현 및 다음 작업은 아래 9월 28일 갱신을 우선한다.
 
 Knative Serving/Kourier 설치 및 테스트 앱의 1→0→1·응답을 확인했다. 이는 새로운 Mori API나 Hermes Adapter가 구현됐다는 뜻은 아니다. [실제 검증 기록](../architecture/knative-validation-2026-09-21.md).
 
@@ -24,6 +26,16 @@ Knative Serving/Kourier 설치 및 테스트 앱의 1→0→1·응답을 확인�
 첫 Hermes↔기존 llama.cpp 단일 대화는 통과했다. 다음 순서는 재현 설정·인증/시험 판정 보완, SearXNG 검색 도구 검증, Hermes Knative 전환과 home 보존, 인증된 Mori Adapter와 `parking.save`/`parking.latest` 도구 연결이다. 검색은 주차 도구의 필수 의존성은 아니다. 기존 주차 서비스의 소유권·멱등성을 재사용한다. 입력 “지하 2층 C구역 C36에 주차했어”가 계정별 DB에 저장되고 이후 질문으로 조회되는 것을 첫 제품 인수 기준으로 한다. 에이전트는 여러 차례 LLM·도구 호출을 수행할 수 있으며, 사용자/작업 권한은 모델 인자가 아니라 서버 인증 문맥에서 주입한다.
 
 짧은 내부 Hermes 호출은 완료까지 HTTP 연결을 유지하며 검증한다. 앱의 작업 접수·상태 조회와 영속 작업 처리는 이 통합 단계에서 구현하고, HTTP 종료 뒤 Pod 안에만 남은 백그라운드 작업을 제품 기능으로 제공하지 않는다. STT·캘린더·예약·파일 작업·Pro 전용 runtime은 이 첫 흐름 이후에 확장한다.
+
+### 2026-09-28 현재 구현·현장 검증의 구분
+
+- **실제 Hermes 검증:** 일반 검색, 이미지 후보 도구, 공식 URL 본문 추출, 검색→추출→답변까지 통과했다. [상세 과정·오류·한계](../architecture/hermes-web-validation-2026-09-28.md).
+- **로컬 API 구현:** `POST /v1/assistant/search`가 실제 도구 결과에서 답변·출처·성공 상태를 구성한다. 지정 운영자 소셜 인증 또는 검색 전용 임시 토큰을 사용한다. `master` `7a19b61`에 커밋했다.
+- **페이지 없는 시험 지원:** 기본 비활성 임시 토큰, 생성/검사 CLI와 k3s 패치를 마련했다. 다른 주차·관리자 API는 우회하지 않는다. 새 로그인 페이지는 추가하지 않는다.
+- **검증 범위:** 커밋 전 실제 PostgreSQL·모의 Hermes로 전체 157개 테스트 재통과, 로컬 ARM Docker 빌드 통과. k3s Mori API 배포·실제 통합 호출·Harbor push는 미완료다.
+- **런타임과 다음 작업:** [이미지/YAML 편입](../architecture/runtime-image-transition.md)은 `2e2a397`에서 완료했고 로컬 33개 테스트·amd64 기동을 확인했다. 삭제된 실습을 Harbor 이미지·새 PVC로 재배포한 뒤 API 통합과 자연어 주차 DB 저장/조회 도구를 완성한다. 검색·이미지·본문 도구 검증을 처음부터 반복 개발하지 않는다.
+
+API 계약·인증 경계·변경 파일·남은 기능은 [검색 API 구현 기록](hermes-search-implementation-2026-09-28.md)에 둔다. 아래 장기 API/DB/예약 설계 전체가 구현된 것은 아니다.
 
 ## 1. 책임 분리
 
@@ -175,7 +187,7 @@ DB 조회의 사용자 범위와 행 수준 접근 제어를 함께 검토한다
 
 모든 요청은 서버 인증 문맥으로 사용자를 결정한다. 경로의 UUID를 안다는 것만으로 다른 사용자의 데이터에 접근할 수 없어야 한다. 변경 요청에는 멱등 키와 필요 시 버전 조건을 사용한다.
 
-현재 `master`에 있는 공개 경로는 `/health/live`, `/health/ready`, `/v1/auth/providers`, `/v1/auth/{provider}/login`, `/v1/auth/{provider}/callback`, `/v1/auth/exchange`, `/v1/auth/refresh`, `/v1/auth/logout`, `/v1/me`, 주차 저장·최신 조회, 최고 관리자용 `/v1/admin/users` 목록·Pro 승인/회수·권한 이력이다. 아래 나머지는 구현 순서를 논의하기 위한 초안이다. `GET /v1/me`는 구현됐지만 `PATCH /v1/me/preferences`는 아직 없다.
+현재 `master`에 있는 공개 경로는 `/health/live`, `/health/ready`, `/v1/auth/providers`, `/v1/auth/{provider}/login`, `/v1/auth/{provider}/callback`, `/v1/auth/exchange`, `/v1/auth/refresh`, `/v1/auth/logout`, `/v1/me`, 주차 저장·최신 조회, 최고 관리자용 `/v1/admin/users` 목록·Pro 승인/회수·권한 이력이다. `POST /v1/assistant/search`도 9월 28일 `7a19b61`에 커밋했다(k3s 미배포). 아래 나머지는 구현 순서를 논의하기 위한 초안이다. `GET /v1/me`는 구현됐지만 `PATCH /v1/me/preferences`는 아직 없다.
 
 | API | 용도 |
 | --- | --- |
@@ -227,9 +239,9 @@ API 목록은 대표 흐름이며 인증·기기 등록·전체 기록 조회·�
 
 ## 9. 정기 검색·여행·파일 처리
 
-### 자체 호스팅 검색과 개인 이력 — 2026-09-21 설계
+### 자체 호스팅 검색과 개인 이력 — 2026-09-28 갱신
 
-외부 유료 검색 API를 필수로 두지 않고 SearXNG를 공유 내부 서비스로 운영하는 안부터 검증한다. Hermes는 기본 SearXNG provider를 사용하고 본문 추출은 별도 도구로 다룬다. 아직 관련 Pod·설정·도구 이력 저장 기능을 배포/구현하지 않았다. [검색·경량화 설계](../architecture/hermes-search-runtime.md).
+SearXNG를 공유 내부 서비스로 배포하고 기본 검색 provider로 연결했다. 본문은 기존 Hermes Pod의 `mori-local` provider와 `web_extract`로 검증했다. Mori API 연동은 로컬 구현 단계이며, 사용자별 도구 이력의 영속 저장은 아직 구현하지 않았다. [검색·경량화 설계](../architecture/hermes-search-runtime.md).
 
 공유 검색 서비스를 호출하더라도 `user_id`·`conversation_id`·`run_id`는 서버 인증 문맥에 묶고 검색어·실행 시각·출처·오류를 사용자별 이력에 연결한다. SearXNG 자체 로그를 개인 기억 저장소로 삼지 않는다. 원문 보관·캐시·삭제 정책은 출처 조건과 사용자 소유권에 맞춘다. 검색 결과를 받은 뒤 후속 모델 호출이 이루어졌는지 도구 이벤트로 확인하며, 모델의 “검색했다/저장했다”는 문장만으로 성공 처리하지 않는다.
 
