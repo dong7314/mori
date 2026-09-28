@@ -2,7 +2,7 @@
 
 [전체 계획](../plan.md) · [현장 시험 기록](hermes-web-validation-2026-09-28.md) · [백엔드 구현 기록](../back/hermes-search-implementation-2026-09-28.md)
 
-갱신일: 2026-09-28. **실습 리소스/PVC 삭제는 사용자 출력으로 확인했고, 재현 가능한 Hermes 이미지·당시 Kustomize 구성·검사 CLI 구현과 로컬 검증은 완료했다. 사용자 결정에 따라 이후 배포 계획에서 Kustomize를 제외했으며, 일반 Kubernetes YAML 배포 경로는 아직 작성되지 않았다. Harbor 이미지 등록·홈 k3s 재배포·새 이미지의 실환경 회귀도 아직 하지 않았다.** master의 실습 디렉터리/압축 파일 삭제 완료는 별도로 확인하지 못했다.
+갱신일: 2026-09-28. **실습 리소스/PVC 삭제는 사용자 출력으로 확인했다. 재현 가능한 Hermes 이미지·검사 CLI와 일반 Kubernetes YAML 생성 경로를 구현했고 새 YAML의 로컬 구조·Kubernetes 1.34 스키마 검사를 통과했다. Harbor 이미지 등록·실제 digest를 이용한 서버 dry-run·홈 k3s 재배포·새 이미지의 실환경 회귀는 아직 하지 않았다.** master의 실습 디렉터리/압축 파일 삭제 완료는 별도로 확인하지 못했다.
 
 ## 1. 결정과 현재 상태
 
@@ -10,13 +10,13 @@
 
 소스·의존성은 이미지, 선언적 설정은 Git YAML, 비밀 값은 Secret, 사용자 상태는 PVC/DB에 둔다. 다음부터 Pod 안의 수동 pip 설치나 실습 파일 복사 없이 같은 소스로 다시 배포하는 것이 목표다.
 
-**배포 방식 변경(2026-09-28):** Hermes/SearXNG의 다음 배포는 Kustomize base/overlay와 `configure.py` 생성물을 사용하지 않는다. `master`에 독립적으로 적용할 수 있는 일반 YAML을 작성하고, 필요한 환경별 값과 이미지 digest를 적용 전에 명시적으로 확정한다. 아래 Kustomize 파일·검증 기록은 당시 구현 이력이며 현행 실행 지침이 아니다. 새 YAML의 파일 경로와 명령은 구현 후 확정한다.
+**배포 방식 변경(2026-09-28):** Hermes/SearXNG의 다음 배포는 Kustomize base/overlay를 사용하지 않는다. `master`의 `scripts/runtime/configure.py`를 일반 YAML 생성기로 바꿨고, `.local/manifests/hermes.yaml`과 `searxng.yaml`을 `kubectl apply -f`에 사용할 수 있도록 했다. 생성기는 실제 이미지 digest를 요구하며 Secret 값은 파일에 넣지 않는다. 아래 Kustomize 파일·검증 기록은 당시 구현 이력이며 현행 실행 지침이 아니다.
 
 | 대상 | 구현/확인 상태 | 남은 작업 |
 | --- | --- | --- |
 | Mori API | 검색 Adapter·검색 전용 임시 인증, CLI·OpenAPI, 로컬 157개 테스트 | k3s API/DB 연결·실제 Hermes 통합 |
-| Hermes | 공식 고정 base + 이미지 후보/본문 추출 도구·의존성·초기화·검사기, amd64 로컬 기동 | 일반 YAML 경로 작성·Harbor 등록·새 PVC 배포·GPU/검색 회귀 |
-| SearXNG | 공식 고정 이미지, 일반 3개·이미지 2개 엔진 설정, 로컬 설정 로딩 | 일반 YAML 경로 작성·worker 재배포·외부 검색 품질/제한 재확인 |
+| Hermes | 공식 고정 base + 이미지 후보/본문 추출 도구·의존성·초기화·검사기, amd64 로컬 기동. 일반 YAML 생성·로컬 검증 완료 | Harbor 등록·서버 dry-run·새 PVC 배포·GPU/검색 회귀 |
+| SearXNG | 공식 고정 이미지, 일반 3개·이미지 2개 엔진 설정, 로컬 설정 로딩. 일반 YAML 생성·로컬 검증 완료 | 서버 dry-run·worker 재배포·외부 검색 품질/제한 재확인 |
 | 사용자 상태 | 실습 Hermes home/PVC/PV 삭제 확인, 새 5Gi PVC YAML 분리 | 일반 YAML 경로에서 PVC 적용·재시작·상태 유지 확인 |
 | 실습 파일 | 필요한 플러그인/검사 소스를 master에 편입 | 호스트의 lab 디렉터리·압축 파일 삭제 완료 확인 |
 | 기존 인프라 | k3s·Knative/Kourier·Harbor·DB·MinIO·GPU는 이번 정리 대상에서 제외 | 이번 작업에서 다른 서비스의 기능 회귀를 수행한 것은 아님 |
@@ -30,8 +30,9 @@
 | `7a19b61` | 검색 API·증거/출처·검색 전용 임시 인증·CLI·k3s 패치 |
 | `2e2a397` | Hermes 이미지·도구·초기화, SearXNG·Kustomize·Secret/PVC, 검사·CI |
 | `8fe2f85` | 빌드·배포·노드별 실행·검증·롤백 안내 |
+| `d2584fb` | Kustomize 배포 파일 제거, 일반 YAML 생성기·검사·배포 안내 |
 
-당시의 명령은 [master 배포 가이드](https://github.com/dong7314/mori/blob/8fe2f85/infra/k3s/hermes-shared.md)에 보존돼 있으며 새 배포에는 그대로 사용하지 않는다. 이미지 내부 구조는 [Hermes README](https://github.com/dong7314/mori/blob/8fe2f85/hermes/README.md)에 있다. plan은 이력·인수 조건을 관리하고 실제 파일은 master에서 수정한다. poc는 이번 작업에서 변경하지 않았다.
+현재의 명령은 [master 배포 가이드](https://github.com/dong7314/mori/blob/d2584fb/infra/k3s/hermes-shared.md)에 있다. [이전 Kustomize 가이드](https://github.com/dong7314/mori/blob/8fe2f85/infra/k3s/hermes-shared.md)는 이력으로만 본다. 이미지 내부 구조는 [Hermes README](https://github.com/dong7314/mori/blob/d2584fb/hermes/README.md)에 있다. plan은 이력·인수 조건을 관리하고 실제 파일은 master에서 수정한다. poc는 이번 작업에서 변경하지 않았다.
 
 | 위치 | 담당 작업 |
 | --- | --- |
@@ -109,7 +110,7 @@ SearXNG 이미지는 `docker.io/searxng/searxng@sha256:5286edb35782454ab8a102c5e
 - Hermes requests 250m/512Mi, limits 2 CPU/4Gi; SearXNG requests 250m/512Mi, limits 1 CPU/1Gi. 시작값이며 성능 측정 결과가 아니다.
 - 5Gi RWO local-path PVC·namespace·Secret은 애플리케이션 매니페스트와 별도로 관리한다. Deployment 교체가 사용자 상태 삭제로 이어지지 않게 한다.
 - Secret 생성기는 GPU/Harbor 자격증명을 숨김 입력으로 받고 Hermes/SearXNG 비밀 값을 생성한다. 유효한 기존 Secret은 유지하고 값은 출력하거나 Git에 저장하지 않는다.
-- 당시 `configure.py`는 Harbor의 실제 `@sha256:...`를 받아 Kustomize 생성물을 만들었다. 다음 배포에서는 이 스크립트를 사용하지 않는다. 새 일반 YAML에는 확인한 digest를 반영하고, Harbor 호스트/자격증명과 Secret 값은 임의로 정하거나 Git에 저장하지 않는다.
+- `d2584fb`부터 `configure.py`는 Harbor의 실제 `@sha256:...`를 받아 일반 YAML 두 파일을 만든다. Harbor 호스트/자격증명과 Secret 값은 임의로 정하거나 Git에 저장하지 않는다. ConfigMap의 이름은 고정이므로 설정 변경 후에는 해당 Deployment를 재시작한다.
 
 ## 5. 로컬 검증과 그 한계
 
@@ -119,19 +120,20 @@ SearXNG 이미지는 `docker.io/searxng/searxng@sha256:5286edb35782454ab8a102c5e
 | 런타임 unit/fixture | 33 passed, 커밋 전 재실행 | 실제 사이트/추론 품질·부하 보장 아님 |
 | Ruff·OpenAPI·diff | lint/format·계약 동기화·공백 검사 통과 | 실환경 API 배포 아님 |
 | Kustomize | kubectl 1.34.3으로 base/생성 overlay 렌더링·참조 검증 통과 | 서버 dry-run/apply·클러스터 승인 아님 |
+| 일반 YAML (`d2584fb`) | ConfigMap·Deployment·Service 6개와 별도 Namespace 2개·PVC 1개를 생성·로컬 구조 검사·Kubernetes 1.34 스키마 검사. 9개 리소스 유효 | 실제 이미지 digest·Secret 존재·서버 admission·rollout은 미검증 |
 | Hermes Docker | linux/amd64 빌드 통과, 정상 entrypoint 실행·두 번 초기화·health·무/오인증 401·도구/provider 확인 | `--network none`. GPU·검색/웹·Harbor 미호출 |
 | SearXNG Docker | 고정 이미지에서 다섯 엔진·한국어 기본값·JSON 설정 로딩 | 실제 검색 결과·CAPTCHA 상태는 재확인 필요 |
 
-런타임 테스트는 엔진 지정·실패 결과, DNS/리다이렉트/크기 제한, 실제 HTML parser fixture, 직접/간접 도구 호출 ID·출처 대조, 초기화·상태 보존·충돌 거부 등을 다룬다. CI에도 테스트·Kustomize·amd64 빌드·오프라인 컨테이너 기동 절차를 추가했다. CI 정의를 추가한 사실과 원격 CI 성공 결과는 별개다.
+런타임 테스트는 엔진 지정·실패 결과, DNS/리다이렉트/크기 제한, 실제 HTML parser fixture, 직접/간접 도구 호출 ID·출처 대조, 초기화·상태 보존·충돌 거부 등을 다룬다. 현재 CI 정의는 테스트·일반 YAML 생성/검사·amd64 빌드·오프라인 컨테이너 기동을 실행하도록 변경했다. CI 정의를 추가한 사실과 원격 CI 성공 결과는 별개다. Windows에서는 기존 bootstrap 전체 테스트가 POSIX 권한·symlink API 때문에 실행되지 않았고, 변경한 매니페스트 테스트 4개와 YAML 검사는 통과했다.
 
 이미지 후보 검색은 사진을 다운로드하거나 시각적으로 확인하지 않는다. 추출기는 공개 HTTP(S) HTML만 처리하며 JS 렌더링·PDF·이미지 본문 처리를 제공하지 않는다. 검색/추출 PASS는 여행 일정·환승·모든 답변의 사실 정확성을 보장하지 않는다.
 
 ## 6. 이제 실행할 순서
 
-1. **제품 코드 `master`:** Namespace·Secret·ConfigMap·PVC·Deployment·Service를 일반 Kubernetes YAML로 작성하고 적용 순서, 이미지 digest 반영, 설정 변경 시 재시작과 상태 보존 절차를 문서화·검증한다. 이 작업은 아직 완료되지 않았다.
+1. **제품 코드 `master` — 로컬 완료:** ConfigMap·Deployment·Service 일반 YAML 생성, 별도 Namespace·Secret·PVC 적용 순서, 이미지 digest 반영, 설정 변경 시 재시작과 상태 보존 절차를 문서화했다. 구조·Kubernetes 1.34 스키마 검사를 통과했다.
 2. **빌드 머신:** `master`의 검증한 버전으로 amd64 이미지를 Harbor에 push하고 digest를 기록한다. SearXNG는 공식 고정 이미지를 그대로 사용한다.
 3. **k3s master:** 같은 Git 버전의 새 YAML과 Secret, 새 PVC를 준비한다. `WaitForFirstConsumer`이면 Pod 생성 전 PVC Pending은 가능하다.
-4. **k3s master:** 확인한 이미지 digest를 일반 YAML에 반영하고 파일별로 `kubectl apply --dry-run=server -f`, `kubectl diff -f`를 거친 뒤 정해진 순서대로 `kubectl apply -f`한다. 기존 overlay·`configure.py`는 사용하지 않는다.
+4. **k3s master:** 확인한 이미지 digest로 `configure.py`를 실행해 `.local/manifests/`에 일반 YAML을 만든다. 파일별 `kubectl apply --dry-run=server -f`, `kubectl diff -f`를 거친 뒤 정해진 순서대로 `kubectl apply -f`한다. 기존 Kustomize overlay는 사용하지 않는다.
 5. **k3s master:** 두 Deployment rollout과 worker 배치, Hermes 새 PVC Bound를 확인한다.
 6. **k3s master:** `scripts/smoke/runtime.py`를 아래 순서로 한 번씩 실행한다.
 
@@ -155,7 +157,7 @@ python3 scripts/smoke/runtime.py --mode search-extract
 - [x] 실습 Hermes/SearXNG 리소스와 Hermes home 삭제를 사용자 출력으로 확인.
 - [x] 이미지·도구·잠금 의존성·당시 Kustomize 구성·검사기를 master 소스로 관리.
 - [x] 로컬 amd64 빌드·기동·인증 및 반복 초기화, unit/당시 manifest 검증.
-- [ ] Kustomize 없이 적용할 일반 Kubernetes YAML과 배포 절차를 master에 구현·검증.
+- [x] Kustomize 없이 적용할 일반 Kubernetes YAML 생성·배포 절차를 master에 구현하고 로컬 구조·스키마 검증.
 - [ ] Harbor에 실제 이미지 등록 및 배포 digest 확정.
 - [ ] 새 PVC와 일반 Kubernetes YAML로 worker 재배포, 서버 dry-run·rollout 확인.
 - [ ] 새 이미지의 GPU·일반/이미지 검색·본문·검색→추출 및 재시작 회귀.

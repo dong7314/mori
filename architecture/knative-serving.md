@@ -6,7 +6,7 @@
 
 2026-09-21 설치 당시 사용한 설정과 명령은 **[노드별 실습 기록](knative-lab/README.md)**에 보존한다. 이 기록의 Kustomize 파일은 과거 Knative 기반 설치를 설명할 뿐, 이후 Hermes/SearXNG 배포 계획에 포함되지 않는다. master에서 명령을 실행하고 workload는 worker에 배치하며, master UFW는 비활성 유지·worker UFW만 보완한다. 이미 설치된 클러스터에서는 설치를 반복하지 않는다. 실제 Hermes 전환 착수 전 아래 현재 재개 지점의 선행 작업을 완료한다.
 
-**현재 재개 지점:** 일반 Deployment에서 대화·검색·이미지 후보·본문 추출까지 통과했다. [9월 28일 기록](hermes-web-validation-2026-09-28.md). 이후 사용자 요청으로 실습 리소스/PVC를 삭제하고 정식 이미지·당시 YAML을 구현했다. 지금은 [일반 YAML 배포 경로 작성, Harbor 등록·새 PVC 재배포·회귀](runtime-image-transition.md)가 우선이고 실제 Hermes Knative 전환은 후속이다. 기존 Knative 설치는 반복하지 않고, 새 runtime Secret은 일반 YAML 배포 절차와 함께 준비한다. 일반 Service 호출 성공은 Knative Route·scale-to-zero 검증이 아니다.
+**현재 재개 지점:** 일반 Deployment에서 대화·검색·이미지 후보·본문 추출까지 통과했다. [9월 28일 기록](hermes-web-validation-2026-09-28.md). 이후 사용자 요청으로 실습 리소스/PVC를 삭제하고 정식 이미지·일반 YAML 생성 경로를 구현해 로컬 검증했다. 지금은 [Harbor 등록·새 PVC 재배포·회귀](runtime-image-transition.md)가 우선이고 실제 Hermes Knative 전환은 후속이다. 기존 Knative 설치는 반복하지 않고, 새 runtime Secret은 일반 YAML 배포 절차와 함께 준비한다. 일반 Service 호출 성공은 Knative Route·scale-to-zero 검증이 아니다.
 
 ## 적용 범위와 위치
 
