@@ -2,9 +2,9 @@ name: Hermes runtime
 on:
   push:
     branches: [master]
-    paths: ["hermes/**", "scripts/runtime/**", "scripts/smoke/**", "infra/k3s/base/**", "infra/k3s/overlays/**", "infra/k3s/storage/**", ".github/workflows/runtime.yml"]
+    paths: ["hermes/**", "scripts/runtime/**", "scripts/smoke/**", "infra/k3s/base/**", "infra/k3s/namespaces.yaml", "infra/k3s/storage/**", ".github/workflows/runtime.yml"]
   pull_request:
-    paths: ["hermes/**", "scripts/runtime/**", "scripts/smoke/**", "infra/k3s/base/**", "infra/k3s/overlays/**", "infra/k3s/storage/**", ".github/workflows/runtime.yml"]
+    paths: ["hermes/**", "scripts/runtime/**", "scripts/smoke/**", "infra/k3s/base/**", "infra/k3s/namespaces.yaml", "infra/k3s/storage/**", ".github/workflows/runtime.yml"]
 permissions:
   contents: read
 jobs:
@@ -21,9 +21,7 @@ jobs:
       - run: ruff check --config hermes/ruff.toml hermes scripts/runtime scripts/smoke
       - run: ruff format --config hermes/ruff.toml --check hermes scripts/runtime scripts/smoke
       - run: python -m unittest discover -s hermes/tests -v
-      - uses: azure/setup-kubectl@v4
-        with:
-          version: v1.34.3
-      - run: python scripts/runtime/validate_manifests.py
+      - run: python scripts/runtime/configure.py --image registry.example/mori/hermes@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --pull-secret harbor-pull
+      - run: python scripts/runtime/validate_manifests.py --image registry.example/mori/hermes@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --pull-secret harbor-pull --output-dir .local/manifests
       - run: docker build --platform linux/amd64 -t mori-hermes:ci hermes
       - run: python scripts/runtime/check_image.py --image mori-hermes:ci

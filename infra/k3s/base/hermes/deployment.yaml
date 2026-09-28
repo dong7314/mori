@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mori-hermes-shared
+  namespace: mori
 spec:
   replicas: 1
   strategy:
@@ -15,6 +16,15 @@ spec:
         app: mori-hermes-shared
     spec:
       automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/hostname: k3s-infra
+        kubernetes.io/arch: amd64
+      tolerations:
+        - key: infra
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      imagePullSecrets: []
       terminationGracePeriodSeconds: 90
       securityContext:
         fsGroup: 10000

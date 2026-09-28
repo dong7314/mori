@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: searxng
+  namespace: mori-tools
 spec:
   replicas: 1
   strategy:
@@ -15,6 +16,14 @@ spec:
         app: mori-searxng
     spec:
       automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/hostname: k3s-infra
+        kubernetes.io/arch: amd64
+      tolerations:
+        - key: infra
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
       terminationGracePeriodSeconds: 40
       initContainers:
       - name: copy-config

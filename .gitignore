@@ -13,5 +13,5 @@ htmlcov/
 dist/
 build/
 
-# Generated deployment overlay; registry-specific values stay local.
+# Generated standalone deployment YAML; registry-specific values stay local.
 .local/

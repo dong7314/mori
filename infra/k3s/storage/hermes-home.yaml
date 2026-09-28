@@ -1,4 +1,4 @@
-# Apply separately: deleting the application overlay must not delete user state.
+# Apply separately: replacing application YAML must not delete user state.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

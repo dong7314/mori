@@ -11,9 +11,10 @@
 | Hermes 이미지·플러그인·추출 의존성 | `hermes/` |
 | Hermes 실행 설정 | [base/hermes/config.yaml](base/hermes/config.yaml) |
 | SearXNG 엔진·언어·JSON 설정 | [base/searxng/settings.yml](base/searxng/settings.yml) |
-| 공통 Deployment·Service·ConfigMap 생성 | `base/hermes/`, `base/searxng/` |
-| 홈 worker 배치 | [overlays/home-dev/kustomization.yaml](overlays/home-dev/kustomization.yaml) |
-| PVC | [storage/hermes-home.yaml](storage/hermes-home.yaml), 앱 overlay와 별도 적용 |
+| Deployment·Service 및 ConfigMap 원본 | `base/hermes/`, `base/searxng/` |
+| 홈 worker 배치 | 각 Deployment의 `nodeSelector`·`tolerations` |
+| PVC | [storage/hermes-home.yaml](storage/hermes-home.yaml), 앱 YAML과 별도 적용 |
+| 적용할 일반 YAML | `configure.py`가 만드는 `.local/manifests/hermes.yaml`, `.local/manifests/searxng.yaml` |
 | 실행 후 검사 | [../../scripts/smoke/runtime.py](../../scripts/smoke/runtime.py) |
 
 - **개발 PC/빌드 머신:** 코드 검증, linux/amd64 이미지 빌드·Harbor push.
@@ -21,7 +22,7 @@
 - **worker `k3s-infra`, `192.168.0.20`:** Pod 실행. 수동 패키지 설치나 YAML 복사는 하지 않는다.
 - **GPU `192.168.0.8:8080`:** 기존 llama.cpp 유지. 모델을 다시 설치하지 않는다.
 
-초기 `hermes-shared.yaml`은 제거했다. 아래 Kustomize 경로를 사용한다.
+초기 `hermes-shared.yaml`은 제거했다. 두 컴포넌트의 원본 파일을 결합해 일반 Kubernetes YAML을 만든다. 이 파일은 ConfigMap·Deployment·Service를 포함하며 `kubectl apply -f`로 적용할 수 있다. 이번 변경은 로컬 작성·검증까지만 수행했고 홈 클러스터에는 아직 적용하지 않았다.
 
 ## 2. 배포 전 설정
 
@@ -79,7 +80,7 @@ Secret 생성기는 숨김 입력으로 기존 GPU API 키와 Harbor pull 전용
 
 PVC는 5Gi `local-path`, 이름은 `mori-hermes-shared-home`이다. StorageClass가 `WaitForFirstConsumer`이면 Pod 생성 전 `Pending`일 수 있으므로 이 시점에 Bound 대기로 막지 않는다. 이 구성은 worker 하나에 고정하며 자동 노드 이동/스토리지 복구는 제공하지 않는다.
 
-## 5. 이미지 선택·렌더링·적용 — master
+## 5. 일반 YAML 생성·검증·적용 — master
 
 빌드한 이미지의 실제 digest를 넣는다. `...`는 교체할 자리이며 실제 값으로 사용할 수 없다.
 
@@ -89,25 +90,30 @@ python3 scripts/runtime/configure.py \
   --pull-secret harbor-pull
 ```
 
-이 명령은 `.local/runtime/kustomization.yaml`만 생성하며 클러스터를 바꾸지 않는다. `.local/`은 Git 제외 경로이고 비밀 값을 넣지 않는다. 공개 레지스트리를 쓰면 `--pull-secret`도 생략한다. init container와 본체의 이미지가 함께 교체된다.
+이 명령은 `.local/manifests/hermes.yaml`과 `.local/manifests/searxng.yaml`을 생성하며 클러스터를 바꾸지 않는다. 과거 Kustomize 생성물의 경로 `.local/runtime/`과 분리했다. 각 파일은 Namespace·PVC·Secret과도 분리된다. `.local/`은 Git 제외 경로이고 비밀 값을 넣지 않는다. 공개 레지스트리를 쓰면 `--pull-secret`도 생략한다. init container와 본체의 이미지가 함께 교체된다.
 
 ```sh
-sudo k3s kubectl kustomize .local/runtime
-sudo k3s kubectl apply --dry-run=server -k .local/runtime
-sudo k3s kubectl diff -k .local/runtime
+python3 scripts/runtime/validate_manifests.py \
+  --image 'harbor.example.com/mori/mori-hermes@sha256:...' \
+  --pull-secret harbor-pull --output-dir .local/manifests
+sudo k3s kubectl apply --dry-run=server -f .local/manifests/searxng.yaml
+sudo k3s kubectl apply --dry-run=server -f .local/manifests/hermes.yaml
+sudo k3s kubectl diff -f .local/manifests/searxng.yaml
+sudo k3s kubectl diff -f .local/manifests/hermes.yaml
 ```
 
 `diff`의 종료 코드 1은 변경점이 있다는 뜻이다. 변경 대상을 확인한 뒤 적용한다.
 
 ```sh
-sudo k3s kubectl apply -k .local/runtime
+sudo k3s kubectl apply -f .local/manifests/searxng.yaml
+sudo k3s kubectl apply -f .local/manifests/hermes.yaml
 sudo k3s kubectl -n mori-tools rollout status deployment/searxng --timeout=300s
 sudo k3s kubectl -n mori rollout status deployment/mori-hermes-shared --timeout=600s
 sudo k3s kubectl -n mori get pods,pvc -o wide
 sudo k3s kubectl -n mori-tools get pods,svc -o wide
 ```
 
-최초 이미지 pull은 크기·회선에 따라 시간이 걸릴 수 있다. 실패하면 해당 Pod의 `describe`와 `initialize-home`/본체 로그로 구분한다. 두 Deployment 모두 `k3s-infra`에 배치되며 `infra=true:NoSchedule` taint를 허용한다. ConfigMap 이름의 해시는 정상이며 설정 수정 시 Deployment의 참조가 바뀌어 재기동된다.
+최초 이미지 pull은 크기·회선에 따라 시간이 걸릴 수 있다. 실패하면 해당 Pod의 `describe`와 `initialize-home`/본체 로그로 구분한다. 두 Deployment 모두 `k3s-infra`에 배치되며 `infra=true:NoSchedule` taint를 허용한다. ConfigMap 이름은 고정이다. 설정 수정 후 적용할 때는 해당 Deployment를 별도로 재시작한다.
 
 내부 서비스 주소는 유지한다.
 
@@ -142,12 +148,12 @@ Mori API는 아직 별도 배포 대상이다. 이후 [검색 API](../../backend
 
 ## 7. 이후 변경·중지·롤백
 
-- 엔진/모델/도구 설정: Git의 base config 변경 → 렌더링/diff → apply.
-- 플러그인/추출 의존성: 이미지 재빌드·새 digest → configure → diff/apply.
+- 엔진/모델/도구 설정: Git의 base config 변경 → 일반 YAML 재생성 → diff/apply → 해당 Deployment rollout restart.
+- 플러그인/추출 의존성: 이미지 재빌드·새 digest → 일반 YAML 재생성 → diff/apply.
 - Secret 값 변경: Secret 갱신 후 해당 Deployment rollout restart. ConfigMap 해시처럼 자동 감지되지 않는다.
 - Stateful Hermes는 replicas 1과 `Recreate`를 유지한다. 같은 PVC에 두 Deployment를 동시에 붙이지 않는다.
-- 이미지/설정 롤백: 이전 Git 설정과 이미지 digest로 다시 apply한다. ConfigMap 내용만 별도로 수동 수정하지 않는다. 사용자 데이터 스키마까지 자동 복구되는 것은 아니다.
-- 앱 중지/제거: `kubectl delete -k .local/runtime`는 이 overlay의 앱 객체만 대상으로 한다. namespace·Secret·PVC는 별도 파일/절차이므로 남는다. 예전 설정 해시로 생긴 미사용 ConfigMap은 참조 확인 후 개별 정리한다.
+- 이미지/설정 롤백: 이전 Git 설정과 이미지 digest로 일반 YAML을 다시 생성해 apply하고, 설정이 바뀌었으면 Deployment를 재시작한다. 사용자 데이터 스키마까지 자동 복구되는 것은 아니다.
+- 앱 중지/제거: 생성된 두 YAML의 ConfigMap·Deployment·Service를 개별 관리한다. namespace·Secret·PVC는 별도 파일/절차이므로 남긴다. 기존 Kustomize 버전의 해시 ConfigMap은 참조 확인 후 개별 정리한다.
 
 init container는 ConfigMap을 home에 적용하고 이미지의 플러그인 두 개를 symlink로 연결한다. 다른 대화·기억·사용자 플러그인은 건드리지 않는다. 예전 실습의 같은 이름 디렉터리가 남아 있으면 덮어쓰지 않고 실패한다. 이번 새 PVC 재배포에는 그 충돌이 없어야 한다.
 
@@ -160,7 +166,7 @@ python3 -m venv .local/runtime-venv
 .local/runtime-venv/bin/pip install ruff==0.16.8 PyYAML==6.0.3
 .local/runtime-venv/bin/ruff check --config hermes/ruff.toml hermes scripts/runtime scripts/smoke
 .local/runtime-venv/bin/python -m unittest discover -s hermes/tests -v
-.local/runtime-venv/bin/python scripts/runtime/validate_manifests.py --kubectl kubectl
+.local/runtime-venv/bin/python scripts/runtime/validate_manifests.py
 
 docker build --platform linux/amd64 -t mori-hermes:runtime-check hermes
 python3 scripts/runtime/check_image.py --image mori-hermes:runtime-check

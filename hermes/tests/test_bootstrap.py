@@ -81,13 +81,17 @@ class BootstrapTests(unittest.TestCase):
             self.run_init()
 
 
-class OverlayTests(unittest.TestCase):
+class ManifestTests(unittest.TestCase):
     def test_digest_applies_to_same_named_init_and_main_image(self):
-        result = configure.configuration(
+        result = configure.render_manifests(
             "harbor.example:8443/mori/hermes@sha256:" + "a" * 64, "harbor-pull"
         )
-        self.assertEqual(result["images"][0]["name"], "mori-hermes")
-        self.assertIn("harbor-pull", result["patches"][0]["patch"])
+        self.assertEqual(
+            result["hermes.yaml"].count("image: harbor.example:8443/mori/hermes@sha256:"), 2
+        )
+        self.assertIn("imagePullSecrets: [{name: harbor-pull}]", result["hermes.yaml"])
+        self.assertIn("kind: ConfigMap", result["hermes.yaml"])
+        self.assertIn("kind: ConfigMap", result["searxng.yaml"])
 
     def test_mutable_or_invalid_image_rejected(self):
         for image in (
@@ -97,11 +101,15 @@ class OverlayTests(unittest.TestCase):
             "h/p/i@sha256:123",
         ):
             with self.subTest(image=image), self.assertRaises(ValueError):
-                configure.configuration(image)
+                configure.render_manifests(image)
 
     def test_public_registry_needs_no_pull_secret(self):
-        result = configure.configuration("harbor.example/mori/hermes@sha256:" + "a" * 64)
-        self.assertNotIn("patches", result)
+        result = configure.render_manifests("harbor.example/mori/hermes@sha256:" + "a" * 64)
+        self.assertIn("imagePullSecrets: []", result["hermes.yaml"])
+
+    def test_invalid_pull_secret_rejected(self):
+        with self.assertRaises(ValueError):
+            configure.render_manifests("harbor.example/mori/hermes@sha256:" + "a" * 64, "x: wrong")
 
 
 if __name__ == "__main__":
