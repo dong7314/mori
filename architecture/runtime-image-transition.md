@@ -1,5 +1,7 @@
 # 실습 환경 정리와 정식 이미지·개발 YAML 전환 기록
 
+> **이력 문서:** 아래는 당시 상태다. 2026-09-29 현재 완료 범위와 다음 실행은 [최신 기록](hermes-knative-validation-2026-09-29.md)을 따른다. 검색 API/임시 토큰은 제거됐고 런타임은 재배포·Knative 기동/종료 검증을 마쳤다.
+
 [전체 계획](../plan.md) · [현장 시험 기록](hermes-web-validation-2026-09-28.md) · [백엔드 구현 기록](../back/hermes-search-implementation-2026-09-28.md)
 
 갱신일: 2026-09-28. **실습 리소스/PVC 삭제는 사용자 출력으로 확인했다. 재현 가능한 Hermes 이미지·검사 CLI와 일반 Kubernetes YAML 생성 경로를 구현했고 새 YAML의 로컬 구조·Kubernetes 1.34 스키마 검사를 통과했다. Harbor 이미지 등록·실제 digest를 이용한 서버 dry-run·홈 k3s 재배포·새 이미지의 실환경 회귀는 아직 하지 않았다.** master의 실습 디렉터리/압축 파일 삭제 완료는 별도로 확인하지 못했다.

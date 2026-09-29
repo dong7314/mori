@@ -1,5 +1,7 @@
 # 공용 Hermes 테스트 — 집에서 이어서 진행할 절차
 
+> **이력 문서:** 아래는 당시 상태다. 2026-09-29 현재 완료 범위와 다음 실행은 [최신 기록](hermes-knative-validation-2026-09-29.md)을 따른다. 검색 API/임시 토큰은 제거됐고 런타임은 재배포·Knative 기동/종료 검증을 마쳤다.
+
 [전체 계획](../plan.md) · [아키텍처](plan.md) · [검색·경량화 방향](hermes-search-runtime.md) · [Knative 검증 기록](knative-validation-2026-09-21.md)
 
 갱신일: 2026-09-28. **첫 대화에 이어 검색·이미지 후보·본문 추출·검색→추출을 통과했다.** 최신 상태는 [9월 28일 검증 기록](hermes-web-validation-2026-09-28.md), 이후 실습 리소스/PVC를 삭제했고 정식 이미지·YAML·검사 CLI를 구현·로컬 검증했다. 현재 다시 시작할 작업은 [Harbor 등록·새 PVC 재배포](runtime-image-transition.md)를 기준으로 한다. 아래 첫 배포 명령을 반복 적용하지 않는다. 기존 [첫 대화](hermes-shared-validation-2026-09-23.md)와 [GPU 이슈](hermes-llama-validation-2026-09-23.md)는 날짜별 기록으로 보존한다.

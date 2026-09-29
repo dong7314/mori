@@ -2,7 +2,14 @@
 
 [전체 계획으로 돌아가기](../plan.md)
 
-갱신일: 2026-09-28 · 백엔드와 인프라 구현은 AI 담당이다. 제품 클라이언트는 휴대폰·태블릿 앱이다. 아래 API와 데이터 구조는 Mori의 제안 계약이며 Hermes에 이미 존재하는 API나 확정 스키마를 뜻하지 않는다.
+갱신일: 2026-09-29 · 백엔드와 인프라 구현은 AI 담당이다. 제품 클라이언트는 휴대폰·태블릿 앱이다. 아래 API와 데이터 구조는 Mori의 제안 계약이며 Hermes에 이미 존재하는 API나 확정 스키마를 뜻하지 않는다.
+
+### 현재 구현 기준 — 2026-09-29
+
+`master` `478bf54`·`7ab5229`의 API 0.5.0이 현재 기준이다. 사용자별 채팅·SSE·자연어 주차 처리,
+공용/사전 배정 Pro 연결을 구현했다. 별도 검색 API와 임시 검색 토큰은 제거했다.
+일반 대화와 검색은 같은 채팅 경로를 사용한다. [기능별 상태·API·테스트·배포 절차](chat-implementation-2026-09-29.md).
+새 API는 k3s 미배포이며 실제 GPU 연동 검증 전이다. 아래 9월 17~28일 절은 이력이다.
 
 ### 기존 커밋의 `master` 구현 범위 — 2026-09-17
 
@@ -17,7 +24,7 @@
 
 ### 2026-09-23 인프라 선행 검증 당시의 백엔드 계획
 
-> 당시 순서를 보존한 기록이다. 현재 검색 Adapter 구현 및 다음 작업은 아래 9월 28일 갱신을 우선한다.
+> 당시 순서를 보존한 기록이다. 현재 구현은 위 9월 29일 채팅 계약을 우선한다.
 
 Knative Serving/Kourier 설치 및 테스트 앱의 1→0→1·응답을 확인했다. 이는 새로운 Mori API나 Hermes Adapter가 구현됐다는 뜻은 아니다. [실제 검증 기록](../architecture/knative-validation-2026-09-21.md).
 
@@ -27,7 +34,7 @@ Knative Serving/Kourier 설치 및 테스트 앱의 1→0→1·응답을 확인�
 
 짧은 내부 Hermes 호출은 완료까지 HTTP 연결을 유지하며 검증한다. 앱의 작업 접수·상태 조회와 영속 작업 처리는 이 통합 단계에서 구현하고, HTTP 종료 뒤 Pod 안에만 남은 백그라운드 작업을 제품 기능으로 제공하지 않는다. STT·캘린더·예약·파일 작업·Pro 전용 runtime은 이 첫 흐름 이후에 확장한다.
 
-### 2026-09-28 현재 구현·현장 검증의 구분
+### 2026-09-28 당시 구현·현장 검증의 구분 (이력)
 
 - **실제 Hermes 검증:** 일반 검색, 이미지 후보 도구, 공식 URL 본문 추출, 검색→추출→답변까지 통과했다. [상세 과정·오류·한계](../architecture/hermes-web-validation-2026-09-28.md).
 - **로컬 API 구현:** `POST /v1/assistant/search`가 실제 도구 결과에서 답변·출처·성공 상태를 구성한다. 지정 운영자 소셜 인증 또는 검색 전용 임시 토큰을 사용한다. `master` `7a19b61`에 커밋했다.
@@ -35,7 +42,7 @@ Knative Serving/Kourier 설치 및 테스트 앱의 1→0→1·응답을 확인�
 - **검증 범위:** 커밋 전 실제 PostgreSQL·모의 Hermes로 전체 157개 테스트 재통과, 로컬 ARM Docker 빌드 통과. k3s Mori API 배포·실제 통합 호출·Harbor push는 미완료다.
 - **런타임과 다음 작업:** [이미지/YAML 편입](../architecture/runtime-image-transition.md)은 `2e2a397`에서 완료했고 로컬 33개 테스트·amd64 기동을 확인했다. 삭제된 실습을 Harbor 이미지·새 PVC로 재배포한 뒤 API 통합과 자연어 주차 DB 저장/조회 도구를 완성한다. 검색·이미지·본문 도구 검증을 처음부터 반복 개발하지 않는다.
 
-API 계약·인증 경계·변경 파일·남은 기능은 [검색 API 구현 기록](hermes-search-implementation-2026-09-28.md)에 둔다. 아래 장기 API/DB/예약 설계 전체가 구현된 것은 아니다.
+당시 API 계약은 [검색 API 이력](hermes-search-implementation-2026-09-28.md)에 보존하고, 현재 계약·남은 기능은 [채팅 구현 기록](chat-implementation-2026-09-29.md)을 따른다. 아래 장기 API/DB/예약 설계 전체가 구현된 것은 아니다.
 
 ## 1. 책임 분리
 
@@ -95,7 +102,7 @@ P1 공용 Gateway가 Knative Serving으로 전환되면 Adapter는 기존 Deploy
 | `parking.save`, `parking.latest` | 주차 기록 저장·최신 유효 기록 조회 |
 | `calendar.create`, `calendar.update`, `calendar.list` | 일정 등록·수정·조회 |
 | `memory.save`, `memory.search` | 사용자 기록·선호 저장 및 검색 |
-| `automation.create`, `automation.update`, `automation.pause` | Mori 예약 규칙 관리 |
+| `automation.create`, `automation.update`, `automation.pause` | Hermes 예약 등록/변경과 Mori 기동 메타데이터 동기화(후속 설계) |
 | `dashboard.pin`, `dashboard.hide` | 사용자가 원하는 카드 고정·숨김 |
 | `research.search`, `research.fetch` | 여행 등에 필요한 외부 정보 검색·읽기 |
 | `file.inspect`, `file.transform` | 인증된 업로드의 구조 확인·검증된 변환 요청 |
@@ -106,6 +113,8 @@ P1 공용 Gateway가 Knative Serving으로 전환되면 Adapter는 기존 Deploy
 무료 사용자의 실행 환경에도 개인별 Hermes home과 상태가 필요하다. 유료 전환 때 프론트 계약과 사용자 ID는 그대로 유지하고 내부 라우팅만 바꾼다. 모델 서버가 바뀌어도 도구 계약을 재사용한다.
 
 ### 실행 환경의 수명주기와 업무 작업
+
+아래는 장기 설계다. 현재 채팅은 요청 연결에 묶여 있으며 outbox/영속 Worker는 없다. 연결 종료 시 중단하고 이미 커밋한 결과만 보존한다. 앱 종료와 독립적인 실행은 후속 구현이다.
 
 [아키텍처의 유휴 중지·재기동 설계](../architecture/plan.md#유휴-중지와-콜드-스타트)를 기준으로 한다. `AgentRun`은 사용자에게 맡은 일, `AgentRuntime`은 그 일을 실행할 환경이다. Pod가 없어도 run과 사용자 데이터는 존재한다.
 
@@ -143,7 +152,12 @@ P1 공용 Gateway가 Knative Serving으로 전환되면 Adapter는 기존 Deploy
 
 일정과 알림은 별도 데이터다. 일정 수정·취소 시 이전 알림을 무효화하고 새 알림을 계산한다. 사용자가 지정하지 않은 시간·반복·종료 조건을 모델이 임의로 확정하지 않게 한다.
 
-예약 실행은 DB에서 기한이 된 작업을 원자적으로 가져오고, 실행 lease와 회차별 고유 키를 사용한다. 장애 후 재시도할 수 있도록 상태를 저장하며, 전달 방식은 ‘한 번 이상 시도 가능 + 업무 효과의 중복 방지’로 설계한다. 외부 시스템까지 무조건 정확히 한 번 실행된다고 약속하지 않는다.
+Hermes AI 예약은 Hermes가 작업 내용·자체 스케줄을 영속 home에 보관하고 실행하는 방향으로 합의했다.
+Mori는 사용자/runtime/job ID·다음 실행·prewarm·버전·활성 여부 등 기동 메타데이터를 보관한다.
+등록/변경/취소 동기화, 실행 lease·회차별 중복 방지·완료 callback이 필요하며 아직 구현하지 않았다.
+Mori가 예약 프롬프트를 별도로 복제해 두 번 실행하지 않는다. 캘린더/알림/대시보드 데이터의 기준은 Mori DB다.
+사전 기동 요청 한 번만으로 cron 실행 완료까지 Pod가 유지된다고 가정하지 않는다.
+[예약 후속 계약과 검증 경계](../architecture/hermes-knative-validation-2026-09-29.md#예약-작업의-합의된-후속-방향--아직-미구현).
 
 DB 갱신과 후속 작업 발행 사이의 유실을 막기 위해 같은 트랜잭션에 outbox 이벤트를 저장하는 방식을 후보로 둔다. 큐 서버가 없어도 Worker가 outbox를 처리할 수 있다.
 
@@ -187,7 +201,9 @@ DB 조회의 사용자 범위와 행 수준 접근 제어를 함께 검토한다
 
 모든 요청은 서버 인증 문맥으로 사용자를 결정한다. 경로의 UUID를 안다는 것만으로 다른 사용자의 데이터에 접근할 수 없어야 한다. 변경 요청에는 멱등 키와 필요 시 버전 조건을 사용한다.
 
-현재 `master`에 있는 공개 경로는 `/health/live`, `/health/ready`, `/v1/auth/providers`, `/v1/auth/{provider}/login`, `/v1/auth/{provider}/callback`, `/v1/auth/exchange`, `/v1/auth/refresh`, `/v1/auth/logout`, `/v1/me`, 주차 저장·최신 조회, 최고 관리자용 `/v1/admin/users` 목록·Pro 승인/회수·권한 이력이다. `POST /v1/assistant/search`도 9월 28일 `7a19b61`에 커밋했다(k3s 미배포). 아래 나머지는 구현 순서를 논의하기 위한 초안이다. `GET /v1/me`는 구현됐지만 `PATCH /v1/me/preferences`는 아직 없다.
+현재 공개 경로는 인증·내 정보·관리자·주차 API와 사용자별 대화 생성/목록, 메시지 POST SSE,
+메시지 목록, 대화별 실행 조회다. 정확한 메서드/경로는 [9월 29일 계약](chat-implementation-2026-09-29.md#4-현재-공개-채팅-계약)을 따른다.
+별도 검색 API는 제거됐다. 아래 `/v1/actions`, `/v1/runs` 등의 표는 장기 설계 초안이며 현재 채팅 경로를 대체하지 않는다.
 
 | API | 용도 |
 | --- | --- |

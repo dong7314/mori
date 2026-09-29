@@ -1,5 +1,7 @@
 # Mori 검색 API와 임시 인증 — 로컬 구현 기록
 
+> **이력 문서:** 아래는 당시 상태다. 2026-09-29 현재 완료 범위와 다음 실행은 [최신 기록](chat-implementation-2026-09-29.md)을 따른다. 검색 API/임시 토큰은 제거됐고 런타임은 재배포·Knative 기동/종료 검증을 마쳤다.
+
 [전체 계획](../plan.md) · [백엔드 계획](plan.md) · [실제 Hermes 검증](../architecture/hermes-web-validation-2026-09-28.md) · [이미지·YAML 전환](../architecture/runtime-image-transition.md)
 
 갱신일: 2026-09-28. **구현과 로컬 검증까지 진행했으며 실제 Mori API의 k3s 배포·통합 요청은 아직 하지 않았다.** 검색 API·임시 인증의 코드 기준은 `master` `7a19b61`이다. 이어서 `2e2a397`에 이미지·YAML·검사 CLI, `8fe2f85`에 배포 안내를 커밋했다. 실습 Hermes/SearXNG가 삭제됐으므로 통합 시험 전에 새 이미지를 worker에 재배포해야 한다. Git 코드 저장과 Harbor 등록·실서비스 배포를 구분한다.

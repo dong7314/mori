@@ -2,13 +2,20 @@
 
 [전체 계획으로 돌아가기](../plan.md)
 
-갱신일: 2026-09-28 · 상태: 앱 우선 방향, 공용 Hermes의 Knative Serving 콜드 스타트와 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
+갱신일: 2026-09-29 · 상태: 앱 우선 방향, 공용 Hermes의 Knative Serving 콜드 스타트와 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
 
-`master`에는 FastAPI·PostgreSQL API, 소셜 인증·Free/Pro 등급 승인·주차 기록과 Alembic/Compose/k3s 예시가 있다. 9월 28일 `7a19b61`에 검색 API·임시 인증, `2e2a397`에 Hermes 이미지·당시 Kustomize·검사 CLI, `d2584fb`에 일반 YAML 생성·검증을 커밋했다. 2026-09-21 Knative/Kourier 및 샘플 1→0→1, 이후 공용 Hermes의 첫 대화·검색·추출은 사용자 현장 출력으로 확인했다. 실습 리소스는 이후 삭제됐으며 새 이미지 배포는 대기 중이다. 아래 구조도의 Mori Worker, 사용자별 Pod/PVC, 스케줄러와 Runtime Controller는 **설계·검증 대상**이다. Pro 등급 변경이 전용 실행 환경 제공을 뜻하지 않는다.
+`master` `478bf54`·`7ab5229`에 인증된 채팅·SSE·주차 작업을 구현했고 별도 검색 API를 제거했다.
+Harbor 등록·일반 YAML 배포·실제 Hermes Knative 기동과 종료는 사용자 출력으로 확인했다.
+새 Mori API의 실제 배포/통합은 아직 하지 않았다. [최신 현장 기록](hermes-knative-validation-2026-09-29.md) ·
+[백엔드 기능 상태](../back/chat-implementation-2026-09-29.md).
+
+아래 Mori Worker·Runtime Controller·사용자별 Pod/PVC 자동 생성은 장기 설계다.
+현재 API는 사전 배정된 runtime URL을 선택해 요청하며 Kubernetes 관리 권한을 사용하지 않는다.
+공용 home은 단일 소유자만 허용하고, Pro 승인만으로 개인 Pod가 생성되지 않는다.
 
 ## 현재 홈 네트워크와 배포 위치
 
-**최신 재개 상태(2026-09-28):** 현장 도구 시험을 마친 뒤 사용자 요청으로 Hermes/SearXNG 리소스와 Hermes PVC/PV를 삭제했다. 이미지·검사 CLI와 일반 Kubernetes YAML 생성 경로를 구현했다. 새 YAML은 로컬 구조·Kubernetes 1.34 스키마 검사 통과, 실제 digest를 이용한 서버 dry-run은 미실행이다. 다음은 Harbor 등록, 새 PVC 재배포와 실환경 회귀다. Mori API도 k3s 미배포이며 실제 Hermes Knative 전환은 후속이다. 본문 추출은 같은 Hermes 이미지의 별도 venv에서 실행한다. [현장 증거](hermes-web-validation-2026-09-28.md) · [API 구현](../back/hermes-search-implementation-2026-09-28.md) · [배포 전환 기록](runtime-image-transition.md).
+**현재 재개 상태(2026-09-29):** 공용 Hermes/SearXNG 재배포와 Hermes Knative 기동·정상 종료를 확인했다. 다음은 새 Mori 채팅 API 이미지 등록·0004_chat migration·배포와 실제 인증 사용자 요청의 통합 검증이다. 본문 추출은 같은 Hermes 이미지의 별도 venv에서 실행한다. [현장 기록](hermes-knative-validation-2026-09-29.md) · [채팅 구현](../back/chat-implementation-2026-09-29.md).
 
 2026-09-17 사용자 설명과 2026-09-21 사용자가 제공한 k3s/설치 출력에 근거한다. AI가 원격 접속해 조사한 결과는 아니다. 다섯 장비 모두 ipTIME에 연결되어 있다. GPU 노트북의 주소 `192.168.0.8`, llama.cpp 포트 `8080`, API 키 설정은 사용자에게 확인했다. 두 k3s 노드의 버전은 `v1.34.3+k3s1`이며 IP·CPU·RAM과 Knative 배치는 확인됐다. 실제 전원·절전 정책과 저장소 여유/복구는 아직 검증하지 않았다.
 
@@ -89,7 +96,7 @@ flowchart TD
     API --> Files
 ```
 
-위 그림은 목표 구조이며 배포 현황도가 아니다. 큐·Runtime Controller·계정별 home·실제 Hermes Knative는 아직 구현/검증 전이다. 현재 연결은 [검색 실행 구조](hermes-search-runtime.md#3-현장에서-검증한-구조와-재배포-대상)를 참조한다. 그림의 상자는 논리적인 책임이다. 초기에는 단일 백엔드 코드베이스의 API·Worker·제어 프로세스로 구성한다. 제품은 휴대폰·태블릿 앱이며 브라우저는 개발·PoC 확인에 사용한다. 앱은 Mori API에 연결한다. Hermes·DB·Pod 관리 API는 클러스터 내부에 두고, GPU API는 별도 Linux 노트북의 사설 LAN에서 Mori 측 호출만 받는다.
+위 그림은 목표 구조이며 배포 현황도가 아니다. 큐·Runtime Controller·계정별 home 격리는 아직 구현/검증 전이다. 실제 공용 Hermes Knative 기동·종료는 확인했다. 현재 연결은 [검색 실행 구조](hermes-search-runtime.md#3-현장에서-검증한-구조와-재배포-대상)를 참조한다. 그림의 상자는 논리적인 책임이다. 초기에는 단일 백엔드 코드베이스의 API·Worker·제어 프로세스로 구성한다. 제품은 휴대폰·태블릿 앱이며 브라우저는 개발·PoC 확인에 사용한다. 앱은 Mori API에 연결한다. Hermes·DB·Pod 관리 API는 클러스터 내부에 두고, GPU API는 별도 Linux 노트북의 사설 LAN에서 Mori 측 호출만 받는다.
 
 React 인앱 UI와 네이티브 기능을 브리지로 연결하는 방안을 검증한다. 앱 컨테이너는 Capacitor와 React Native + WebView를 비교한 뒤 선택한다. OS 위젯은 별도 구현하고, 열린 WebView나 사용자 Hermes Pod에 의존하지 않는 조회 경로를 둔다. 화면·위젯·브리지는 실제 제품에서 사용자 담당이다. [프론트 앱 설계](../front/plan.md#10-휴대폰태블릿-앱-우선-설계).
 
@@ -101,7 +108,7 @@ React 인앱 UI와 네이티브 기능을 브리지로 연결하는 방안을 �
 
 외부 검색 API 비용을 피하려는 요구에 맞춰 SearXNG를 공유 내부 Service로 배포하고 Hermes 연결을 검증했다. 검색 실행을 공유해도 사용자별 검색 이력·기억은 Mori DB와 계정별 Hermes 상태에 둔다. SearXNG는 검색 결과를 집계하며 링크 본문 추출·브라우저·문서 처리는 별도 기능이다. upstream 차단이나 운영 자원 비용까지 없어지는 것은 아니다.
 
-첫 Hermes 연결은 공식 고정 이미지를 사용하고, 이후 공용/개인에 같은 모리 전용 경량 이미지를 적용하는 안을 검토한다. CPU/RAM은 Pod별 requests/limits로 다르게 설정한다. 브라우저·파일·음성 처리를 분리하고 어떤 의존성을 제거할지는 기능 회귀와 자원을 측정해 정한다. 검색 Pod와 같은 Hermes Pod의 `mori_extract`·Trafilatura 2.2.0을 현장에서 검증한 뒤 실습 리소스를 삭제했다. 별도 본문 Worker Pod는 없다. 도구를 포함한 Hermes 이미지와 선언적 설정은 `2e2a397`에 구현했고, Harbor 등록·실제 재배포·회귀가 남아 있다. 의존성을 제거한 최소 이미지는 아직 아니다. [후보 비교·연결 설정·이력 설계](hermes-search-runtime.md).
+첫 Hermes 연결은 공식 고정 이미지를 사용하고, 이후 공용/개인에 같은 모리 전용 경량 이미지를 적용하는 안을 검토한다. CPU/RAM은 Pod별 requests/limits로 다르게 설정한다. 브라우저·파일·음성 처리를 분리하고 어떤 의존성을 제거할지는 기능 회귀와 자원을 측정해 정한다. 검색 Pod와 같은 Hermes Pod의 `mori_extract`·Trafilatura 2.2.0을 현장에서 검증한 뒤 실습 리소스를 삭제했다. 별도 본문 Worker Pod는 없다. 도구를 포함한 Hermes 이미지와 선언적 설정은 `2e2a397`에 구현했고, Harbor 등록·실제 재배포·검색/추출 회귀를 9월 29일 확인했다. 의존성을 제거한 최소 이미지는 아직 아니다. [후보 비교·연결 설정·이력 설계](hermes-search-runtime.md).
 
 ## 2. 무료 공용 실행과 유료 전용 Pod
 
@@ -129,13 +136,13 @@ P1의 공용 Gateway 0↔1 검증은 단일 사용자 또는 신뢰된 시험 �
 
 ### 공용 Hermes의 Knative Serving 콜드 스타트
 
-**현재 상태(2026-09-21):** Knative/Kourier 설치와 단순 테스트 앱의 1→0→1·응답은 확인됐다. 테스트 요청 `real 1.140s`는 Hermes 기동 시간이나 LLM 성능이 아니다. worker UFW의 메트릭 수집 복구, 설치 설정, 실측 범위는 [검증 기록](knative-validation-2026-09-21.md)에 둔다. 다음 설명은 실제 Hermes에 적용할 설계이며 전환 완료를 뜻하지 않는다.
+**현재 상태(2026-09-29):** Knative/Kourier와 샘플 앱에 이어 실제 Hermes Route의 0→1 인증 health 응답(11.69초/11.19초), scale-down 종료 0/0을 확인했다. [현장 기록](hermes-knative-validation-2026-09-29.md). 전체 LLM 응답 p95, 예약 실행 유지, Pro 사용자별 격리/복구 검증과는 구분한다.
 
-P1에서는 **공용 Hermes Gateway 한 개만** Knative Serving의 KPA로 유휴 0개·요청 시 최대 1개로 전환한다. Mori API·DB·예약 Worker는 계속 켜 두고, `192.168.0.8:8080`의 독립 llama.cpp도 그대로 운영한다. Knative Serving의 controller·autoscaler·activator·Kourier는 클러스터에 별도로 설치하는 공용 구성요소이므로, Hermes Pod가 0개가 되어도 이 구성요소의 자원 사용은 남는다. 설치 명령은 k3s master/server인 미니 PC 1에서 실행하지만 Hermes workload는 노트북 1의 worker에 배치한다.
+P1에서는 **공용 Hermes Gateway 한 개만** Knative Serving의 KPA로 유휴 0개·요청 시 최대 1개로 전환한다. 향후 제품에서는 Mori API·DB·예약 Worker를 계속 켜 두고(예약 Worker는 미구현), `192.168.0.8:8080`의 독립 llama.cpp도 그대로 운영한다. Knative Serving의 controller·autoscaler·activator·Kourier는 클러스터에 별도로 설치하는 공용 구성요소이므로, Hermes Pod가 0개가 되어도 이 구성요소의 자원 사용은 남는다. 설치 명령은 k3s master/server인 미니 PC 1에서 실행하지만 Hermes workload는 노트북 1의 worker에 배치한다.
 
 Mori Adapter는 인증과 작업 접수 후 **클러스터 내부 Knative Route**로 실제 Hermes HTTP 요청을 보낸다. 그 요청이 activator와 autoscaler를 거쳐 0개에서 Pod를 깨운다. 기존 일반 Deployment의 Service 주소를 계속 호출하거나 Pod IP를 직접 호출하면 이 경로를 검증할 수 없다. Knative Service는 `cluster-local`로 제한하고 외부에 Hermes API를 직접 공개하지 않는다. 첫 실험값은 KPA, `min-scale: "0"`, `max-scale: "1"`, `scale-down-delay: "10m"`이며 시작 시간·유휴 메모리·재기동 성공률을 실측해 조정한다.
 
-Knative의 확장 판단은 HTTP 트래픽을 기반으로 한다. `202`를 바로 반환하고 Pod 내부에서 장시간 작업을 계속하거나, 예약 시각·승인 대기·비동기 도구 실행만 존재하는 경우에는 HTTP 요청이 끝난 뒤 축소될 수 있다. 따라서 Mori DB 큐/Worker가 예약과 작업 상태를 소유하고, 긴 작업은 요청 연결을 유지하는 동기 호출부터 검증한다. 비동기 실행은 완료까지 활성 상태를 보장하는 별도 방식이나 안전한 continuation/재개를 검증한 뒤 허용한다. 사용자가 대시보드나 `GET /runs`를 조회하는 것만으로 Hermes를 깨우지 않는다. 자세한 설치 조건, k3s Traefik 포트 충돌과 기존 Deployment 전환 순서는 [Knative Serving 절차](knative-serving.md)에 둔다.
+Knative의 확장 판단은 HTTP 트래픽을 기반으로 한다. `202`를 바로 반환하고 Pod 내부에서 장시간 작업을 계속하거나, 예약 시각·승인 대기·비동기 도구 실행만 존재하는 경우에는 HTTP 요청이 끝난 뒤 축소될 수 있다. 따라서 후속 Mori DB 큐/Worker는 예약 기동 메타데이터와 실행 상태를 관리하고 Hermes가 예약 내용을 실행하도록 설계하며, 긴 작업은 요청 연결을 유지하는 동기 호출부터 검증한다. 비동기 실행은 완료까지 활성 상태를 보장하는 별도 방식이나 안전한 continuation/재개를 검증한 뒤 허용한다. 사용자가 대시보드나 `GET /runs`를 조회하는 것만으로 Hermes를 깨우지 않는다. 자세한 설치 조건, k3s Traefik 포트 충돌과 기존 Deployment 전환 순서는 [Knative Serving 절차](knative-serving.md)에 둔다.
 
 ### 유료 Pod 운영과 등록 단위
 
@@ -251,15 +258,19 @@ RTX 3090의 공식 메모리 사양은 24GB다. 이 GPU에 모델을 한 번 적
 
 ## 4. 스케줄링의 기준과 책임
 
-Mori PostgreSQL에 일정·반복 규칙·다음 실행 시각·실행 이력을 저장하고, Mori Worker가 실행 시점을 결정하는 방식을 제안한다. 이 데이터는 무료 실행 풀이나 유료 Pod의 생명주기와 독립적이다.
+예약 설계는 **Hermes가 AI 예약 내용·자체 스케줄을 영속 home에 저장하고 실행하며, Mori는 기동용 메타데이터와 사전 깨우기를 담당**하는 방향으로 갱신했다. 모두 후속 설계이며 현재 코드에는 없다.
 
-Hermes에도 자체 cron이 있다. 다만 제품 예약 작업을 Mori와 Hermes 양쪽에서 동시에 실행하면 중복 발생과 복구 판단이 어려워진다. 초기 제품 작업은 Mori가 소유하고, 에이전트의 예약 요청은 Mori의 도구 API로 저장한다. Hermes 내장 cron은 이 작업들에 대해 실행하지 않도록 통합 시 검증한다. [Hermes 예약 작업](https://hermes-agent.nousresearch.com/docs/user-guide/features/cron).
+Mori DB에는 사용자/runtime/Hermes job ID·다음 실행·prewarm·버전·활성 상태와 실행 결과 연결 정보를 둔다.
+등록/변경/삭제를 도구/API로 동기화하고, 실행 전부터 완료 callback까지 runtime 유지·실행 lease·중복 방지를 마련한다.
+프롬프트만으로 등록 동기화를 보장하거나 health 요청 한 번으로 cron 완료까지 살아 있다고 가정하지 않는다.
+Mori와 Hermes가 같은 예약 본문을 각각 실행하지 않게 한다. 캘린더·대시보드·알림 데이터는 Mori DB가 관리한다.
+[구체적인 후속 검증 항목](hermes-knative-validation-2026-09-29.md#예약-작업의-합의된-후속-방향--아직-미구현).
 
 | 예약 작업 종류 | 실행 방식 |
 | --- | --- |
 | 아침에 최신 주차 위치 표시 | DB 조회 → 대시보드/위젯 데이터 준비. 매번 LLM을 호출하지 않는다. |
 | 일정 시작 전 알림 | 이미 저장된 일정과 알림 규칙을 읽어 전송한다. |
-| 매주 여행 정보 다시 조사 | 실행 시점에 사용자 Hermes를 호출하고 결과를 작업으로 저장한다. |
+| 매주 여행 정보 다시 조사 | 사전 기동된 Hermes가 자체 예약을 실행하고 결과를 Mori에 반영한다. |
 | 새로 만든 개인 스킬 실행 | 버전·권한·입력 데이터를 고정해 호출한다. |
 
 예약 시각과 실제 실행 시각을 구분한다. 시간대와 반복 규칙을 함께 저장하고 재시작 후 지연 작업 처리 정책을 적용한다. `automation_id + scheduled_at` 등의 실행 키로 같은 회차의 중복 효과를 방지한다. 외부 호출 결과가 불명확하면 조회·대조한 뒤 재시도한다.
