@@ -31,9 +31,15 @@ docker run --rm --platform linux/amd64 \
   --python-platform x86_64-unknown-linux-gnu requirements.in -o requirements.lock
 ```
 
-`HERMES_GATEWAY_NO_SUPERVISE=1`은 고정 base에서 확인한 foreground 실행 옵션이다. 공식 s6 entrypoint의 초기화·권한 하강은 유지하고 gateway의 별도 동적 서비스 생성은 생략한다. Kubernetes가 컨테이너 종료/재시작을 관리한다.
+`0.1.1`부터 실제 `/usr/bin/dumb-init` → Mori entrypoint → 공식 stage2 초기화·권한 하강 → 단일 foreground gateway 순서로 실행한다. s6 부팅 복구와 foreground가 겹치는 `0.1.0`의 문제를 제거한다. base의 `/usr/bin/tini`는 s6 호환 스크립트이므로 사용하지 않는다.
 
-## 검증 기록 — 2026-09-28
+`dumb-init --single-child --rewrite 15:2`는 Kubernetes의 SIGTERM을 gateway 한 프로세스에 SIGINT로 전달한다. 고정 Hermes는 SIGINT를 계획된 종료로 처리하므로 기존 drain/저장/정리 후 코드 0을 반환한다. 도구 자식 전체에 인터럽트를 전파하지 않는다. 실제 실패 코드와 SIGKILL은 성공으로 바꾸지 않는다. SIGTERM이 도착하기 전 준비 완료 상태의 종료와 강제 종료 후 복구를 검사하며, 추론/문서/cron 작업 중 drain 보장은 별도 통합 검증 대상이다.
+
+[0.1.0 → 0.1.1 교체 절차](../infra/k3s/hermes-lifecycle-upgrade.md).
+
+## 초기 검증 기록 — 2026-09-28
+
+아래 초기 검사는 gateway를 같은 볼륨으로 재시작하지 않았으므로 종료·콜드 스타트 증거가 아니었다. 현재 `check_image.py`는 실제 gateway 3회 기동, TERM 종료 코드 0, KILL 후 복구, 단일 gateway/uid 10000, 파일 보존, 오류 코드 전달을 검사한다.
 
 - 로컬 unit/fixture 검사 33개 통과: 이미지 엔진 지정·실패, 추출 주소/리다이렉트 제한, 실제 parser fixture, 호출 ID/간접 호출/출처, 초기화·상태 보존·설정 충돌, 이미지 digest 입력.
 - Kubernetes v1.34.3의 Kustomize로 base와 로컬 registry overlay 렌더링·참조 검증 통과. init/main 이미지 일치, ConfigMap 해시 참조, namespace·worker 배치와 storage/Secret 분리를 확인했다.

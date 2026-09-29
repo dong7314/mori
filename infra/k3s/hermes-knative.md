@@ -1,5 +1,7 @@
 # Hermes의 첫 Knative 전환과 0→1 요청 검사
 
+**2026-09-29 후속:** 0.1.0은 s6 중복 기동 및 foreground 종료 코드 1 문제가 확인됐다. 신규 전환에는 0.1.1 이상을 사용한다. 이미 임시 foreground Knative 서비스를 실행 중이면 [수명주기 수정 이미지 교체](hermes-lifecycle-upgrade.md)를 먼저 따른다. 0.1.0과 임시 shell command로 돌아가지 않는다.
+
 2026-09-29: 사용자 출력으로 Harbor `0.1.0` 업로드, 일반 Deployment 기동, 실제 모델 검색·본문 추출 성공을 확인했다. 아래는 **아직 현장 미검증인 전환 절차**다. 이미지 재빌드 없이 현재 이미지·Secret·ConfigMap·PVC를 사용한다. 예약 실행·Mori API 연동·Pro 자동 생성은 포함하지 않는다.
 
 전제: Knative Serving/Kourier 1.23.0 설치, 단일 시험 사용자, 기존 Hermes는 유휴 상태이고 실행 중인 예약/문서 작업이 없어야 한다. 앞으로의 예약 prewarm/작업 lease는 별도 기능이다. 자원 한도는 현재 Deployment에서 복사한다. 초기 실험은 max 1/concurrency 1, window 60초, 추가 scale-down-delay 0초다. 정상 사용 시 대기 시간은 실측 후 늘린다.

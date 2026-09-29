@@ -118,5 +118,34 @@ class KnativeTests(unittest.TestCase):
             run.assert_not_called()
 
 
+class KnativeUpgradeTests(unittest.TestCase):
+    def test_upgrade_preserves_data_and_removes_temporary_entrypoint(self):
+        upgrade = load("scripts/runtime/prepare_knative_upgrade.py", "upgrade")
+        original = KnativeTests()
+        original.setUp()
+        service, _ = prepare.render(original.source)
+        template = service["spec"]["template"]
+        template["metadata"]["name"] = "old-revision"
+        container = template["spec"]["containers"][0]
+        container["command"] = ["/bin/sh", "-ec"]
+        container["args"] = ["temporary foreground workaround"]
+        service["spec"]["traffic"] = [{"revisionName": "old-revision", "percent": 100}]
+        before = copy.deepcopy(service)
+        image = "harbor.example/mori/hermes@sha256:" + "b" * 64
+        result, patch = upgrade.render(service, image)
+        self.assertEqual(service, before)
+        pod = result["spec"]["template"]["spec"]
+        self.assertNotIn("command", pod["containers"][0])
+        self.assertEqual(pod["containers"][0]["args"], ["gateway", "run"])
+        self.assertEqual(pod["containers"][0]["env"], container["env"])
+        self.assertEqual(pod["volumes"], template["spec"]["volumes"])
+        self.assertEqual(pod["initContainers"][0]["image"], image)
+        self.assertNotIn("name", result["spec"]["template"]["metadata"])
+        self.assertEqual(result["spec"]["traffic"], [{"latestRevision": True, "percent": 100}])
+        self.assertNotIn("replicas", patch["spec"])
+        with self.assertRaises(ValueError):
+            upgrade.render(service, "hermes:latest")
+
+
 if __name__ == "__main__":
     unittest.main()

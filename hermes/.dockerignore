@@ -10,3 +10,4 @@
 **/*.pyc
 
 !documents-requirements.lock
+!entrypoint.sh

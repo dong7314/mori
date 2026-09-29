@@ -56,7 +56,7 @@ docker buildx imagetools inspect "$MORI_IMAGE"
 
 빌드 출력/inspect에서 `sha256:...` digest를 기록한다. 이후 배포에는 태그 대신 `REGISTRY/PROJECT/IMAGE@sha256:...`를 사용한다. Mac의 ARM 기본 이미지로 worker에 배포하지 않는다. 새 릴리스는 태그도 변경한다. 이 저장소에 Harbor 인증 정보를 넣지 않는다.
 
-Hermes는 공식 digest를 base로 고정하고 이미지 안에 `/opt/mori/plugins`, `/opt/mori/extract-venv`를 포함한다. 매 시작마다 pip 설치·소스 다운로드를 하지 않는다. 공식 이미지의 entrypoint/권한 하강을 유지하며 `HERMES_GATEWAY_NO_SUPERVISE=1`로 gateway를 foreground 실행한다. 프로세스 재시작은 Kubernetes가 맡는다. 기본 s6 경로에서 권한 하강 후 `/run/service/.gateway-default.tmp` 생성이 실패한 로컬 재현을 해결하기 위한 설정이다.
+Hermes는 공식 digest를 base로 고정하고 이미지 안에 `/opt/mori/plugins`, `/opt/mori/extract-venv`를 포함한다. 매 시작마다 pip 설치·소스 다운로드를 하지 않는다. 0.1.1부터 실제 dumb-init과 Mori entrypoint를 사용하며 공식 초기화·권한 하강만 유지한다. s6 자동 복구는 실행하지 않는다. SIGTERM은 계획된 SIGINT 종료로 전달하며 프로세스 재시작은 Kubernetes가 맡는다. [기존 이미지 교체 절차](hermes-lifecycle-upgrade.md)를 따른다.
 
 SearXNG는 YAML에 고정한 공식 digest를 직접 받으므로 추가 빌드가 필요 없다. worker에서 Harbor의 TLS 인증서·레지스트리 접근이 준비돼 있어야 한다. TLS 오류를 만났다고 이미지 pull 검증을 끄지 않는다.
 
@@ -177,7 +177,7 @@ docker build --platform linux/amd64 -t mori-hermes:runtime-check hermes
 python3 scripts/runtime/check_image.py --image mori-hermes:runtime-check
 ```
 
-컨테이너 검사는 자체 생성한 임시 volume/container만 만들고 제거한다. `--network none`에서 공식 entrypoint, 두 번의 초기화, plugin/provider 로딩과 API 인증을 확인하며 홈 GPU나 외부 검색을 호출하지 않는다. 실제 k3s 배포·Harbor push·검색 품질 확인은 위 운영 절차의 별도 결과로 기록한다.
+컨테이너 검사는 자체 생성한 임시 volume/container만 만들고 제거한다. `--network none`에서 초기화 두 번, 실제 gateway 3회 기동, TERM 코드 0, KILL 후 복구, 파일 보존, 단일 비특권 gateway, 실패 코드 전달, plugin/provider 로딩과 API 인증을 확인하며 홈 GPU나 외부 검색을 호출하지 않는다. 실제 k3s 배포·Harbor push·검색 품질 확인은 위 운영 절차의 별도 결과로 기록한다.
 
 이 이미지는 검증한 도구를 재현 가능하게 묶은 버전이다. 공식 이미지의 브라우저/음성 패키지를 제거한 최소 이미지가 아니며, 경량화 비율·콜드 스타트 시간·다중 사용자 격리를 보장하지 않는다. 다음 제품 개발은 자연어 주차 저장/조회 도구 연결이다.
 
