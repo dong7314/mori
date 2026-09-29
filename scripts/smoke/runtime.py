@@ -12,6 +12,7 @@ def main():
         "--mode",
         choices=(
             "health",
+            "documents-direct",
             "search-direct",
             "images-direct",
             "search",
@@ -43,6 +44,24 @@ def main():
         raise SystemExit(f"Expected exactly one Ready Hermes Pod; found {len(ready)}")
     name = ready[0]["metadata"]["name"]
     print("Executing in:", name, flush=True)
+    if args.mode == "documents-direct":
+        raise SystemExit(
+            subprocess.call(
+                kube
+                + [
+                    "-n",
+                    "mori",
+                    "exec",
+                    name,
+                    "-c",
+                    "hermes",
+                    "--",
+                    "python",
+                    "/opt/mori/checks/documents.py",
+                    "--require-toolset",
+                ]
+            )
+        )
     raise SystemExit(
         subprocess.call(
             kube

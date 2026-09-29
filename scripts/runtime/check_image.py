@@ -5,6 +5,7 @@ No home-cluster, GPU or external search access. Run against a built linux/amd64 
 
 import argparse
 import subprocess
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -19,10 +20,23 @@ def docker(*args, check=True):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", required=True)
+    parser.add_argument(
+        "--documents", action="store_true", help="Enable and verify document toolset"
+    )
     args = parser.parse_args()
     name = "mori-image-check-" + uuid.uuid4().hex[:12]
     volume = name + "-home"
-    config = str(ROOT / "infra/k3s/base/hermes/config.yaml")
+    scratch = ROOT / ".local"
+    scratch.mkdir(exist_ok=True)
+    temporary = tempfile.TemporaryDirectory(prefix="mori-image-config-", dir=scratch)
+    config_path = Path(temporary.name) / "config.yaml"
+    content = (ROOT / "infra/k3s/base/hermes/config.yaml").read_text()
+    if args.documents:
+        content = content.replace(
+            "    - web\n    - mori_images\n", "    - web\n    - mori_images\n    - mori_documents\n"
+        )
+    config_path.write_text(content)
+    config = str(config_path)
     docker("volume", "create", volume)
     try:
         for _ in range(2):
@@ -83,6 +97,17 @@ def main():
             )
             if check.returncode == 0:
                 print(check.stdout.strip())
+                if args.documents:
+                    documents = docker(
+                        "exec",
+                        "--user",
+                        "10000:10000",
+                        name,
+                        "python",
+                        "/opt/mori/checks/documents.py",
+                        "--require-toolset",
+                    )
+                    print(documents.stdout.strip())
                 print(
                     "PASS: official entrypoint, PVC init twice, native plugins and auth; no GPU/search requests"
                 )
@@ -97,6 +122,7 @@ def main():
     finally:
         docker("rm", "-f", name, check=False)
         docker("volume", "rm", volume, check=False)
+        temporary.cleanup()
 
 
 if __name__ == "__main__":

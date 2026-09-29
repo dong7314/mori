@@ -1,0 +1,3 @@
+name: mori_documents
+version: 0.1.0
+description: Bounded local Word, Excel and PDF operations for a trusted single-user runtime.

@@ -17,6 +17,7 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install --require-hashes -r hermes/requirements.lock
+      - run: python -m pip install --require-hashes -r hermes/documents-requirements.lock
       - run: python -m pip install ruff==0.16.8 PyYAML==6.0.3
       - run: ruff check --config hermes/ruff.toml hermes scripts/runtime scripts/smoke
       - run: ruff format --config hermes/ruff.toml --check hermes scripts/runtime scripts/smoke
@@ -25,3 +26,4 @@ jobs:
       - run: python scripts/runtime/validate_manifests.py --image registry.example/mori/hermes@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --pull-secret harbor-pull --output-dir .local/manifests
       - run: docker build --platform linux/amd64 -t mori-hermes:ci hermes
       - run: python scripts/runtime/check_image.py --image mori-hermes:ci
+      - run: python scripts/runtime/check_image.py --image mori-hermes:ci --documents

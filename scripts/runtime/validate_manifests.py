@@ -62,7 +62,10 @@ def validate(image, pull_secret):
     )
     assert hermes_config["gateway"]["multiplex_profiles"] is False
     assert hermes_config["web"]["extract_backend"] == "mori-local"
-    assert hermes_config["platform_toolsets"]["api_server"] == ["web", "mori_images"]
+    assert hermes_config["platform_toolsets"]["api_server"] in (
+        ["web", "mori_images"],
+        ["web", "mori_images", "mori_documents"],
+    )
     searxng_config = yaml.safe_load(
         indexed["ConfigMap", "mori-tools", "searxng-config"]["data"]["settings.yml"]
     )

@@ -4,7 +4,7 @@ import argparse
 import os
 from pathlib import Path
 
-PLUGINS = ("mori_images", "mori_extract")
+PLUGINS = ("mori_images", "mori_extract", "mori_documents")
 
 
 def initialize(home: Path, config: Path, plugins: Path, uid=10000, gid=10000):

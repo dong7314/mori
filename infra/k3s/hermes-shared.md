@@ -155,7 +155,7 @@ Mori API는 아직 별도 배포 대상이다. 이후 [검색 API](../../backend
 - 이미지/설정 롤백: 이전 Git 설정과 이미지 digest로 일반 YAML을 다시 생성해 apply하고, 설정이 바뀌었으면 Deployment를 재시작한다. 사용자 데이터 스키마까지 자동 복구되는 것은 아니다.
 - 앱 중지/제거: 생성된 두 YAML의 ConfigMap·Deployment·Service를 개별 관리한다. namespace·Secret·PVC는 별도 파일/절차이므로 남긴다. 기존 Kustomize 버전의 해시 ConfigMap은 참조 확인 후 개별 정리한다.
 
-init container는 ConfigMap을 home에 적용하고 이미지의 플러그인 두 개를 symlink로 연결한다. 다른 대화·기억·사용자 플러그인은 건드리지 않는다. 예전 실습의 같은 이름 디렉터리가 남아 있으면 덮어쓰지 않고 실패한다. 이번 새 PVC 재배포에는 그 충돌이 없어야 한다.
+init container는 ConfigMap을 home에 적용하고 이미지의 플러그인 세 개를 symlink로 연결한다. 다른 대화·기억·사용자 플러그인은 건드리지 않는다. 예전 실습의 같은 이름 디렉터리가 남아 있으면 덮어쓰지 않고 실패한다. 이번 새 PVC 재배포에는 그 충돌이 없어야 한다.
 
 ## 8. 개발 검증과 한계
 
@@ -163,6 +163,7 @@ init container는 ConfigMap을 home에 적용하고 이미지의 플러그인 �
 # 개발 환경: 별도 venv, Python 3.13 권장
 python3 -m venv .local/runtime-venv
 .local/runtime-venv/bin/pip install --require-hashes -r hermes/requirements.lock
+.local/runtime-venv/bin/pip install --require-hashes -r hermes/documents-requirements.lock
 .local/runtime-venv/bin/pip install ruff==0.16.8 PyYAML==6.0.3
 .local/runtime-venv/bin/ruff check --config hermes/ruff.toml hermes scripts/runtime scripts/smoke
 .local/runtime-venv/bin/python -m unittest discover -s hermes/tests -v
@@ -175,3 +176,7 @@ python3 scripts/runtime/check_image.py --image mori-hermes:runtime-check
 컨테이너 검사는 자체 생성한 임시 volume/container만 만들고 제거한다. `--network none`에서 공식 entrypoint, 두 번의 초기화, plugin/provider 로딩과 API 인증을 확인하며 홈 GPU나 외부 검색을 호출하지 않는다. 실제 k3s 배포·Harbor push·검색 품질 확인은 위 운영 절차의 별도 결과로 기록한다.
 
 이 이미지는 검증한 도구를 재현 가능하게 묶은 버전이다. 공식 이미지의 브라우저/음성 패키지를 제거한 최소 이미지가 아니며, 경량화 비율·콜드 스타트 시간·다중 사용자 격리를 보장하지 않는다. 다음 제품 개발은 자연어 주차 저장/조회 도구 연결이다.
+
+## 문서 도구를 포함한 이미지
+
+같은 Dockerfile에 Word·Excel·PDF 라이브러리와 한국어 PDF 폰트, `mori_documents` 플러그인이 포함된다. 기존 검색 toolset은 유지한다. 문서 도구의 명시적 활성화 및 `documents-direct` 검사는 [문서 작업 가이드](../../hermes/documents.md)를 따른다. 기존 검색 API는 문서 toolset을 허용하지 않으므로 문서 기능의 제품 API 연결은 별도 단계다.

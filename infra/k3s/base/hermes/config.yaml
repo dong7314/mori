@@ -20,7 +20,10 @@ plugins:
   enabled:
     - mori_images
     - mori_extract
+    - mori_documents
 platform_toolsets:
   api_server:
     - web
     - mori_images
+# Documents are opt-in: add mori_documents to api_server for a trusted single-user runtime.
+# The Mori search-only API intentionally rejects additional toolsets.

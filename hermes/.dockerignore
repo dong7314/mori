@@ -8,3 +8,5 @@
 !checks/**
 **/__pycache__/
 **/*.pyc
+
+!documents-requirements.lock
