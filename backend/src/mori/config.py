@@ -1,10 +1,23 @@
-import re
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
+
+
+class PrivateRuntime(BaseModel):
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+    base_url: str
+    api_key: SecretStr
+
+    @model_validator(mode="after")
+    def validate_endpoint(self):
+        self.base_url = Settings.validate_hermes_url(self.base_url)
+        Settings.validate_hermes_key(self.api_key)
+        if not self.base_url or not self.api_key.get_secret_value():
+            raise ValueError("Private runtime needs URL and key")
+        return self
 
 
 class Settings(BaseSettings):
@@ -27,16 +40,18 @@ class Settings(BaseSettings):
     hermes_api_key: SecretStr = SecretStr("")
     hermes_test_user_id: UUID | None = None
     hermes_timeout_seconds: int = Field(default=300, ge=10, le=600)
-    assistant_test_token_enabled: bool = False
-    assistant_test_token: SecretStr = SecretStr("")
+    chat_enabled: bool = False
+    chat_private_runtimes: dict[str, PrivateRuntime] = Field(default_factory=dict)
+    hermes_startup_timeout_seconds: int = Field(default=90, ge=10, le=300)
 
-    @model_validator(mode="after")
-    def require_explicit_test_token(self):
-        if self.assistant_test_token_enabled and not re.fullmatch(
-            r"mori_lab_[A-Za-z0-9_-]{64}", self.assistant_test_token.get_secret_value()
-        ):
-            raise ValueError("Generate a test token with scripts/create_assistant_test_token.py")
-        return self
+    @field_validator("chat_private_runtimes")
+    @classmethod
+    def validate_private_bindings(cls, value):
+        canonical = {str(UUID(key)): runtime for key, runtime in value.items()}
+        urls = [runtime.base_url for runtime in canonical.values()]
+        if len(canonical) != len(value) or len(urls) != len(set(urls)):
+            raise ValueError("Each private runtime must have a unique user and URL")
+        return canonical
 
     @field_validator("hermes_api_key")
     @classmethod

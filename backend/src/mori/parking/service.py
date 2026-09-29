@@ -12,7 +12,12 @@ from mori.parking.schemas import ParkingCreate
 
 
 def save_parking(
-    session: Session, user_id: UUID, payload: ParkingCreate, idempotency_key: UUID
+    session: Session,
+    user_id: UUID,
+    payload: ParkingCreate,
+    idempotency_key: UUID,
+    *,
+    commit: bool = True,
 ) -> tuple[ParkingRecord, bool]:
     values = payload.model_dump()
     request_hash = hashlib.sha256(
@@ -31,7 +36,10 @@ def save_parking(
         .returning(ParkingRecord)
     )
     if record is not None:
-        session.commit()
+        if commit:
+            session.commit()
+        else:
+            session.flush()
         return record, True
 
     # READ COMMITTED sees the winning transaction after ON CONFLICT has waited for it.

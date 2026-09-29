@@ -6,7 +6,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from mori.assistant.router import router as assistant_router
 from mori.auth.models import (
     AccessToken,
     AuthSession,
@@ -18,6 +17,8 @@ from mori.auth.models import (
 )
 from mori.auth.router import profile_router
 from mori.auth.router import router as auth_router
+from mori.chat.models import ChatTurn, Conversation
+from mori.chat.router import router as chat_router
 from mori.config import Settings
 from mori.database import DatabaseSession, build_engine, build_session_factory
 from mori.errors import ErrorResponse, register_error_handlers
@@ -44,8 +45,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Mori API",
-        version="0.4.0",
-        description="소셜 가입, 프로 권한, 주차 기록 및 테스트 계정의 Hermes 웹 검색",
+        version="0.5.0",
+        description="소셜 가입, 프로 권한, 주차 기록, Hermes 검색 및 실시간 채팅 작업 상태",
         lifespan=lifespan,
     )
     app.state.session_factory = build_session_factory(engine)
@@ -55,6 +56,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST"],
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
+        expose_headers=["X-Mori-Run-ID"],
     )
 
     @app.middleware("http")
@@ -70,7 +72,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(profile_router)
     app.include_router(membership_router)
-    app.include_router(assistant_router)
+    app.include_router(chat_router)
 
     @app.get("/health/live", response_model=HealthStatus, tags=["health"])
     def live() -> HealthStatus:
@@ -90,6 +92,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         for model in (SocialIdentity, AuthSession, OAuthFlow, LoginGrant, RefreshToken):
             session.execute(select(model).limit(0))
         session.execute(select(AccessChange).limit(0))
+        session.execute(select(Conversation.id).limit(0))
+        session.execute(select(ChatTurn.id).limit(0))
         response.headers["Cache-Control"] = "no-store"
         return HealthStatus(status="ready")
 
