@@ -76,10 +76,22 @@ function my() { return `${heading('마이', '나에게 더 잘 맞는 모리')}<
     ${section('앱 체험')}<div class="settings-list">${button('day-preview', `${mark('clock', 'blue')}<span>하루 미리보기</span><small>${time(current())}</small>${arrow}`, 'setting-row')}${button('guide', `${mark('compass', 'green')}<span>시나리오 둘러보기</span>${arrow}`, 'setting-row')}${button('account', `${mark('shield', 'purple')}<span>실제 계정 연결</span><small>${ui.liveUser ? '연결됨' : '선택 사항'}</small>${arrow}`, 'setting-row')}${button('reset', `${mark('repeat', 'soft')}<span>체험 데이터 초기화</span>${arrow}`, 'setting-row')}</div><p class="preview-explanation">이 화면은 기기에 저장되는 앱 체험이에요.<br>뉴스·시세는 예시이며, 결제와 기기 푸시는 실행되지 않아요.</p><div class="brand-footer">mori <span>작은 부탁, 가벼운 하루.</span></div>`; }
 function toggleRow(key, title, name, checked) { return button('preference', `${mark(name, 'soft')}<span>${title}</span><span class="switch ${checked ? 'on' : ''}"><i></i></span>`, 'setting-row', `data-key="${key}" role="switch" aria-checked="${checked}"`); }
 function render() {
-  $('#main').innerHTML = ({ dashboard, schedule, conversations, features, my }[ui.view] || dashboard)();
+  const main = $('#main');
+  const previousScroll = main.scrollTop;
+  const oldCarousel = $('#time-carousel');
+  const oldIndex = oldCarousel?.firstElementChild ? Math.round(oldCarousel.scrollLeft / (oldCarousel.firstElementChild.getBoundingClientRect().width + 12)) : 0;
+  const cardRef = oldCarousel?.children[oldIndex]?.dataset.ref;
+  main.innerHTML = ({ dashboard, schedule, conversations, features, my }[ui.view] || dashboard)();
+  main.classList.toggle('has-composer', ui.view === 'dashboard');
+  main.scrollTop = previousScroll;
   $('#tabs').innerHTML = [['dashboard', 'home', '대시보드'], ['schedule', 'calendar', '스케줄'], ['conversations', 'chat', '대화'], ['features', 'grid', '기능'], ['my', 'user', '마이']].map(([v, i, label]) => `<button type="button" data-view="${v}" ${v === ui.view ? 'aria-current="page"' : ''}>${icon(i)}<span>${label}</span></button>`).join('');
   $('#quick-composer').hidden = ui.view !== 'dashboard'; document.documentElement.classList.toggle('reduce-motion', data.profile.reduced);
-  const carousel = $('#time-carousel'); if (carousel) carousel.addEventListener('scroll', () => { const index = Math.round(carousel.scrollLeft / (carousel.firstElementChild.getBoundingClientRect().width + 12)); document.querySelectorAll('.carousel-dots button').forEach((el, i) => el.classList.toggle('active', i === index)); }, { passive: true });
+  const carousel = $('#time-carousel'); if (carousel) {
+    const index = [...carousel.children].findIndex(card => card.dataset.ref === cardRef);
+    if (index > 0) carousel.scrollLeft = index * (carousel.firstElementChild.getBoundingClientRect().width + 12);
+    const syncDots = () => { const currentIndex = Math.round(carousel.scrollLeft / (carousel.firstElementChild.getBoundingClientRect().width + 12)); document.querySelectorAll('.carousel-dots button').forEach((el, i) => el.classList.toggle('active', i === currentIndex)); };
+    carousel.addEventListener('scroll', syncDots, { passive: true }); syncDots();
+  }
 }
 function route() { const next = location.hash.slice(1); ui.view = ['dashboard', 'schedule', 'conversations', 'features', 'my'].includes(next) ? next : 'dashboard'; render(); $('#main').scrollTop = 0; }
 function go(view) { if (location.hash === `#${view}`) route(); else location.hash = view; }
