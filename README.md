@@ -29,6 +29,8 @@ Word·Excel·PDF 기본 생성·편집을 위한 이미지 확장도 제공한�
 
 SearXNG는 공식 이미지를 사용하며 다른 프로젝트와 공유할 수 있다. GitHub에서 YAML과 스크립트를 받고 Secret은 서버에서 생성한다. [Git 기반 SearXNG 설치](infra/k3s/searxng-shared.md)를 먼저 따른다. Hermes 배포·인증 정보 없이 검색 서비스만 설치할 수 있다.
 
+검색·본문 추출 연결 확인 후 [실제 Hermes의 Knative 콜드 스타트 검사](infra/k3s/hermes-knative.md)를 진행한다. 기존 PVC를 보존하며 일반 Deployment를 중단한 뒤 전환하는 절차이고, 현장 검증은 별도로 수행한다.
+
 ## 로컬 실행
 
 ```sh

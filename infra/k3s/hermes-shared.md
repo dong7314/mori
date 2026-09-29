@@ -148,6 +148,8 @@ python3 scripts/smoke/runtime.py --mode search-extract
 
 Mori API는 아직 별도 배포 대상이다. 이후 [검색 API](../../backend/docs/assistant-search.md) 또는 [임시 토큰](../../backend/docs/assistant-test-token.md) 경로를 연결한다.
 
+일반 Deployment의 실제 모델 검색/본문 추출을 통과한 뒤에는 [Knative 최초 전환·콜드 스타트 검사](hermes-knative.md)를 진행한다. 해당 전환 중에는 아래 일반 Deployment YAML을 재적용하지 않는다.
+
 ## 7. 이후 변경·중지·롤백
 
 - 엔진/모델/도구 설정: Git의 base config 변경 → 일반 YAML 재생성 → diff/apply → 해당 Deployment rollout restart.
