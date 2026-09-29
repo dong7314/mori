@@ -3,17 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f5f5f7">
+  <meta name="theme-color" content="#f7f8f5">
   <meta name="description" content="작은 기억부터 하루의 약속까지. 내 곁의 작은 비서, 모리.">
   <meta name="referrer" content="no-referrer">
   <title>모리 · 내 곁의 작은 비서</title>
   <link rel="icon" href="/assets/mori.svg" type="image/svg+xml">
   <link rel="preload" href="/assets/fonts/PretendardVariable.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/styles/main.css">
-  <script src="/src/app.js" type="module"></script>
+  <script src="/src/app-experience.js" type="module"></script>
 </head>
 <body>
 <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></symbol>
+    <symbol id="i-note" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="3"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+    <symbol id="i-news" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h4M7 16h4M15 12h2v4h-2Z"/></symbol>
+    <symbol id="i-compose" viewBox="0 0 24 24"><path d="M12 4H5a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-7M15 3l6 6M10 16l4-1L22 7a2 2 0 0 0-5-5l-8 8-1 6Z"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 13A9 9 0 0 1 11 3a9 9 0 1 0 10 10Z"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a5 5 0 0 1-1-10 7 7 0 0 1 13 2 4 4 0 0 1 0 8M12 11v4m0 4v1"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 16v5h16v-5"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></symbol>
     <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m16 2 4 4-4 4M20 6H7a4 4 0 0 0-4 4m5 12-4-4 4-4m-4 4h13a4 4 0 0 0 4-4"/></symbol>
     <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="3" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.1M10 9h.1M14 9h.1M18 9h.1M6 12h.1M10 12h.1M14 12h.1M18 12h.1M7 15h10"/></symbol>
@@ -47,17 +58,14 @@
   <a class="skip-link" href="#main">본문으로 바로 가기</a>
   <div class="app-frame">
     <main id="main" tabindex="-1" aria-label="모리"></main>
-    <div class="bottom-dock">
-      <nav class="tab-bar" aria-label="주요 메뉴">
-        <button data-view="today" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#i-sun"/></svg><span>오늘</span></button>
-        <button data-view="chat"><svg class="icon" aria-hidden="true"><use href="#i-chat"/></svg><span>대화</span></button>
-        <button data-view="calendar"><svg class="icon" aria-hidden="true"><use href="#i-calendar"/></svg><span>캘린더</span></button>
-        <button data-view="memories"><svg class="icon" aria-hidden="true"><use href="#i-book"/></svg><span>기억</span></button>
-      </nav>
-      <button class="voice-launch" data-action="voice" aria-label="모리에게 말로 부탁하기"><svg class="icon" aria-hidden="true"><use href="#i-mic"/></svg></button>
+    <div class="app-dock">
+      <div id="quick-composer" class="quick-composer"><button data-action="new-chat"><span class="composer-spark"><svg class="icon" aria-hidden="true"><use href="#i-spark"/></svg></span><span>모리에게 부탁하기</span></button><button class="quick-mic" data-action="voice" aria-label="모리에게 말로 부탁하기"><svg class="icon" aria-hidden="true"><use href="#i-mic"/></svg></button></div>
+      <nav id="tabs" class="tab-bar" aria-label="주요 메뉴"></nav>
     </div>
   </div>
-  <dialog id="sheet" aria-labelledby="sheet-title"><div class="sheet-handle" aria-hidden="true"></div><header class="sheet-header"><h2 id="sheet-title"></h2><button class="close-button" data-action="close" aria-label="닫기"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></header><div id="sheet-content"></div></dialog>
+  <dialog id="sheet" class="sheet" aria-labelledby="sheet-title"><div class="sheet-handle" aria-hidden="true"></div><header class="sheet-header"><h2 id="sheet-title"></h2><button class="close-button" data-action="close" aria-label="닫기"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></header><div id="sheet-content"></div></dialog>
+  <dialog id="chat-panel" class="chat-panel" aria-labelledby="chat-title"><div class="sheet-handle" aria-hidden="true"></div><header class="chat-header"><button class="small-icon" data-action="close-chat" aria-label="대화 접기"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg></button><div><h2 id="chat-title">모리에게 부탁하기</h2><p><span></span> 체험 대화 · 이 기기에 저장</p></div><button class="small-icon" data-action="new-chat" aria-label="새 대화"><svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg></button></header><div id="messages" class="messages" aria-live="polite" aria-relevant="additions"></div><form id="chat-form" class="chat-composer"><label class="sr-only" for="chat-input">모리에게 보낼 메시지</label><textarea id="chat-input" name="message" rows="1" maxlength="4000" placeholder="어떤 부탁이든 편하게 말해요"></textarea><div><button type="button" class="small-icon" data-action="voice" aria-label="음성으로 입력"><svg class="icon" aria-hidden="true"><use href="#i-mic"/></svg></button><button id="chat-send" type="submit" class="send-button" aria-label="메시지 보내기"><svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div></form><p class="chat-footnote">기본 기능과 내 기능을 연결하는 시나리오 체험</p></dialog>
+  <dialog id="voice-panel" class="voice-panel" aria-labelledby="voice-title"><header><span>모리에게 말하기</span><button class="close-button" data-action="voice-close" aria-label="음성 입력 닫기"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></header><div class="voice-orb" aria-hidden="true"><i></i><i></i><i></i><span><svg class="icon"><use href="#i-spark"/></svg></span></div><h2 id="voice-title">편하게 말해 주세요</h2><p id="voice-subtitle"></p><button id="record-button" class="record-button" data-action="record" aria-label="녹음 시작"><svg class="icon" aria-hidden="true"><use href="#i-mic"/></svg></button><label class="sr-only" for="voice-transcript">인식한 말 확인 및 수정</label><textarea id="voice-transcript" rows="2" maxlength="4000" placeholder="말한 내용이 여기에 나타나요"></textarea><div class="voice-examples"><span>음성 예시로 체험</span><button data-action="voice-example" data-text="지하 3층 B16에 주차했어. 내일 출근할 때 알려줘">“지하 3층 B16에 주차했어”</button><button data-action="voice-example" data-text="30분 뒤에 잠깐 쉬라고 알림 줘">“30분 뒤에 알림 줘”</button></div><button class="primary-button" data-action="voice-send">대화로 이어가기 <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></dialog>
   <div id="toast" role="status" aria-live="polite"></div>
   <noscript>모리를 이용하려면 브라우저의 JavaScript를 켜 주세요.</noscript>
 </body>
