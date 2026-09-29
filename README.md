@@ -25,6 +25,10 @@ Hermes 검색 연동은 기본 비활성이다. 로그인 경로는 공용 profi
 
 Word·Excel·PDF 기본 생성·편집을 위한 이미지 확장도 제공한다. 문서 도구는 명시적 활성화가 필요하며, 파일 업로드/다운로드 API는 아직 없다. [문서 도구 안내](hermes/documents.md).
 
+## 공용 검색 서비스 설치
+
+SearXNG는 공식 이미지를 사용하며 다른 프로젝트와 공유할 수 있다. GitHub에서 YAML과 스크립트를 받고 Secret은 서버에서 생성한다. [Git 기반 SearXNG 설치](infra/k3s/searxng-shared.md)를 먼저 따른다. Hermes 배포·인증 정보 없이 검색 서비스만 설치할 수 있다.
+
 ## 로컬 실행
 
 ```sh

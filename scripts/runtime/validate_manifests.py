@@ -20,14 +20,14 @@ def validate(image, pull_secret):
         ("ConfigMap", "mori", "mori-hermes-config"),
         ("Deployment", "mori", "mori-hermes-shared"),
         ("Service", "mori", "mori-hermes-shared"),
-        ("ConfigMap", "mori-tools", "searxng-config"),
-        ("Deployment", "mori-tools", "searxng"),
-        ("Service", "mori-tools", "searxng"),
+        ("ConfigMap", "search", "searxng-config"),
+        ("Deployment", "search", "searxng"),
+        ("Service", "search", "searxng"),
     }
 
     for component, ns, deployment_name, config_name, key in (
         ("hermes", "mori", "mori-hermes-shared", "mori-hermes-config", "config.yaml"),
-        ("searxng", "mori-tools", "searxng", "searxng-config", "settings.yml"),
+        ("searxng", "search", "searxng", "searxng-config", "settings.yml"),
     ):
         config = indexed["ConfigMap", ns, config_name]
         assert config["data"][key] == (INFRA / component / key).read_text(encoding="utf-8")
@@ -67,7 +67,7 @@ def validate(image, pull_secret):
         ["web", "mori_images", "mori_documents"],
     )
     searxng_config = yaml.safe_load(
-        indexed["ConfigMap", "mori-tools", "searxng-config"]["data"]["settings.yml"]
+        indexed["ConfigMap", "search", "searxng-config"]["data"]["settings.yml"]
     )
     assert set(searxng_config["use_default_settings"]["engines"]["keep_only"]) == {
         "google",
@@ -80,12 +80,16 @@ def validate(image, pull_secret):
 
     hermes = indexed["Deployment", "mori", "mori-hermes-shared"]["spec"]["template"]["spec"]
     assert hermes["imagePullSecrets"] == ([{"name": pull_secret}] if pull_secret else [])
+    assert (
+        next(env["value"] for env in hermes["containers"][0]["env"] if env["name"] == "SEARXNG_URL")
+        == "http://searxng.search.svc.cluster.local:8080"
+    )
     assert {c["image"] for c in hermes["containers"] + hermes["initContainers"]} == {image}
     assert any(
         v.get("persistentVolumeClaim", {}).get("claimName") == "mori-hermes-shared-home"
         for v in hermes["volumes"]
     )
-    searxng = indexed["Deployment", "mori-tools", "searxng"]["spec"]["template"]["spec"]
+    searxng = indexed["Deployment", "search", "searxng"]["spec"]["template"]["spec"]
     assert all("@sha256:" in c["image"] for c in searxng["containers"] + searxng["initContainers"])
     hermes_refs = {
         env["valueFrom"]["secretKeyRef"]["name"]
@@ -103,7 +107,9 @@ def validate(image, pull_secret):
     namespaces = list(
         yaml.safe_load_all((ROOT / "infra/k3s/namespaces.yaml").read_text(encoding="utf-8"))
     )
-    assert {obj["metadata"]["name"] for obj in namespaces} == {"mori", "mori-tools"}
+    assert {obj["metadata"]["name"] for obj in namespaces} == {"mori", "search"}
+    search_namespace = yaml.safe_load((INFRA / "searxng/namespace.yaml").read_text())
+    assert search_namespace in namespaces
     claim = yaml.safe_load(
         (ROOT / "infra/k3s/storage/hermes-home.yaml").read_text(encoding="utf-8")
     )

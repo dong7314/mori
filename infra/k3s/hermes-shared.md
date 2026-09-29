@@ -4,6 +4,8 @@
 
 2026-09-28 사용자가 기존 Hermes/SearXNG Deployment·Service·ConfigMap·Secret·Hermes PVC/PV 삭제를 확인했다. 아래는 빈 PVC에서 다시 시작하는 절차다. 삭제한 대화·메모리를 복구하거나 별도 백업을 요구하지 않는다. 이전 실습 ConfigMap 전체는 남아 있지 않으므로, SearXNG는 확인한 엔진 조합과 고정 릴리스의 내장 Naver parser로 재구성했다. 실제 홈 네트워크에서 검색 품질은 재확인해야 한다.
 
+공용 SearXNG만 먼저 설치하려면 [Git 기반 검색 서비스 배포](searxng-shared.md)를 따른다. 이후 아래 Secret/YAML 생성 명령에 `--component hermes`를 넣으면 이미 설치한 SearXNG를 건드리지 않고 Hermes만 준비한다.
+
 ## 1. 파일과 실행 위치
 
 | 대상 | 관리 위치 |
@@ -75,7 +77,7 @@ Secret 생성기는 숨김 입력으로 기존 GPU API 키와 Harbor pull 전용
 | namespace/name | 키 |
 | --- | --- |
 | `mori/mori-hermes` | `API_SERVER_KEY`, `LLAMA_API_KEY` |
-| `mori-tools/searxng-secret` | `SEARXNG_SECRET` |
+| `search/searxng-secret` | `SEARXNG_SECRET` |
 | `mori/harbor-pull` (private registry 선택 시) | Docker registry 인증 |
 
 PVC는 5Gi `local-path`, 이름은 `mori-hermes-shared-home`이다. StorageClass가 `WaitForFirstConsumer`이면 Pod 생성 전 `Pending`일 수 있으므로 이 시점에 Bound 대기로 막지 않는다. 이 구성은 worker 하나에 고정하며 자동 노드 이동/스토리지 복구는 제공하지 않는다.
@@ -107,19 +109,19 @@ sudo k3s kubectl diff -f .local/manifests/hermes.yaml
 ```sh
 sudo k3s kubectl apply -f .local/manifests/searxng.yaml
 sudo k3s kubectl apply -f .local/manifests/hermes.yaml
-sudo k3s kubectl -n mori-tools rollout status deployment/searxng --timeout=300s
+sudo k3s kubectl -n search rollout status deployment/searxng --timeout=300s
 sudo k3s kubectl -n mori rollout status deployment/mori-hermes-shared --timeout=600s
 sudo k3s kubectl -n mori get pods,pvc -o wide
-sudo k3s kubectl -n mori-tools get pods,svc -o wide
+sudo k3s kubectl -n search get pods,svc -o wide
 ```
 
 최초 이미지 pull은 크기·회선에 따라 시간이 걸릴 수 있다. 실패하면 해당 Pod의 `describe`와 `initialize-home`/본체 로그로 구분한다. 두 Deployment 모두 `k3s-infra`에 배치되며 `infra=true:NoSchedule` taint를 허용한다. ConfigMap 이름은 고정이다. 설정 수정 후 적용할 때는 해당 Deployment를 별도로 재시작한다.
 
-내부 서비스 주소는 유지한다.
+Hermes 주소는 유지하고 SearXNG는 공용 `search` namespace를 사용한다. 기존 `mori-tools` 리소스를 자동 삭제하거나 이전하지 않는다.
 
 ```text
 http://mori-hermes-shared.mori.svc.cluster.local:8642
-http://searxng.mori-tools.svc.cluster.local:8080
+http://searxng.search.svc.cluster.local:8080
 ```
 
 ## 6. 실행 후 검사 — master, 프론트·포트포워딩 불필요

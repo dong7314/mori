@@ -9,7 +9,7 @@ use_default_settings:
       - google images
       - naver images
 general:
-  instance_name: Mori Search
+  instance_name: Shared Search
   debug: false
 search:
   autocomplete: ""

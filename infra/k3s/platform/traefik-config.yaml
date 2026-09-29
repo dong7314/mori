@@ -1,0 +1,14 @@
+# Optional cluster-wide HTTPS request-body timeout. Not applied by runtime scripts.
+# Merge with an existing HelmChartConfig instead of replacing other user values.
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    ports:
+      websecure:
+        transport:
+          respondingTimeouts:
+            readTimeout: 600s

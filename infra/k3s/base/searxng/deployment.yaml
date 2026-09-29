@@ -2,18 +2,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: searxng
-  namespace: mori-tools
+  namespace: search
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: mori-searxng
+      app: searxng
   template:
     metadata:
       labels:
-        app: mori-searxng
+        app: searxng
     spec:
       automountServiceAccountToken: false
       nodeSelector:

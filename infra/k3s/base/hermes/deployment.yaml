@@ -49,7 +49,7 @@ spec:
             - {name: API_SERVER_ENABLED, value: "true"}
             - {name: API_SERVER_HOST, value: "0.0.0.0"}
             - {name: API_SERVER_PORT, value: "8642"}
-            - {name: SEARXNG_URL, value: "http://searxng.mori-tools.svc.cluster.local:8080"}
+            - {name: SEARXNG_URL, value: "http://searxng.search.svc.cluster.local:8080"}
             - name: API_SERVER_KEY
               valueFrom:
                 secretKeyRef: {name: mori-hermes, key: API_SERVER_KEY}

@@ -58,21 +58,26 @@ def registry_keys(registry):
     return {".dockerconfigjson": json.dumps({"auths": {registry: {"auth": auth}}})}
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser()
+    parser.add_argument("--component", choices=["all", "hermes", "searxng"], default="all")
     parser.add_argument(
         "--registry", help="Optional private Harbor host[:port], without scheme/path"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.component == "searxng" and args.registry:
+        parser.error("SearXNG uses its public official image; omit --registry")
     if args.registry and ("/" in args.registry or any(c.isspace() for c in args.registry)):
         parser.error("Registry must be host[:port], without scheme/path")
-    ensure_secret("mori", "mori-hermes", ["API_SERVER_KEY", "LLAMA_API_KEY"], hermes_keys)
-    ensure_secret(
-        "mori-tools",
-        "searxng-secret",
-        ["SEARXNG_SECRET"],
-        lambda: {"SEARXNG_SECRET": secrets.token_hex(32)},
-    )
+    if args.component in {"all", "hermes"}:
+        ensure_secret("mori", "mori-hermes", ["API_SERVER_KEY", "LLAMA_API_KEY"], hermes_keys)
+    if args.component in {"all", "searxng"}:
+        ensure_secret(
+            "search",
+            "searxng-secret",
+            ["SEARXNG_SECRET"],
+            lambda: {"SEARXNG_SECRET": secrets.token_hex(32)},
+        )
     if args.registry:
         ensure_secret(
             "mori",

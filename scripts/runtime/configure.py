@@ -31,8 +31,26 @@ def _source(component, filename):
     return (INFRA / component / filename).read_text(encoding="utf-8")
 
 
-def render_manifests(image, pull_secret=None):
-    """Return two directly applicable YAML files, with no secret values."""
+def render_searxng():
+    """Render the shared search service without a Hermes image or credentials."""
+    parts = [
+        _config_map("searxng-config", "search", "settings.yml", INFRA / "searxng/settings.yml"),
+        _source("searxng", "deployment.yaml"),
+        _source("searxng", "service.yaml"),
+    ]
+    return "\n---\n".join(part.rstrip() for part in parts) + "\n"
+
+
+def render_manifests(image=None, pull_secret=None, component="all"):
+    """Return selected standalone YAML files, with no secret values."""
+    if component not in {"all", "hermes", "searxng"}:
+        raise ValueError("Invalid component")
+    if component == "searxng":
+        if image or pull_secret:
+            raise ValueError("SearXNG uses its official image; omit --image and --pull-secret")
+        return {"searxng.yaml": render_searxng()}
+    if not image:
+        raise ValueError("Hermes requires --image HARBOR/PROJECT/mori-hermes@sha256:...")
     match = re.fullmatch(r"([a-zA-Z0-9][a-zA-Z0-9._:/-]*)@sha256:([0-9a-f]{64})", image)
     if not match or "/" not in match[1] or ":" in match[1].rsplit("/", 1)[-1]:
         raise ValueError("Use a registry image with digest: HARBOR/PROJECT/mori-hermes@sha256:...")
@@ -56,33 +74,31 @@ def render_manifests(image, pull_secret=None):
             hermes,
             _source("hermes", "service.yaml"),
         ],
-        "searxng.yaml": [
-            _config_map(
-                "searxng-config", "mori-tools", "settings.yml", INFRA / "searxng/settings.yml"
-            ),
-            _source("searxng", "deployment.yaml"),
-            _source("searxng", "service.yaml"),
-        ],
     }
-    return {
+    rendered = {
         name: "\n---\n".join(part.rstrip() for part in parts) + "\n"
         for name, parts in manifests.items()
     }
+    if component == "all":
+        rendered["searxng.yaml"] = render_searxng()
+    return rendered
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image", required=True, help="Immutable Harbor image@sha256:digest")
+    parser.add_argument("--component", choices=["all", "hermes", "searxng"], default="all")
+    parser.add_argument("--image", help="Immutable Harbor image@sha256:digest (for Hermes)")
     parser.add_argument("--pull-secret", help="Existing image pull Secret in namespace mori")
     args = parser.parse_args()
     try:
-        manifests = render_manifests(args.image, args.pull_secret)
+        manifests = render_manifests(args.image, args.pull_secret, args.component)
     except ValueError as exc:
         parser.error(str(exc))
     DEFAULT_OUTPUT.mkdir(parents=True, exist_ok=True)
     for name, content in manifests.items():
         (DEFAULT_OUTPUT / name).write_text(content, encoding="utf-8")
-    print("Prepared .local/manifests/{hermes,searxng}.yaml (no cluster changes)")
+    for name in manifests:
+        print(f"Prepared .local/manifests/{name} (no cluster changes)")
 
 
 if __name__ == "__main__":

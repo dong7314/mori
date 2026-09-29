@@ -79,7 +79,7 @@ def main():
             "-e",
             "LLAMA_API_KEY=local-image-check-only",
             "-e",
-            "SEARXNG_URL=http://searxng.mori-tools.svc.cluster.local:8080",
+            "SEARXNG_URL=http://searxng.search.svc.cluster.local:8080",
             args.image,
         )
         check = None
