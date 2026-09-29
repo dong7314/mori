@@ -44,7 +44,7 @@ python3 scripts/runtime/check_image.py --image mori-hermes:documents-check --doc
 
 ## 명시적 활성화 — 신뢰된 단일 사용자 전용
 
-기본 설정은 계속 검색용 `web`, `mori_images`만 노출한다. 문서 플러그인은 이미지와 plugin 목록에 준비하되 쓰기 가능한 도구를 자동으로 기존 검색 API에 노출하지 않는다.
+기본 설정은 계속 검색용 `web`, `mori_images`만 노출한다. 문서 플러그인은 이미지와 plugin 목록에 준비하되 쓰기 가능한 도구를 자동으로 현재 채팅 어댑터에 노출하지 않는다.
 
 `infra/k3s/base/hermes/config.yaml`의 아래 부분을 변경한다.
 
@@ -64,7 +64,7 @@ sudo k3s kubectl -n mori rollout status deployment/mori-hermes-shared --timeout=
 python3 scripts/smoke/runtime.py --mode documents-direct
 ```
 
-**기존 `/v1/assistant/search`는 추가 toolset을 거부하도록 설계돼 있다.** 문서 toolset을 켠 공용 인스턴스에 기존 검색 Adapter를 연결하면 준비 검사에서 거부된다. 검색 경로를 유지할 때는 기본 설정을 유지하고 로컬 `--documents` 검사로 기능을 확인한다. 실제 서비스 문서 연동에는 파일 소유권과 결과 전달을 갖춘 별도 API/작업 계약이 필요하다. 검색용 임시 토큰으로 임의 문서 작업을 우회 실행시키지 않는다.
+**현재 Mori 채팅 어댑터는 검색·이미지 외 toolset을 거부한다.** 문서 toolset을 켠 인스턴스는 준비 검사에서 거부된다. 기본 도구 설정을 유지하고 문서 기능은 로컬 `--documents` 검사로 확인한다. 실제 서비스 문서 연동에는 파일 소유권과 결과 전달 계약이 필요하다.
 
 ## 도구 입력과 확인할 응답
 

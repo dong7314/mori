@@ -2,7 +2,7 @@
 
 휴대폰·태블릿에서 쓰는 개인 비서 서비스다.
 
-- `master`: 실제 서비스 구현. 소셜 가입·로그인, 무료·프로 권한, 주차 API, Hermes 검색 연동.
+- `master`: 실제 서비스 구현. 소셜 가입·로그인, 무료·프로 권한, 주차 API, Hermes 채팅 연동.
 - `poc`: HTML·JavaScript·SCSS 화면 실험.
 - `plan`: 제품·아키텍처·프론트·백엔드 설계.
 
@@ -14,14 +14,15 @@
 - 기본 무료 사용자, 최고 관리자 승인에 따른 프로 전환·회수, 권한 변경 이력. 결제·구독은 없음.
 - `POST /v1/parking-records`: 주차 위치 저장, 재전송·동시 요청 중복 방지.
 - `GET /v1/parking-records/latest`: 내 최신 주차 위치 조회.
-- `POST /v1/assistant/search`: 지정 테스트 계정의 Hermes 검색·본문 기반 답변 및 출처 반환.
+- `POST /v1/conversations/{id}/messages`: 일반 대화·웹 검색·자연어 주차 요청과 SSE 진행 상태.
+- 사용자별 대화 목록·메시지·실행 기록 조회.
 - OpenAPI 계약, PostgreSQL 통합 테스트, Docker·Compose, k3s 배포 예시.
 - Hermes 이미지에 이미지 검색·HTML 추출 플러그인과 의존성 포함, Hermes/SearXNG 일반 YAML 배포와 master용 검사 CLI. [재배포 절차](infra/k3s/hermes-shared.md).
 
-Hermes 검색 연동은 기본 비활성이다. 로그인 경로는 공용 profile을 소유한 테스트 계정 한 명만 허용하며,
-페이지 없이 master에서 검사할 때는 [임시 검색 토큰](backend/docs/assistant-test-token.md) 모드를 명시적으로 켤 수 있다.
-대화 저장·다중 사용자 에이전트 격리·자연어 주차 저장은 다음 단계다. 현재 주차 API는 구조화된 위치를 받는다.
-설정과 실제 테스트는 [Hermes 검색 연동](backend/docs/assistant-search.md)을 참고한다.
+채팅 연동은 기본 비활성이다. 공용 Hermes는 home을 소유한 테스트 계정 한 명에게만 연결한다.
+미리 준비한 Pro 개인 런타임 연결도 지원하지만 Pod 자동 생성과 다중 사용자 공용 home 격리는 미구현이다.
+AI 요청은 채팅 API로 통일하며 검색 여부는 Hermes가 판단한다. 별도 검색 API와 임시 검색 토큰은 제거했다.
+설정·프론트 계약·터미널 검사는 [채팅 연동](backend/docs/chat.md)을 참고한다.
 
 Word·Excel·PDF 기본 생성·편집을 위한 이미지 확장도 제공한다. 문서 도구는 명시적 활성화가 필요하며, 파일 업로드/다운로드 API는 아직 없다. [문서 도구 안내](hermes/documents.md).
 

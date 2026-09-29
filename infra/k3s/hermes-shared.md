@@ -146,7 +146,7 @@ python3 scripts/smoke/runtime.py --mode search-extract
 
 한 단계씩 결과를 확인한다. 모델 검사는 최대 300초 기다리며 timeout이 원격 작업 취소를 보장하지 않으므로 곧바로 반복 요청하지 않는다. 검사기는 직접 호출·단일 `tool_call` 간접 호출·외부 데이터 태그를 지원하고 호출 ID/성공 결과/최종 출처를 대조한다. 복수 도구를 묶은 아직 미지원 bridge 형식은 자동 성공 처리하지 않는다. PASS가 답변 사실 정확성이나 사진 로딩까지 증명하지 않는다.
 
-Mori API는 아직 별도 배포 대상이다. 이후 [검색 API](../../backend/docs/assistant-search.md) 또는 [임시 토큰](../../backend/docs/assistant-test-token.md) 경로를 연결한다.
+Mori API는 아직 별도 배포 대상이다. 이후 [인증된 채팅 API](../../backend/docs/chat.md)를 연결한다. 웹 검색은 채팅 안에서 Hermes가 판단해 실행한다.
 
 일반 Deployment의 실제 모델 검색/본문 추출을 통과한 뒤에는 [Knative 최초 전환·콜드 스타트 검사](hermes-knative.md)를 진행한다. 해당 전환 중에는 아래 일반 Deployment YAML을 재적용하지 않는다.
 
@@ -183,4 +183,4 @@ python3 scripts/runtime/check_image.py --image mori-hermes:runtime-check
 
 ## 문서 도구를 포함한 이미지
 
-같은 Dockerfile에 Word·Excel·PDF 라이브러리와 한국어 PDF 폰트, `mori_documents` 플러그인이 포함된다. 기존 검색 toolset은 유지한다. 문서 도구의 명시적 활성화 및 `documents-direct` 검사는 [문서 작업 가이드](../../hermes/documents.md)를 따른다. 기존 검색 API는 문서 toolset을 허용하지 않으므로 문서 기능의 제품 API 연결은 별도 단계다.
+같은 Dockerfile에 Word·Excel·PDF 라이브러리와 한국어 PDF 폰트, `mori_documents` 플러그인이 포함된다. 기존 검색 toolset은 유지한다. 문서 도구의 명시적 활성화 및 `documents-direct` 검사는 [문서 작업 가이드](../../hermes/documents.md)를 따른다. 현재 채팅 어댑터는 문서 toolset을 허용하지 않으므로 문서 기능의 제품 API 연결은 별도 단계다.

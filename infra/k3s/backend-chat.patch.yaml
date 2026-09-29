@@ -1,0 +1,25 @@
+# Optional strategic merge patch for an existing mori-api Deployment.
+# Apply migration 0004_chat and deploy the new API image first.
+# Replace owner UUID locally; no credentials belong in Git.
+# kubectl -n mori patch deployment mori-api --type strategic --patch-file <local-file>
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: MORI_CHAT_ENABLED
+              value: "true"
+            - name: MORI_HERMES_BASE_URL
+              value: http://mori-hermes-knative.mori.svc.cluster.local
+            - name: MORI_HERMES_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: mori-hermes
+                  key: API_SERVER_KEY
+            - name: MORI_HERMES_TEST_USER_ID
+              value: REPLACE_WITH_MORI_TEST_USER_UUID
+            - name: MORI_HERMES_STARTUP_TIMEOUT_SECONDS
+              value: "90"
+            - name: MORI_HERMES_TIMEOUT_SECONDS
+              value: "300"

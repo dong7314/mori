@@ -32,7 +32,7 @@ MORI_KAKAO_CLIENT_SECRET=REPLACE_KAKAO_CLIENT_SECRET
 kubectl create namespace mori
 kubectl -n mori create secret generic mori-backend --from-env-file=backend/.env.production
 kubectl apply -f infra/k3s/migrate.yaml
-kubectl -n mori wait --for=condition=complete job/mori-migrate-0003 --timeout=120s
+kubectl -n mori wait --for=condition=complete job/mori-migrate-0004 --timeout=120s
 kubectl apply -f infra/k3s/backend.yaml
 kubectl -n mori rollout status deployment/mori-api
 kubectl -n mori port-forward service/mori-api 8000:8000
@@ -54,12 +54,15 @@ kubectl -n mori port-forward service/mori-api 8000:8000
 - `mori prune-auth`를 운영 스케줄러에서 주기적으로 실행해 만료된 인증 데이터를 정리한다. 예: `kubectl -n mori exec deployment/mori-api -- mori prune-auth`.
 - 운영 시 마이그레이션 계정과 API의 제한된 DML 계정을 분리하면 Job과 Deployment가 각각 다른 Secret을 참조하도록 바꾼다.
 
-실제 클러스터 배포와 실제 소셜 계정 검증은 아직 수행하지 않았다. Hermes 검색 호출 어댑터는 단일 테스트 계정 범위로 구현했다. 사용자별 격리·에이전트의 주차 저장 인증·작업 큐는 다음 구현 범위다.
+실제 새 API의 클러스터 배포와 소셜 계정 검증은 별도 수행한다. 채팅은 단일 공용 테스트 소유자 또는 미리 준비된 Pro 개인 런타임에 연결한다. 개인 Pod 자동 생성과 예약 작업 큐는 미구현이다.
 
-## 기존 Hermes 검색 연결
+## Hermes 채팅 연결
 
-백엔드 배포 후 [검색 연동 절차](../../backend/docs/assistant-search.md)에 따라 `backend-hermes-search.patch.yaml`의 테스트 사용자 UUID를 수정하고 strategic merge patch로 적용한다. 기존 `mori-hermes` Secret의 `API_SERVER_KEY`를 참조한다. 운영 중인 Hermes ConfigMap·PVC·이미지는 이 패치가 변경하지 않는다. 먼저 소셜 로그인과 DB 연결을 준비하고, Hermes 공용 home의 소유자만 테스트 계정으로 지정한다.
+백엔드 배포 후 [채팅 연동 절차](../../backend/docs/chat.md)에 따라 `backend-chat.patch.yaml`의
+테스트 사용자 UUID를 수정하고 strategic merge patch로 적용한다. 기존 `mori-hermes` Secret의
+`API_SERVER_KEY`를 참조한다. 채팅 테이블 migration `0004_chat`을 먼저 적용해야 한다.
+공용 Hermes home의 소유자만 테스트 계정으로 지정한다.
 
-## 페이지·소셜 로그인 없이 임시 토큰으로 검사
-
-[master 전용 임시 토큰 절차](../../backend/docs/assistant-test-token.md)를 따른다. `backend-hermes-test-token.patch.yaml`로 활성화하며 검색 API에만 적용한다. 이 경우 소셜 앱 키·테스트 사용자 UUID는 필요 없지만 API readiness를 위한 PostgreSQL·기존 마이그레이션은 필요하다. 종료 시 비활성화와 HTTP 401을 확인한다.
+별도 검색 API와 임시 검색 토큰은 제거했다. 프론트 없이 검사할 때도 소셜 로그인으로 발급한
+Mori access token으로 `backend/scripts/test_chat.py`를 실행한다. 웹 검색은 채팅 안에서
+Hermes가 판단해 수행한다. Hermes/SearXNG 자체 smoke 스크립트는 그대로 사용할 수 있다.
