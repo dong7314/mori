@@ -20,7 +20,14 @@ started = time.monotonic()
 with opener.open(base + "/search?" + urllib.parse.urlencode(params), timeout=30) as response:
     payload = json.load(response)
 results = payload.get("results", [])
-if params["categories"] == "images":
+if EXPECTED_ENGINE:
+    observed = {name for row in results for name in row.get("engines", [])}
+    print("요청 엔진:", EXPECTED_ENGINE)
+    print("관측된 엔진:", sorted(observed))
+    if observed - {EXPECTED_ENGINE}:
+        raise SystemExit("FAIL: 요청하지 않은 이미지 엔진 결과가 섞였습니다.")
+    results = [row for row in results if EXPECTED_ENGINE in row.get("engines", [])]
+if EXPECTED_ENGINE:
     results = [r for r in results if r.get("img_src") and r.get("url")]
 else:
     results = [r for r in results if r.get("title") and r.get("url")]
@@ -32,7 +39,7 @@ print("실패/제한 엔진:", failures)
 for result in results[:5]:
     print("-", result.get("title", ""))
     print("  출처:", result.get("url", ""))
-    if params["categories"] == "images":
+    if EXPECTED_ENGINE:
         print("  이미지:", result.get("img_src", ""))
     print("  engines:", result.get("engines", []))
 if not results:
@@ -49,14 +56,30 @@ def main():
     parser.add_argument("--engine", choices=["google", "naver"], default="google")
     parser.add_argument("--query")
     args = parser.parse_args()
+    query = args.query or ("경복궁 전경" if args.mode == "images" else "국립중앙박물관")
+    if args.mode == "images" and any(char in query for char in "!:\n\r"):
+        parser.error("이미지 검색어에는 !, :, 줄바꿈을 사용할 수 없습니다")
     params = {
-        "q": args.query or ("경복궁 전경" if args.mode == "images" else "국립중앙박물관"),
+        "q": query,
         "format": "json",
         "language": "ko-KR",
-        "categories": "images" if args.mode == "images" else "general",
-        "engines": f"{args.engine} images" if args.mode == "images" else "google,naver,brave",
     }
-    code = "PARAMS_JSON = " + repr(json.dumps(params, ensure_ascii=False)) + "\n" + REMOTE_CHECK
+    expected_engine = None
+    if args.mode == "images":
+        # A category parameter can add all its engines; use the specific engine bang alone.
+        bang = {"google": "!goi", "naver": "!nvri"}[args.engine]
+        params["q"] = f"{bang} {query}"
+        expected_engine = f"{args.engine} images"
+    else:
+        params.update(categories="general", engines="google,naver,brave")
+    code = (
+        "PARAMS_JSON = "
+        + repr(json.dumps(params, ensure_ascii=False))
+        + "\nEXPECTED_ENGINE = "
+        + repr(expected_engine)
+        + "\n"
+        + REMOTE_CHECK
+    )
     cmd = ([] if os.geteuid() == 0 else ["sudo"]) + [
         "k3s",
         "kubectl",
