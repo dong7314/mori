@@ -2,12 +2,12 @@
 
 [전체 계획으로 돌아가기](../plan.md)
 
-갱신일: 2026-09-29 · 상태: 앱 우선 방향, 공용 Hermes의 Knative Serving 콜드 스타트와 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
+갱신일: 2026-09-30 · 상태: 앱 우선 방향, 공용 Hermes의 Knative Serving 콜드 스타트와 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
 
-`master` `478bf54`·`7ab5229`에 인증된 채팅·SSE·주차 작업을 구현했고 별도 검색 API를 제거했다.
+`master` `1ba04c0`에 API 0.6.0/0006까지 구현했다. 인증된 채팅·SSE·주차 외에 화면 기록·기능 정의/버전/결과·대시보드·계정 설정을 추가했고 별도 검색 API는 없다.
 Harbor 등록·일반 YAML 배포·실제 Hermes Knative 기동과 종료는 사용자 출력으로 확인했다.
 새 Mori API의 실제 배포/통합은 아직 하지 않았다. [최신 현장 기록](hermes-knative-validation-2026-09-29.md) ·
-[백엔드 기능 상태](../back/chat-implementation-2026-09-29.md).
+[백엔드 기능 상태](../back/screen-api-implementation-2026-09-30.md).
 
 아래 Mori Worker·Runtime Controller·사용자별 Pod/PVC 자동 생성은 장기 설계다.
 현재 API는 사전 배정된 runtime URL을 선택해 요청하며 Kubernetes 관리 권한을 사용하지 않는다.
@@ -68,15 +68,14 @@ Mori 기능 저장과 Hermes 예약 갱신은 같은 DB 트랜잭션으로 묶�
 
 ### 기존 코드에서 추가할 구성
 
-현재 API의 `parking_save|parking_lookup|reply` 작업 어댑터를 기능 카탈로그/도메인 실행으로 확장한다.
-내 기능 조회·스킬 버전·대시보드 projection·메모/캘린더/알림·예약 동기화·기기 전달·결제는 미구현이다.
+API 0.6.0은 기능 정의/버전·선택/결과 저장·대시보드 projection·메모/캘린더/알림 목표·텍스트 문서·계정 테마를 구현했다. Hermes 스킬 파일/cron 동기화·예약 worker·기기 전달·결제는 아직 없다. 화면 데이터를 DB에 저장하는 것과 백그라운드 실행 인프라를 구축하는 것은 별도 단계다.
 새 기능을 각각 별도 Pod로 나누는 것을 기본값으로 삼지 않는다. 단일 Mori 코드베이스의 모듈/API·후속 worker로 시작하고 무거운 수집/파일 작업은 자원 측정 후 분리한다.
 
 마이의 무료/유료 결제는 새 목표이며 현행 관리자 승인 Pro와 전환 정책을 먼저 정의한다. 기능/예약/실행량의 한도는 미정이다. 기능 하나를 만들 때마다 새 Hermes Pod가 생기거나 기존 비서/위젯 약 3개 제안을 기능 개수에 그대로 적용하지 않는다.
 
 ## 현재 홈 네트워크와 배포 위치
 
-**현재 재개 상태(2026-09-29):** 공용 Hermes/SearXNG 재배포와 Hermes Knative 기동·정상 종료를 확인했다. 다음은 새 Mori 채팅 API 이미지 등록·0004_chat migration·배포와 실제 인증 사용자 요청의 통합 검증이다. 본문 추출은 같은 Hermes 이미지의 별도 venv에서 실행한다. [현장 기록](hermes-knative-validation-2026-09-29.md) · [채팅 구현](../back/chat-implementation-2026-09-29.md).
+**현재 재개 상태(2026-09-30):** 공용 Hermes/SearXNG 재배포와 Hermes Knative 기동·정상 종료를 확인했다. 다음은 새 Mori API 이미지 등록·0006_account_settings까지 migration·배포와 실제 인증 사용자 요청의 통합 검증이다. 본문 추출은 같은 Hermes 이미지의 별도 venv에서 실행한다. [현장 기록](hermes-knative-validation-2026-09-29.md) · [채팅 구현](../back/chat-implementation-2026-09-29.md).
 
 2026-09-17 사용자 설명과 2026-09-21 사용자가 제공한 k3s/설치 출력에 근거한다. AI가 원격 접속해 조사한 결과는 아니다. 다섯 장비 모두 ipTIME에 연결되어 있다. GPU 노트북의 주소 `192.168.0.8`, llama.cpp 포트 `8080`, API 키 설정은 사용자에게 확인했다. 두 k3s 노드의 버전은 `v1.34.3+k3s1`이며 IP·CPU·RAM과 Knative 배치는 확인됐다. 실제 전원·절전 정책과 저장소 여유/복구는 아직 검증하지 않았다.
 
