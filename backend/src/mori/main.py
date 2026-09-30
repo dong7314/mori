@@ -26,6 +26,8 @@ from mori.membership.models import AccessChange
 from mori.membership.router import router as membership_router
 from mori.organizer import calendar, notes
 from mori.organizer.models import CalendarEvent, Note, UserPreference, WriteReceipt
+from mori.organizer import documents, reminders
+from mori.organizer.models import Document, Reminder
 from mori.parking.models import ParkingRecord
 from mori.parking.router import router as parking_router
 
@@ -77,6 +79,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(chat_router)
     app.include_router(notes.router)
     app.include_router(calendar.router)
+    app.include_router(documents.router)
+    app.include_router(reminders.router)
 
     @app.get("/health/live", response_model=HealthStatus, tags=["health"])
     def live() -> HealthStatus:
@@ -102,6 +106,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         session.execute(select(Note).limit(0))
         session.execute(select(UserPreference).limit(0))
         session.execute(select(WriteReceipt).limit(0))
+        session.execute(select(Document).limit(0))
+        session.execute(select(Reminder).limit(0))
         response.headers["Cache-Control"] = "no-store"
         return HealthStatus(status="ready")
 
