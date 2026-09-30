@@ -30,6 +30,7 @@ from mori.organizer import documents, reminders
 from mori.organizer.models import Document, Reminder
 from mori.features.models import Feature, FeatureResult, SkillVersion
 from mori.features.router import router as features_router
+from mori.dashboard.router import router as dashboard_router
 from mori.parking.models import ParkingRecord
 from mori.parking.router import router as parking_router
 
@@ -84,6 +85,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(documents.router)
     app.include_router(reminders.router)
     app.include_router(features_router)
+    app.include_router(dashboard_router)
 
     @app.get("/health/live", response_model=HealthStatus, tags=["health"])
     def live() -> HealthStatus:
