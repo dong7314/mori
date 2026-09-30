@@ -18,6 +18,9 @@ class ErrorResponse(BaseModel):
     error: ErrorDetail
 
 
+PRIVATE_API_RESPONSES = {status: {"model": ErrorResponse} for status in (401, 404, 409, 422, 503)}
+
+
 class ApiError(Exception):
     def __init__(self, status_code: int, code: str, message: str) -> None:
         super().__init__(code)
