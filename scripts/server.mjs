@@ -85,12 +85,25 @@ export function createServer({ root = resolve(import.meta.dirname, '..'), origin
       const url = new URL(req.url, origin), path = url.pathname;
       const jar = cookies(req);
       const session = sessions.get(jar.mori_poc_session);
-      if (req.method === 'POST' && req.headers.origin !== origin) throw error(403, 'ORIGIN_REJECTED', '이 화면에서 다시 시도해 주세요.');
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && req.headers.origin !== origin) throw error(403, 'ORIGIN_REJECTED', '이 화면에서 다시 시도해 주세요.');
       if (req.method === 'GET' && path === '/api/config') return json(res, 200, { apiBaseUrl, callbackUrl: origin + '/auth/callback', preview: true });
       if (req.method === 'GET' && path === '/api/providers') return json(res, 200, await dataOf(await upstream('/v1/auth/providers')));
       if (req.method === 'GET' && path === '/api/session') {
         if (!session) return json(res, 200, { user: null });
         return json(res, 200, { user: await dataOf(await authorized(session, '/v1/me')) });
+      }
+      if (req.method === 'GET' && path === '/api/plans') return json(res, 200, await dataOf(await upstream('/v1/plans')));
+      const accountRoutes = {
+        'PATCH /api/profile': '/v1/me',
+        'GET /api/settings': '/v1/me/settings',
+        'PUT /api/settings': '/v1/me/settings',
+        'GET /api/subscription': '/v1/me/subscription',
+      };
+      const accountPath = accountRoutes[`${req.method} ${path}`];
+      if (accountPath) {
+        const options = req.method === 'GET' ? {} : { method: req.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(await body(req)) };
+        const response = await authorized(session, accountPath, options);
+        return json(res, response.status, await dataOf(response));
       }
       if (req.method === 'POST' && path === '/api/auth/start') {
         const { provider } = await body(req);

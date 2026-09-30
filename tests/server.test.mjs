@@ -18,6 +18,7 @@ async function fixture(t, { origin = 'http://localhost:4173', shortAccess = fals
   const fetchImpl = async (url, options) => {
     const path = new URL(url).pathname;
     calls.push({ path, method: options.method || 'GET', headers: options.headers, body: options.body });
+    if (path === '/v1/plans') return result([{id: 'free', amount: 0}, {id: 'pro', amount: null, checkout_available: false}]);
     if (path === '/v1/auth/providers') return result([{ provider: 'naver', enabled: true }, { provider: 'kakao', enabled: true }]);
     if (path === '/v1/auth/exchange') {
       const input = JSON.parse(options.body), grant = codes.get(input.code);
@@ -35,7 +36,15 @@ async function fixture(t, { origin = 'http://localhost:4173', shortAccess = fals
     }
     const user = tokenUsers.get(options.headers?.Authorization?.replace('Bearer ', ''));
     if (!user) return result({ error: { code: 'UNAUTHORIZED' } }, 401);
-    if (path === '/v1/me') return result(user);
+    if (path === '/v1/me') {
+      if (options.method === 'PATCH') { const input = JSON.parse(options.body); user.display_name = input.display_name; user.revision++; }
+      return result(user);
+    }
+    if (path === '/v1/me/settings') {
+      if (options.method === 'PUT') { const input = JSON.parse(options.body); user.settings = {theme: input.theme, revision: 1}; }
+      return result(user.settings || {theme: 'system', revision: 0});
+    }
+    if (path === '/v1/me/subscription') return result({plan: user.tier, billing_status: 'not_subscribed', cancellation_available: false});
     if (path === '/v1/auth/logout') { for (const [key, value] of tokenUsers) if (value === user) tokenUsers.delete(key); return new Response(null, { status: 204 }); }
     if (path === '/v1/parking-records/latest') return parking.has(user.id) ? result(parking.get(user.id)) : result({ error: { code: 'PARKING_NOT_FOUND', message: '아직 기록이 없어요.' } }, 404);
     if (path === '/v1/parking-records') { const record = { id: random(), ...JSON.parse(options.body), recorded_at: '2026-09-17T01:00:00Z' }; parking.set(user.id, record); return result(record, 201); }
@@ -63,7 +72,7 @@ async function fixture(t, { origin = 'http://localhost:4173', shortAccess = fals
     assert.equal(response.status, 200);
     const loginUrl = new URL((await response.json()).url);
     const cookie = response.headers.get('set-cookie').split(';')[0];
-    const user = { id: random(), display_name: '테스트 사용자', providers: [provider], tier: 'free', role: 'user' };
+    const user = { id: random(), display_name: '테스트 사용자', providers: [provider], tier: 'free', role: 'user', revision: 1 };
     const code = random(); codes.set(code, { challenge: loginUrl.searchParams.get('code_challenge'), user });
     return { cookie, code, state: loginUrl.searchParams.get('client_state'), user, response, loginUrl };
   };
@@ -154,4 +163,33 @@ test('public HTTP and URLs containing credentials are rejected at configuration 
   assert.throws(() => createServer({ origin: 'http://public.example' }));
   assert.throws(() => createServer({ apiBaseUrl: 'https://secret:password@api.example' }));
   assert.throws(() => createServer({ apiBaseUrl: 'https://api.example/prefix' }));
+});
+
+test('account profile/theme proxy keeps auth server-side and protects every write origin', async t => {
+  const f = await fixture(t);
+  assert.equal((await f.request('/api/plans')).status, 200);
+  for (const path of ['/api/settings', '/api/subscription']) assert.equal((await f.request(path)).status, 401);
+  const {cookie} = await f.login();
+  for (const [path, method, data] of [
+    ['/api/profile', 'PATCH', {display_name: '변경된 이름', revision: 1}],
+    ['/api/settings', 'PUT', {theme: 'dark', revision: 0}],
+  ]) {
+    const before = f.calls.length;
+    assert.equal((await f.request(path, {cookie, method, data, headers: {Origin: 'https://attacker.example'}})).status, 403);
+    assert.equal(f.calls.length, before);
+    const response = await f.request(path, {cookie, method, data});
+    assert.equal(response.status, 200);
+    assert.ok(!JSON.stringify(await response.json()).includes('private-access-'));
+    const forwarded = f.calls.at(-1);
+    assert.equal(forwarded.method, method);
+    assert.deepEqual(JSON.parse(forwarded.body), data);
+    assert.ok(forwarded.headers.Authorization.startsWith('Bearer private-access-'));
+  }
+  assert.equal((await (await f.request('/api/session', {cookie})).json()).user.display_name, '변경된 이름');
+  assert.equal((await (await f.request('/api/settings', {cookie})).json()).theme, 'dark');
+  const other = await f.login('kakao');
+  assert.equal((await (await f.request('/api/settings', {cookie: other.cookie})).json()).theme, 'system');
+  const subscription = await (await f.request('/api/subscription', {cookie})).json();
+  assert.equal(subscription.billing_status, 'not_subscribed');
+  assert.equal(subscription.cancellation_available, false);
 });
