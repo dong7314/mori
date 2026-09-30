@@ -144,3 +144,12 @@ uv run python scripts/test_chat.py --base-url http://127.0.0.1:8000 \
 방지, 실패 롤백, 이벤트 필터링, 개인 런타임 권한, 연결 종료를 검사한다. 로컬 이미지 0.1.1의
 SSE 구현과 이벤트 형식을 대조했다. 실제 k3s/GPU에서 자연어 저장→조회→cold start SSE까지는
 서버 배포 후 위 클라이언트로 확인해야 한다.
+
+## 0.6.0 화면 데이터와 기능 실행 확장
+
+[현재 화면 API 계약](screen-api.md)이 이 문서의 주차 전용 action 범위를 확장한다.
+채팅은 note_save/event_save/reminder_save/feature_save/feature_run도 검증한다.
+메시지 body의 선택적 feature_id는 같은 사용자 소유의 활성 기능만 허용한다.
+Hermes가 feature_run을 선택하면 서버가 정의 버전을 고정해 한 번 더 요청하며,
+텍스트 결과를 FeatureResult로 저장한 후 result.saved를 보낸다. 메시지 기록에는
+result_refs가 포함되어 상세 링크를 복원할 수 있다. OS 푸시·자동 예약 실행은 미연결이다.
