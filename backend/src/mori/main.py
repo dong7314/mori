@@ -24,6 +24,8 @@ from mori.database import DatabaseSession, build_engine, build_session_factory
 from mori.errors import ErrorResponse, register_error_handlers
 from mori.membership.models import AccessChange
 from mori.membership.router import router as membership_router
+from mori.organizer import calendar, notes
+from mori.organizer.models import CalendarEvent, Note, UserPreference, WriteReceipt
 from mori.parking.models import ParkingRecord
 from mori.parking.router import router as parking_router
 
@@ -54,7 +56,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
         expose_headers=["X-Mori-Run-ID"],
     )
@@ -73,6 +75,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(profile_router)
     app.include_router(membership_router)
     app.include_router(chat_router)
+    app.include_router(notes.router)
+    app.include_router(calendar.router)
 
     @app.get("/health/live", response_model=HealthStatus, tags=["health"])
     def live() -> HealthStatus:
@@ -94,6 +98,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         session.execute(select(AccessChange).limit(0))
         session.execute(select(Conversation.id).limit(0))
         session.execute(select(ChatTurn.id).limit(0))
+        session.execute(select(CalendarEvent).limit(0))
+        session.execute(select(Note).limit(0))
+        session.execute(select(UserPreference).limit(0))
+        session.execute(select(WriteReceipt).limit(0))
         response.headers["Cache-Control"] = "no-store"
         return HealthStatus(status="ready")
 
