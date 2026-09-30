@@ -1,0 +1,4 @@
+source/annotated/
+source/*.docx
+render*/
+~$*
