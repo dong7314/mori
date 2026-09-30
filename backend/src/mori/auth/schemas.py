@@ -2,7 +2,7 @@ from enum import StrEnum
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, SecretStr, StringConstraints
+from pydantic import AwareDatetime, BaseModel, ConfigDict, SecretStr, StringConstraints
 
 from mori.membership.types import AccountRole, AccountTier
 
@@ -45,6 +45,8 @@ class MeResponse(BaseModel):
     providers: list[Provider]
     tier: AccountTier
     role: AccountRole
+    revision: int
+    created_at: AwareDatetime
 
 
 class ProviderAvailability(BaseModel):

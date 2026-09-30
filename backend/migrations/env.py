@@ -2,6 +2,7 @@ from logging.config import fileConfig
 
 from alembic import context
 
+from mori.account import models as account_models  # noqa: F401
 from mori.auth import models as auth_models  # noqa: F401
 from mori.chat import models as chat_models  # noqa: F401
 from mori.config import Settings

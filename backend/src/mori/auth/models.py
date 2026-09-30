@@ -16,6 +16,7 @@ class User(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     display_name: Mapped[str] = mapped_column(String(80))
+    profile_revision: Mapped[int] = mapped_column(default=1, server_default="1")
     tier: Mapped[str] = mapped_column(String(16), default="free", server_default="free")
     role: Mapped[str] = mapped_column(String(16), default="user", server_default="user")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

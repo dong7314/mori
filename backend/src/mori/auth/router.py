@@ -5,9 +5,10 @@ from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 
+from mori.account.schemas import ProfileUpdate
 from mori.auth.dependencies import CurrentAuth
 from mori.auth.flows import FLOW_SECONDS, consume_flow, cookie_name, create_grant, start_flow
-from mori.auth.models import SocialIdentity
+from mori.auth.models import SocialIdentity, User
 from mori.auth.providers import AuthSettings, ProviderClient, credentials, verify_profile
 from mori.auth.schemas import (
     Challenge,
@@ -34,7 +35,7 @@ router = APIRouter(
         503: {"model": ErrorResponse},
     },
 )
-profile_router = APIRouter(tags=["auth"])
+profile_router = APIRouter(tags=["account"])
 
 
 @router.get("/providers", response_model=list[ProviderAvailability], summary="소셜 로그인 제공자")
@@ -144,4 +145,23 @@ def me(auth: CurrentAuth, session: DatabaseSession):
         providers=providers,
         tier=auth.user.tier,
         role=auth.user.role,
+        revision=auth.user.profile_revision,
+        created_at=auth.user.created_at,
     )
+
+
+@profile_router.patch(
+    "/v1/me",
+    response_model=MeResponse,
+    summary="내 사용자 정보 수정",
+    responses={status: {"model": ErrorResponse} for status in (401, 409, 422, 503)},
+)
+def update_me(payload: ProfileUpdate, auth: CurrentAuth, session: DatabaseSession):
+    row = session.scalar(select(User).where(User.id == auth.user.id).with_for_update())
+    session.refresh(row)
+    if row.profile_revision != payload.revision:
+        raise ApiError(409, "REVISION_CONFLICT", "사용자 정보가 변경됐어요. 다시 조회해 주세요.")
+    row.display_name = payload.display_name
+    row.profile_revision += 1
+    session.commit()
+    return me(auth, session)
