@@ -26,6 +26,28 @@ DB 준비 → 마이그레이션 성공 → API 시작 순서다. 키가 없는 
 
 기본 주소는 API `localhost:8000`, PostgreSQL `127.0.0.1:55432`다. 충돌하면 `MORI_API_PORT`, `MORI_DB_PORT`를 바꾸고 공개 API 주소·개발자 콘솔 콜백도 같은 포트로 맞춘다. DB 데이터는 Compose 볼륨에 남는다. 평소 종료는 `docker-compose down`을 사용한다. `down -v`는 저장 데이터까지 삭제한다.
 
+## Swagger / Scalar 명세서
+
+API를 실행하면 같은 OpenAPI 명세를 다음 화면에서 볼 수 있다.
+
+- Scalar: <http://localhost:8000/scalar>
+- Swagger UI: <http://localhost:8000/docs>
+- OpenAPI JSON: <http://localhost:8000/openapi.json>
+
+명세 열람에는 로그인이 필요 없다. 공개 API인 `GET /health/live`는 바로 시험할 수 있다.
+사용자 API는 소셜 로그인에서 받은 **Mori 액세스 토큰**을 Authentication / Authorize의
+HTTPBearer에 입력한다. `Bearer ` 접두어는 붙이지 않는다. 새 작성 요청에는 필요한 경우
+UUID `Idempotency-Key`, 수정·삭제에는 조회한 `revision`을 보낸다. 실행 버튼은 실제 API를 호출한다.
+
+두 화면은 `/openapi.json`을 읽으므로 코드의 요청·응답 스키마가 함께 반영된다.
+Scalar는 [공식 HTML 설정 방식](https://scalar.com/products/api-references/configuration)을 사용하며,
+브라우저 번들을 CDN의 1.72.2 버전에 고정했다. 문서 화면의 자산 로딩에는 인터넷 연결이 필요하다.
+API 요청은 같은 서버로 직접 보내며 외부 Scalar 프록시를 사용하지 않는다.
+입력한 인증 정보의 영구 저장과 Scalar Agent는 끈 상태다.
+리버스 프록시의 하위 경로를 사용할 때는 API의 `root_path`도 일치시킨다.
+
+상세한 화면 연결 규칙과 미연결 기능은 [화면 API 계약](docs/screen-api.md)을 참고한다.
+
 ## Python으로 개발
 
 ```sh
@@ -120,3 +142,13 @@ API 0.5.0은 사용자별 대화, 실제 실행 상태 SSE, Hermes 요청 해석
 추가한다. [설정·API·프론트 이벤트 계약](docs/chat.md)을 참고한다. 기존 Hermes 이미지를
 사용하며 새 API 이미지와 `0004_chat` migration이 필요하다. 예약 실행과 개인 Pod 자동 생성은
 이번 범위에 포함하지 않는다.
+
+## PoC 화면 API (0.6.0)
+
+[화면별 API 계약과 연결 예제](docs/screen-api.md)를 추가했다. 대시보드 시간 범위, 보관함,
+메모·일정·알림 목표, 사용자 설정, 기능 정의/버전/결과, 대화 정리를 PostgreSQL에 저장한다.
+채팅은 같은 저장 서비스와 기능 선택/텍스트 결과 실행을 사용한다. 적용 전에
+`0005_screen_api` 마이그레이션이 필요하다. 푸시 전달·예약 실행·시세 공급자·Office 변환은
+미연결 상태이며, PoC의 localStorage 교체와 운영 배포는 별도 작업이다.
+
+마이 탭은 `GET/PATCH /v1/me`, `GET/PUT /v1/me/settings`, `GET /v1/plans`, `GET /v1/me/subscription`으로 정리했다. 이전 `/me/preferences`, `/me/summary`는 제거했으며 `0006_account_settings` 마이그레이션을 적용한다. 결제사 미연결 상태에서는 실제 결제·해지가 실행되지 않는다.
