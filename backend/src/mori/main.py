@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import select
 
+from mori.account.models import AccountSettings
+from mori.account.router import router as account_router
 from mori.auth.models import (
     AccessToken,
     AuthSession,
@@ -20,19 +22,23 @@ from mori.auth.router import router as auth_router
 from mori.chat.models import ChatTurn, Conversation
 from mori.chat.router import router as chat_router
 from mori.config import Settings
+from mori.dashboard.router import router as dashboard_router
 from mori.database import DatabaseSession, build_engine, build_session_factory
+from mori.documentation import DESCRIPTION, TAGS, install_scalar
 from mori.errors import ErrorResponse, register_error_handlers
-from mori.membership.models import AccessChange
-from mori.membership.router import router as membership_router
-from mori.organizer import calendar, notes
-from mori.organizer.models import CalendarEvent, Note, UserPreference, WriteReceipt
-from mori.organizer import documents, reminders
-from mori.organizer.models import Document, Reminder
 from mori.features.models import Feature, FeatureResult, SkillVersion
 from mori.features.router import router as features_router
-from mori.dashboard.router import router as dashboard_router
-from mori.account.models import AccountSettings
-from mori.account.router import router as account_router
+from mori.membership.models import AccessChange
+from mori.membership.router import router as membership_router
+from mori.organizer import calendar, documents, notes, reminders
+from mori.organizer.models import (
+    CalendarEvent,
+    Document,
+    Note,
+    Reminder,
+    UserPreference,
+    WriteReceipt,
+)
 from mori.parking.models import ParkingRecord
 from mori.parking.router import router as parking_router
 
@@ -54,10 +60,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Mori API",
-        version="0.5.0",
-        description="소셜 가입, 프로 권한, 주차 기록, Hermes 검색 및 실시간 채팅 작업 상태",
+        version="0.6.0",
+        description=DESCRIPTION,
+        openapi_tags=TAGS,
+        swagger_ui_parameters={
+            "filter": True,
+            "docExpansion": "none",
+            "defaultModelsExpandDepth": -1,
+            "persistAuthorization": False,
+        },
         lifespan=lifespan,
     )
+    install_scalar(app)
     app.state.session_factory = build_session_factory(engine)
     app.state.settings = settings
     app.add_middleware(
@@ -82,13 +96,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(profile_router)
     app.include_router(membership_router)
     app.include_router(chat_router)
-    app.include_router(notes.router)
-    app.include_router(calendar.router)
-    app.include_router(documents.router)
-    app.include_router(reminders.router)
-    app.include_router(features_router)
-    app.include_router(dashboard_router)
-    app.include_router(account_router)
+    for router in (
+        notes.router,
+        calendar.router,
+        reminders.router,
+        documents.router,
+        account_router,
+        features_router,
+        dashboard_router,
+    ):
+        app.include_router(router)
 
     @app.get("/health/live", response_model=HealthStatus, tags=["health"])
     def live() -> HealthStatus:
@@ -110,16 +127,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         session.execute(select(AccessChange).limit(0))
         session.execute(select(Conversation.id).limit(0))
         session.execute(select(ChatTurn.id).limit(0))
-        session.execute(select(CalendarEvent).limit(0))
-        session.execute(select(Note).limit(0))
-        session.execute(select(UserPreference).limit(0))
-        session.execute(select(WriteReceipt).limit(0))
-        session.execute(select(Document).limit(0))
-        session.execute(select(Reminder).limit(0))
-        session.execute(select(Feature).limit(0))
-        session.execute(select(FeatureResult).limit(0))
-        session.execute(select(SkillVersion).limit(0))
-        session.execute(select(AccountSettings).limit(0))
+        for model in (
+            Note,
+            CalendarEvent,
+            Reminder,
+            Document,
+            UserPreference,
+            AccountSettings,
+            WriteReceipt,
+            Feature,
+            SkillVersion,
+            FeatureResult,
+        ):
+            session.execute(select(model).limit(0))
         response.headers["Cache-Control"] = "no-store"
         return HealthStatus(status="ready")
 
