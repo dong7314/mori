@@ -41,7 +41,7 @@
 
 ## 4. 현재 구현 상태
 
-코드 기준은 `master` `53b0fa6`(API 0.7.0/0007), `poc` `aa3ca2f`다. [API 상세](back/screen-api-implementation-2026-09-30.md) · [0.7.0 변경](back/parking-document-update-2026-10-02.md) · [PoC 검증](front/poc-validation-2026-09-30.md).
+코드 기준은 `master` `53b0fa6`(API 0.7.0/0007), `poc` `3222659`다. [API 상세](back/screen-api-implementation-2026-09-30.md) · [0.7.0 변경](back/parking-document-update-2026-10-02.md) · [PoC 검증](front/poc-validation-2026-09-30.md) · [모바일 UI 보완](front/poc-ui-update-2026-10-02.md).
 
 | 영역 | 구현·확인한 범위 | 다음 작업 |
 | --- | --- | --- |
@@ -57,7 +57,7 @@
 | runtime | 사전 배정 URL 선택; 공용 home은 단일 소유자 | 사용자 격리·개인 Pod 자동 생성/회수 |
 | 콜드 스타트 | 기존 실제 Hermes health 11.69초/11.19초, 정상 종료 0/0 | 예약 사전 기동·유지·동기화·완료 callback |
 
-백엔드 204개 테스트와 Ruff·OpenAPI 일치 검사가 통과했다. PoC의 기존 51개 테스트·빌드 기록은 유지한다. 모델 HTTP는 mock 검증이며 새 API의 실제 k3s/GPU 왕복을 대신하지 않는다. 마이 외 PoC 화면은 주로 로컬 데이터이고 운영 배포는 수행하지 않았다.
+백엔드 204개 테스트와 Ruff·OpenAPI 일치 검사, PoC 56개 테스트·구문 검사·CSS 빌드가 통과했다. 320px·375px 모바일에서 주차 설정·문서 상세를 확인했다. 모델 HTTP는 mock 검증이며 새 API의 실제 k3s/GPU 왕복을 대신하지 않는다. 마이 외 PoC 화면은 주로 로컬 데이터이고 운영 배포는 수행하지 않았다.
 
 채팅은 영속 작업 큐가 아니다. 알림 목표 저장은 실제 푸시 전달이 아니며 시간 지정 기능 저장도 Hermes cron 등록이 아니다. 주차와 알림을 동시에 요청해도 주차 저장만으로 다음 날 알림이 예약됐다고 답하지 않는다.
 
