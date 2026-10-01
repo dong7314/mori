@@ -1,5 +1,7 @@
 # PoC 화면 연결 API — 0.6.0
 
+이 문서는 0.6.0 구현 이력이다. 현행 주차 표시 방식·문서 10MB와 목록 응답 변경은 [0.7.0 변경 기록](parking-document-update-2026-10-02.md)을 함께 확인한다.
+
 기준: 2026-09-30, `master` `1ba04c0`, API 0.6.0/`0006_account_settings`. PoC의 5개 탭과 화면 기획서에 대응한다. `master` 백엔드에 구현했으며 마이의 계정·테마·요금제 프록시는 연결했으며 나머지 로컬 PoC 저장소를 모두 서버 데이터로 교체한 것은 아니다. 운영 k3s 배포는 아직 수행하지 않았다. API 실행 후 [Scalar](http://localhost:8000/scalar), [Swagger UI](http://localhost:8000/docs) 또는 [OpenAPI JSON](https://github.com/dong7314/mori/blob/1ba04c0/backend/docs/openapi.json)에서 입력·응답 타입을 확인한다. 웹 문서 상단에 인증·멱등 키·revision·SSE 사용법을 함께 표시한다.
 
 ## 화면별 연결
