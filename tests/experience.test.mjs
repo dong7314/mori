@@ -9,7 +9,9 @@ test('일반 대화는 기능을 만들지 않고 주차는 가장 최근 위치
   assert.equal(s.customs.length, 1);
   applyRequest(s, '지하 2층 C36에 주차했어', start);
   assert.equal(s.parking.floor, '지하 2층'); assert.equal(s.parking.spot, 'C36');
-  assert.equal(s.parking.show, '08:30');
+  assert.equal(s.parking.display_mode, 'always');
+  assert.equal(s.parking.display_schedule, null);
+  assert.ok(visibleCards(s, new Date(2026, 8, 29, 19).getTime()).includes('parking'));
   assert.match(applyRequest(s, '주차 어디였지?', start).text, /C36/);
 });
 test('현재 표시 시간에만 카드가 나타나며 미래 예약을 모두 노출하지 않는다', () => {
@@ -19,13 +21,13 @@ test('현재 표시 시간에만 카드가 나타나며 미래 예약을 모두 
   assert.ok(!visibleCards(s, evening).includes('parking'));
   assert.ok(visibleCards(s, evening).includes('custom:custom-evening'));
 });
-test('주차 카드의 표시 간격과 일시 중지 설정을 적용한다', () => {
+test('출근 표시를 요청하면 확인된 체험 문맥을 사용한다', () => {
   const s = fresh();
   s.profile.parkingLead = 60;
-  applyRequest(s, '지하 2층 C36에 주차했어', start);
-  assert.equal(s.parking.show, '08:00');
-  s.parking.enabled = false;
-  assert.ok(!visibleCards(s, start).includes('parking'));
+  applyRequest(s, '지하 2층 C36에 주차했어. 출근할 때 보여줘', start);
+  assert.equal(s.parking.display_schedule.time, '08:00');
+  assert.equal(s.parking.purpose, 'commute');
+  assert.ok(!visibleCards(s, new Date(2026, 8, 29, 19).getTime()).includes('parking'));
 });
 test('알림의 목표 시각은 직렬화와 새로고침 후에도 유지된다', () => {
   const s = fresh(); applyRequest(s, '30분 뒤에 물 마시라고 알림 줘', start);

@@ -1,3 +1,4 @@
+import { parkingWindows, parkingDescription } from './parking-display.mjs';
 export const VERSION = 6;
 export const uid = () => globalThis.crypto.randomUUID();
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -26,7 +27,7 @@ export function setClock(state, hour, minute = 0, real = Date.now()) { const d =
 export const minuteOf = time => { const [h, m] = time.split(':').map(Number); return h * 60 + m; };
 export function visibleCards(state, now = nowOf(state)) {
   const d = new Date(now), minute = d.getHours() * 60 + d.getMinutes(), cards = [];
-  if (state.parking?.enabled !== false && state.parking && minute >= minuteOf(state.parking.show) && minute < minuteOf(state.profile.commute) + 60) cards.push('parking');
+  if (parkingWindows(state.parking, state.profile, now).length) cards.push('parking');
   if (state.news.active && minute >= minuteOf(state.news.time) - 30 && minute < minuteOf(state.news.time) + 180) cards.push('news');
   if (state.stock.active && minute >= minuteOf(state.stock.time) && minute < 16 * 60) cards.push('stock');
   if (state.events.some(e => e.date === dateKey(now) && minuteOf(e.time) >= minute - 30 && minuteOf(e.time) <= minute + 150)) cards.push('schedule');
@@ -82,8 +83,11 @@ export function applyRequest(state, raw, now = nowOf(state)) {
     const floor = text.match(/지하\s*(\d+)\s*층|\bB(\d+)층(?=\s|$)/i); const spot = text.replace(floor?.[0] || '', '').match(/([A-Z]\d{1,3})(?!\d)/i);
     if (!floor && !spot) return { text: '어디에 주차하셨나요? “지하 3층 B16에 주차했어”처럼 알려주세요.', followup: 'parking' };
     const showMinute = Math.max(0, minuteOf(state.profile.commute) - (state.profile.parkingLead ?? 30));
-    state.parking = { floor: floor ? `지하 ${floor[1] || floor[2]}층` : '위치', spot: spot?.[1]?.toUpperCase() || '', at: now, show: `${String(Math.floor(showMinute / 60)).padStart(2, '0')}:${String(showMinute % 60).padStart(2, '0')}`, enabled: true };
-    return { text: `${state.parking.floor} ${state.parking.spot}, 잘 기억해 뒀어요. 설정된 출근 시간 ${state.profile.commute}에 맞춰 ${state.parking.show}부터 대시보드에서 보여드릴게요.`, ref: 'parking' };
+    const scheduled = /출근|평일|매일|\d+\s*시/.test(text);
+    state.parking = { floor: floor ? `지하 ${floor[1] || floor[2]}층` : '', spot: spot?.[1]?.toUpperCase() || '', at: now,
+      purpose: /출근/.test(text) ? 'commute' : 'external', display_mode: scheduled ? 'scheduled' : 'always',
+      display_schedule: scheduled ? { time: parseTime(text, `${String(Math.floor(showMinute / 60)).padStart(2, '0')}:${String(showMinute % 60).padStart(2, '0')}`), timezone: 'Asia/Seoul', days: /매일/.test(text) ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4], duration_minutes: 90 } : null };
+    return { text: `${state.parking.floor} ${state.parking.spot}, 잘 기억해 뒀어요. ${scheduled ? parkingDescription(state.parking) + '해요.' : '새 위치를 기억할 때까지 대시보드에 계속 보여드릴게요.'} 기기 알림은 예약하지 않았어요.`, ref: 'parking' };
   }
   if (/알림|타이머/.test(text)) {
     const relative = text.match(/(\d+)\s*분\s*(뒤|후)/); let target;

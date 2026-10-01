@@ -1,5 +1,6 @@
 import { dateKey, minuteOf, nowOf } from './experience.mjs';
 import { eventDuration } from './calendar-model.mjs';
+import { parkingWindows, parkingPurpose } from './parking-display.mjs';
 
 export const DASHBOARD_WINDOWS = [
   { hours: 0, label: '지금', description: '지금 필요한 카드만 간결하게' },
@@ -17,16 +18,13 @@ const clock = value => new Date(value).toLocaleTimeString('ko-KR', { hour: '2-di
 export function dashboardTimeline(state, hours, now = nowOf(state)) {
   if (![3, 5, 24].includes(hours)) return { from: now, until: now, groups: [], count: 0 };
   const until = now + hours * 3600000, entries = [];
+  for (const occurrence of parkingWindows(state.parking, state.profile, now, until)) entries.push({ ...occurrence, ref: 'parking', kind: 'parking', title: `${parkingPurpose(state.parking)} 위치`, description: [state.parking.floor, state.parking.spot].filter(Boolean).join(' · '), icon: 'car', color: 'green', action: occurrence.end === null ? '항상 표시' : '카드 표시', detail: '최신 주차 기록 보기' });
   const add = (ref, at, end, details) => {
     if (!Number.isFinite(at) || at >= until || (at < now && end <= now)) return;
     entries.push({ ...details, ref, at, end, current: at <= now, key: `${ref}@${at}` });
   };
   const day = new Date(now); day.setHours(0, 0, 0, 0); day.setDate(day.getDate() - 1);
   while (day.getTime() <= until) {
-    if (state.parking && state.parking.enabled !== false) {
-      const at = atTime(day, state.parking.show), end = atTime(day, state.profile.commute) + 3600000;
-      add('parking', at, end, { kind: 'parking', title: '출근길 주차 위치', description: '가장 최근에 기억한 주차 위치를 확인해요.', icon: 'car', color: 'green', action: '카드 표시', detail: '최신 주차 기록 보기' });
-    }
     if (state.news.active) {
       const at = atTime(day, state.news.time);
       add('news', at, at + 180 * 60000, { kind: 'news', title: '나만의 뉴스 브리핑', description: state.news.topic, icon: 'news', color: 'blue', action: '수집 시작', detail: '브리핑과 설정 보기' });

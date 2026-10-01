@@ -1,3 +1,4 @@
+import { parkingOptions } from './parking-display.mjs';
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const dayKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 export function phaseAt(date = new Date()) { const h = date.getHours(); return h >= 6 && h < 10 ? 'morning' : h >= 10 && h < 18 ? 'day' : 'evening'; }
@@ -6,7 +7,7 @@ export function normalizeParking(values) {
   const payload = Object.fromEntries(['floor', 'zone', 'spot'].map(key => [key, String(values[key] || '').trim() || null]));
   if (!Object.values(payload).some(Boolean)) throw new Error('층, 구역, 자리 번호 중 하나를 알려주세요.');
   for (const [key, value] of Object.entries(payload)) if (value && (value.length > (key === 'floor' ? 32 : 64) || /[\x00-\x1f\x7f]/.test(value))) throw new Error('위치를 조금 더 짧게 입력해 주세요.');
-  return payload;
+  return values.display_mode || values.purpose ? { ...payload, ...parkingOptions(values) } : payload;
 }
 export function parkingAttempt(previous, values, newId = () => crypto.randomUUID()) {
   const payload = normalizeParking(values);

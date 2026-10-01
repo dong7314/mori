@@ -426,6 +426,16 @@ dialog { border: 0; padding: 0; color: $ink; background: #fafbf8; box-shadow: 0 
 .subscription-cancel { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--line); strong { font-size: 14px; font-weight: 600; } p { color: var(--text-secondary); font-size: 12px; margin: 8px 0 16px; } }
 @media (max-width: 400px) { .account-plan-options { grid-template-columns: 1fr; } }
 
+.parking-options { border: 0; padding: 0; margin: 0 0 22px; legend { font-size: 13px; font-weight: 600; margin-bottom: 10px; } > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } label { cursor: pointer; position: relative; min-width: 0; } input { position: absolute; opacity: 0; width: 1px; height: 1px; } label > span { display: block; border: 1px solid var(--line); border-radius: 16px; padding: 13px 11px; background: var(--surface); } strong { font-size: 14px; font-weight: 600; display: block; } small { display: block; color: var(--text-secondary); font-size: 11px; margin-top: 5px; } input:checked + span { border-color: var(--accent); background: var(--soft-surface); strong { color: var(--accent); } } input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; } }
+.parking-weekdays { border: 0; padding: 0; margin: 2px 0 12px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; legend { font-size: 13px; font-weight: 600; margin-bottom: 10px; } label { position: relative; cursor: pointer; } input { position: absolute; opacity: 0; width: 1px; height: 1px; } span { display: grid; place-items: center; min-height: 44px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); font-size: 13px; } input:checked + span { color: var(--surface); background: var(--accent); border-color: var(--accent); } input:focus-visible + span { outline: 3px solid var(--accent); outline-offset: 2px; } }
+.parking-preview { border-radius: 18px; padding: 16px; background: var(--soft-surface); margin-top: 18px; > span { font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; .icon { width: 15px; height: 15px; } } strong { display: block; font-size: 17px; margin-top: 8px; overflow-wrap: anywhere; } p { font-size: 12px; color: var(--text-secondary); margin-top: 6px; } }
+.document-benefits { display: grid; gap: 10px; padding: 18px 4px; font-size: 12px; color: var(--text-secondary); span { display: flex; align-items: center; gap: 8px; } .icon { width: 16px; height: 16px; color: var(--accent); } }
+.document-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 20px; font-size: 12px; color: var(--text-secondary); }
+.document-source { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: 13px; line-height: 1.9; max-height: 300px; overflow-y: auto; margin: 12px 0 0; }
+.file-result > div { min-width: 0; } .file-result strong { overflow-wrap: anywhere; }
+.parking-detail .detail-facts { min-width: 0; }
+@media (max-width: 360px) { .parking-options small { font-size: 10px; } .parking-weekdays { gap: 2px; } .parking-form .field-pair:has(input[type=time]) { grid-template-columns: 1fr; } }
+
 :root[data-theme=dark] {
   color-scheme: dark;
   --ink: #e3ebe5; --muted: #a0b0a5; --accent: #a4cba6;
