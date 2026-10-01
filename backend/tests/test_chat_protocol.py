@@ -44,6 +44,15 @@ def test_invalid_or_unsafe_inventory_rejected(payload):
         (200, "[]"),
         (200, "x" * 2_000_001),
     ],
+    ids=[
+        "unauthorized",
+        "redirect",
+        "server-error",
+        "rate-limit",
+        "invalid-json",
+        "array",
+        "too-large",
+    ],
 )
 def test_preflight_rejects_bad_response_without_leaking_body(status, body):
     async def exercise():

@@ -15,6 +15,7 @@ from pydantic import (
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 Clock = Annotated[str, StringConstraints(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")]
+DOCUMENT_MAX_BYTES = 10_000_000
 
 
 class Input(BaseModel):
@@ -118,7 +119,9 @@ class DocumentWrite(Input):
     title: Title
     filename: str = Field(min_length=1, max_length=120)
     text: Annotated[str, StringConstraints(strip_whitespace=False)] = Field(
-        min_length=1, max_length=200000
+        min_length=1,
+        max_length=DOCUMENT_MAX_BYTES,
+        description="Original TXT/MD/CSV content; maximum 10 MB (10,000,000 UTF-8 bytes).",
     )
 
     @field_validator("filename")
@@ -136,12 +139,19 @@ class DocumentWrite(Input):
     @field_validator("text")
     @classmethod
     def byte_limit(cls, value):
-        if len(value.encode("utf-8")) > 200000:
-            raise ValueError("Text limit is 200000 UTF-8 bytes")
+        if len(value.encode("utf-8")) > DOCUMENT_MAX_BYTES:
+            raise ValueError("Text limit is 10000000 UTF-8 bytes")
         return value
 
 
 class DocumentRead(DocumentWrite, RecordRead):
+    processing: Literal["stored_original"] = "stored_original"
+
+
+class DocumentSummaryRead(RecordRead):
+    title: str
+    filename: str
+    size_bytes: int
     processing: Literal["stored_original"] = "stored_original"
 
 

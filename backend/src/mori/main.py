@@ -60,7 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Mori API",
-        version="0.6.0",
+        version="0.7.0",
         description=DESCRIPTION,
         openapi_tags=TAGS,
         swagger_ui_parameters={
@@ -121,7 +121,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Check schema availability, not just whether a database accepts connections.
         session.execute(select(User).limit(0))
         session.execute(select(AccessToken.id).limit(0))
-        session.execute(select(ParkingRecord.id).limit(0))
+        session.execute(select(ParkingRecord).limit(0))
         for model in (SocialIdentity, AuthSession, OAuthFlow, LoginGrant, RefreshToken):
             session.execute(select(model).limit(0))
         session.execute(select(AccessChange).limit(0))

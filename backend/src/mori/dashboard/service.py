@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import literal, select, union_all
+from sqlalchemy import func, literal, select, union_all
 
 from mori.features.models import Feature, FeatureResult
 from mori.organizer.models import CalendarEvent, Document, Note, Reminder
@@ -33,7 +33,7 @@ def library(session, user_id, kind, limit, offset):
                 model.id,
                 literal(name).label("kind"),
                 model.title,
-                field.label("description"),
+                func.left(field, 160).label("description"),
                 model.updated_at,
             ).where(model.user_id == user_id, model.deleted_at.is_(None))
         )
@@ -77,7 +77,7 @@ def timeline(session, user_id, hours, now, limit):
         url,
         availability="available",
     ):
-        current = show_from <= now < show_until
+        current = show_from <= now and (show_until is None or now < show_until)
         if not current and (hours == 0 or not now <= at < until):
             return
         entries.append(
@@ -165,18 +165,51 @@ def timeline(session, user_id, hours, now, limit):
         )
         .order_by(Feature.id)
     )
-    start_day = now.astimezone(zone).date() - timedelta(days=1)
-    end_day = until.astimezone(zone).date() + timedelta(days=1)
+    if parking and parking.display_mode == "always":
+        add(
+            "parking",
+            parking.id,
+            "출근용 주차 위치" if parking.purpose == "commute" else "외부 주차 위치",
+            " ".join(v for v in (parking.floor, parking.zone, parking.spot) if v),
+            parking.recorded_at,
+            parking.recorded_at,
+            None,
+            "display",
+            "/v1/parking-records/latest",
+        )
+    schedule = parking.display_schedule if parking else None
+    parking_zone = ZoneInfo(schedule["timezone"]) if schedule else zone
+    start_day = now.astimezone(parking_zone).date() - timedelta(days=1)
+    end_day = until.astimezone(parking_zone).date() + timedelta(days=1)
     day = start_day
     while day <= end_day:
-        if (
+        if parking and parking.display_mode == "scheduled" and schedule:
+            at = wall_time(day, schedule["time"], parking_zone)
+            if (
+                at
+                and day.weekday() in schedule["days"]
+                and at + timedelta(minutes=schedule["duration_minutes"]) > parking.recorded_at
+            ):
+                add(
+                    "parking",
+                    parking.id,
+                    "출근용 주차 위치" if parking.purpose == "commute" else "외부 주차 위치",
+                    " ".join(v for v in (parking.floor, parking.zone, parking.spot) if v),
+                    at,
+                    max(at, parking.recorded_at),
+                    at + timedelta(minutes=schedule["duration_minutes"]),
+                    "display",
+                    "/v1/parking-records/latest",
+                )
+        elif (
             parking
+            and parking.display_mode == "scheduled"
             and prefs.parking_enabled
             and prefs.commute_time
             and day.weekday() in prefs.commute_days
         ):
             commute = wall_time(day, prefs.commute_time, zone)
-            if commute:
+            if commute and commute + timedelta(hours=1) > parking.recorded_at:
                 at = commute - timedelta(minutes=prefs.parking_lead_minutes)
                 add(
                     "parking",
@@ -184,7 +217,7 @@ def timeline(session, user_id, hours, now, limit):
                     "출근길 주차 위치",
                     " ".join(v for v in (parking.floor, parking.zone, parking.spot) if v),
                     at,
-                    at,
+                    max(at, parking.recorded_at),
                     commute + timedelta(hours=1),
                     "display",
                     "/v1/parking-records/latest",

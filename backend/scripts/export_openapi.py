@@ -14,8 +14,8 @@ app = create_app(Settings(database_url="postgresql+psycopg://schema@localhost/sc
 rendered = json.dumps(app.openapi(), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 target = Path(__file__).resolve().parents[1] / "docs" / "openapi.json"
 if args.check:
-    if not target.exists() or target.read_text() != rendered:
+    if not target.exists() or target.read_text(encoding="utf-8") != rendered:
         raise SystemExit("OpenAPI differs: run uv run python scripts/export_openapi.py")
 else:
     target.parent.mkdir(exist_ok=True)
-    target.write_text(rendered)
+    target.write_text(rendered, encoding="utf-8")

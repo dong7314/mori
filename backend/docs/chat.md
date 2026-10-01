@@ -145,9 +145,16 @@ uv run python scripts/test_chat.py --base-url http://127.0.0.1:8000 \
 SSE 구현과 이벤트 형식을 대조했다. 실제 k3s/GPU에서 자연어 저장→조회→cold start SSE까지는
 서버 배포 후 위 클라이언트로 확인해야 한다.
 
-## 0.6.0 화면 데이터와 기능 실행 확장
+## 화면 데이터와 기능 실행 확장
 
 [현재 화면 API 계약](screen-api.md)이 이 문서의 주차 전용 action 범위를 확장한다.
+
+0.7.0의 주차 입력은 purpose(출근용/외부), display_mode(상시/지정 시간),
+display_schedule(시각·시간대·요일·기간)을 지원한다. 단순 위치 기억은 상시 표시하며
+명시한 시각이나 확인된 문맥 없이 출근 시간·요일을 만들어내지 않도록 지시한다.
+저장 후 `action.completed.result`에는 실제 저장한 표시 설정이 포함된다.
+표시 설정 저장은 기기 알림이나 Hermes cron 등록을 의미하지 않는다.
+실제 GPU 모델의 새 입력 해석은 배포 후 검증해야 한다.
 채팅은 note_save/event_save/reminder_save/feature_save/feature_run도 검증한다.
 메시지 body의 선택적 feature_id는 같은 사용자 소유의 활성 기능만 허용한다.
 Hermes가 feature_run을 선택하면 서버가 정의 버전을 고정해 한 번 더 요청하며,

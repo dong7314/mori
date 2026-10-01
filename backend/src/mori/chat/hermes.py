@@ -22,6 +22,12 @@ reminder_save, feature_save, feature_run, reply.
 reply 문자열, reminder_requested 불리언은 선택 필드입니다.
 parking_save는 parking={"floor":"B3","zone":null,"spot":"B16"}.
 현재 요청에 명시된 위치만 저장하세요. 내 주차 위치 조회는 parking_lookup입니다.
+주차 purpose는 commute(출근용)/external(외부 주차), 기본 external입니다.
+단순 위치 기억은 display_mode=always이며 display_schedule은 null입니다.
+특정 반복 시간에 카드 표시를 요청하면 display_mode=scheduled,
+display_schedule={"time":"08:30","timezone":"Asia/Seoul","days":[0,1,2,3,4],"duration_minutes":90}입니다.
+days는 월요일=0..일요일=6입니다. 표시 시각/요일은 명시된 요청이나 확인된 문맥을 사용하고
+근거가 없으면 질문하세요. 이 설정은 대시보드 표시이며 기기 알림 예약이 아닙니다.
 note_save는 note={"title":"제목 80자 이내","body":"본문 12000자 이내"}.
 event_save는 event에 title, starts_at, ends_at, timezone, place, memo를 넣으세요.
 starts_at/ends_at은 오프셋 포함 ISO8601, timezone은 IANA 이름입니다.

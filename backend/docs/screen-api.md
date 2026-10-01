@@ -1,6 +1,6 @@
-# PoC 화면 연결 API — 0.6.0
+# PoC 화면 연결 API — 0.7.0
 
-기준: 2026-09-30 PoC의 5개 탭과 화면 기획서. `master` 백엔드에 구현했으며 PoC의 localStorage 코드를 서버 호출로 교체하거나 운영 k3s에 배포한 것은 아니다. API 실행 후 [Scalar](http://localhost:8000/scalar), [Swagger UI](http://localhost:8000/docs) 또는 [OpenAPI JSON](openapi.json)에서 입력·응답 타입을 확인한다. 웹 문서 상단에 인증·멱등 키·revision·SSE 사용법을 함께 표시한다.
+기준: 2026-10-02, PoC의 5개 탭과 화면 기획서. 주차 표시 방식과 문서 10MB 지원을 추가했다. `master` 백엔드에 구현했으며 PoC의 localStorage 코드를 서버 호출로 교체하거나 운영 k3s에 배포한 것은 아니다. API 실행 후 [Scalar](http://localhost:8000/scalar), [Swagger UI](http://localhost:8000/docs) 또는 [OpenAPI JSON](openapi.json)에서 입력·응답 타입을 확인한다. 웹 문서 상단에 인증·멱등 키·revision·SSE 사용법을 함께 표시한다.
 
 ## 화면별 연결
 
@@ -22,7 +22,8 @@
 | 마이 · 테마 | `GET/PUT /v1/me/settings` | system/light/dark 테마만 저장 |
 | 마이 · 요금제 | `GET /v1/plans`, `GET /v1/me/subscription` | 무료·Pro 안내, 이용권과 결제 상태 구분. 실제 결제·해지는 준비 중 |
 | 문서 보관 | `GET/POST /v1/documents`, `GET/DELETE /v1/documents/{id}`, `GET /{id}/download` | TXT/MD/CSV 원문 저장·다운로드 |
-| 주차·로그인·Pro | 기존 계약 유지 | 주차 저장/최신 조회, 네이버·카카오, 최고 관리자 승인 |
+| 주차 | `POST /v1/parking-records`, `GET /v1/parking-records/latest` | 위치·출근용/외부·상시/시간 표시 저장·최신 조회 |
+| 로그인·Pro | 기존 계약 유지 | 네이버·카카오, 최고 관리자 승인 |
 
 표의 `/{id}/…`는 같은 행의 리소스 경로 뒤에 붙인다. 기능 실행은 별도 검색 API를 만들지 않고 채팅 진입점을 사용한다. `stock` 기능 정의는 저장할 수 있지만 시세 공급자가 없어 실행하면 `503 MARKET_DATA_NOT_CONFIGURED`다. 기본 기능 카탈로그 조회는 사용자별 설정을 임의로 생성하지 않는다.
 
@@ -43,7 +44,8 @@
 응답은 `groups[].items[]`에 안정적인 occurrence `key`, `resource_id`, `kind`, 제목/설명, `at`, `show_from/show_until`, `current`, `action`, `availability`, `detail_url`을 제공한다. `action`은 `display`, `appointment`, `notify`, `execute`로 표시·약속·알림·작업 시각을 구분한다.
 
 - 이미 표시 중인 항목은 current 그룹에, 이후 항목은 사용자 시간대의 6시간 구간에 들어간다. 미래 기준은 시작 포함·종료 제외다.
-- 현재 표시 정책: 일정 시작 150분 전부터 종료까지, 알림 목표 90분 전부터 목표 순간까지, 주차는 설정한 출근 전 간격부터 출근 1시간 뒤까지다. 기능 시간 설정은 기준 시각부터 90분 동안 보인다. 이는 이번 구현의 명시적 기본 정책이며 운영 정책으로 확정하려면 제품 검토가 필요하다.
+- 현재 표시 정책: 일정 시작 150분 전부터 종료까지, 알림 목표 90분 전부터 목표 순간까지다. 새 주차 기록은 상시 또는 지정한 요일·시각·기간에 표시한다. 기능 시간 설정은 기준 시각부터 90분 동안 보인다.
+- 주차는 [주차 계약](parking-api.md)의 purpose/display_mode/display_schedule을 사용한다. 상시 표시의 `show_until`은 null이며 임의 만료 시각을 만들지 않는다. 최신 위치 하나를 표시하고 구간 도중 저장하면 바로 보인다. 0007 이전 기록만 기존 출근 문맥을 사용한다.
 - 출근 시각은 기본 null이다. 입력 근거 없이 09:00 출근이나 습관 학습을 가정하지 않는다. 이 정보는 내부 비서 문맥이며 마이 설정 API로 변경하지 않는다. 기존 저장값은 보존하고, 새 사용자 문맥의 생성·학습 연결은 별도 작업이다. `commute_days`는 월요일=0…일요일=6이며 주차 카드가 표시되는 **출근 날짜** 기준이다. 자정 이전에 시작하는 표시도 처리한다.
 - 한 번 실행 설정에는 실제 날짜가 필요하다. 날짜 없는 ‘한 번’을 매일 반복으로 바꾸지 않는다. timezone과 daily/weekdays 반복을 저장하며 DST에 없는 시각은 건너뛰고 중복 시각은 첫 번째를 사용한다.
 - 중지된 기능, 취소된 알림, 삭제된 기록은 제외한다. 조회는 Hermes 호출, 뉴스 수집, 기능 결과 생성, 예약 완료 갱신을 하지 않는다.
@@ -122,13 +124,15 @@ curl --fail-with-body "$MORI_API_BASE/v1/dashboard?hours=24" \
 
 ## 문서와 외부 기능의 현재 범위
 
-문서는 filename과 text를 JSON으로 보내는 원문 보관 API다. UTF-8 200,000바이트 이내 TXT/MD/CSV만 받고 본문의 앞뒤 공백도 보존한다. 다운로드는 항상 첨부 text/plain이다. 실제 AI 요약·DOCX/XLSX/HWP/PDF 업로드·변환은 아직 연결하지 않았다. Hermes 이미지에 문서 라이브러리가 있는 것과 사용자 문서 서비스가 연결된 것은 별개다.
+문서는 filename과 text를 JSON으로 보내는 원문 보관 API다. text의 UTF-8 크기 **10,000,000바이트(10MB) 이내** TXT/MD/CSV만 받고 본문의 앞뒤 공백도 보존한다. JSON 헤더·파일명 등은 원문 크기에 포함하지 않는다. 다운로드는 항상 첨부 text/plain이다. 실제 AI 요약·DOCX/XLSX/HWP/PDF 업로드·변환은 아직 연결하지 않았다. Hermes 이미지에 문서 라이브러리가 있는 것과 사용자 문서 서비스가 연결된 것은 별개다.
+
+0.7.0의 `GET /v1/documents`는 id/title/filename/size_bytes/revision/created_at/updated_at/deleted_at/processing을 반환하며 text는 제외한다. 원문은 `GET /v1/documents/{id}` 또는 download에서 받는다. 생성·삭제·복원 응답은 기존 DocumentRead를 유지한다. 보관함·대시보드 최근 기록은 DB에서 160자까지만 읽어 목록 조회에 큰 원문을 전송하지 않는다. 프론트는 목록 응답의 text 대신 상세 API를 사용해야 한다.
 
 뉴스는 검색 가능한 Hermes와 연결한 기능을 수동으로 실행하여 텍스트 결과를 보관할 수 있다. 정기 수집·기사별 구조화 데이터·가격 공급자·휴장/지연 시세·OS 알림·기기 토큰·결제는 이번 구현에 없다. Pro 권한은 기존 최고 관리자 승인 방식이다.
 
 ## 적용과 검증
 
-새 API 이미지와 `0006_account_settings`까지의 마이그레이션이 필요하다. Hermes 이미지 변경은 필요하지 않다. 운영 Secret은 기존 방식으로 유지한다.
+새 API 이미지와 `0007_parking_display`까지의 마이그레이션이 필요하다. Hermes 이미지 변경은 필요하지 않지만 새 작업 입력은 실제 모델로 확인해야 한다. 운영 Secret은 기존 방식으로 유지한다. 파일 요청을 통과시키는 프록시에는 JSON 인코딩·메타데이터를 포함할 수 있도록 원문 10MB보다 큰 body 한도가 필요하다.
 
 ```sh
 cd backend
@@ -139,7 +143,11 @@ uv run uvicorn mori.main:create_app --factory --host 127.0.0.1 --port 8000 --no-
 
 마이그레이션은 기존 사용자·주차·대화를 보존하고 신규 테이블 및 대화 메타데이터를 추가한다. 0004로 되돌리면 이번 신규 기록/정의/결과와 대화의 고정·삭제 메타데이터는 제거된다. 삭제된 대화가 다시 보일 수 있으므로 운영 데이터가 생긴 후 다운그레이드는 데이터 정책 검토가 필요하다.
 
+0007에서 0006으로 내리면 새 주차 용도·표시 설정이 삭제되며 재업그레이드해도 복원되지 않는다. 기존 위치·시각·요청 키·해시는 유지하고 기존 출근 표시 방식으로 처리한다. `/health/ready`는 새 주차 컬럼을 확인하므로 0007 미적용 DB에는 503이다.
+
 검증은 실제 PostgreSQL의 별도 테스트 DB에서 마이그레이션/롤백, 인증·소유권, 동시 멱등 생성, 수정 충돌, 삭제 복원, 날짜 경계, 대시보드의 읽기 전용 계산, 문서 원문과 다운로드, 채팅 저장 및 기능 선택/결과를 확인한다. Hermes HTTP는 MockTransport로 대체하므로 실제 GPU 모델의 새 JSON 계약 준수와 k3s 왕복은 배포 후 별도 검증이 필요하다.
+
+0.7.0 검증(2026-10-02): PostgreSQL 18의 별도 테스트 DB에서 전체 204개 통과. 기존 기록과 재전송 해시 보존·스키마 불일치 readiness, 상시 카드의 동일 key, 요일/자정/종료 경계, 채팅 표시 설정 저장, 10,000,000바이트 원문의 재전송·다운로드·사용자 격리와 초과 거부를 확인했다. Ruff와 OpenAPI 일치 검사도 통과했다. 이번 변경의 이미지 빌드·Harbor push·운영 배포·실제 GPU 호출은 수행하지 않았다.
 
 2026-09-30 검증 결과: 전체 테스트 176개 통과, 대화 결과 링크 보존 검증 5개 추가 재실행 통과, Ruff·OpenAPI 일치 검사 통과. 로컬 `mori-backend:screen-api-0.6.0` 이미지 빌드 후 테스트 DB에 0005를 적용하고 `/health/live`, `/health/ready`의 200 응답과 인증 없는 사용자 API의 401 응답을 확인했다. 이 이미지는 로컬 검증용이며 Harbor push나 운영 배포는 수행하지 않았다.
 

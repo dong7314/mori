@@ -20,8 +20,13 @@ def save_parking(
     commit: bool = True,
 ) -> tuple[ParkingRecord, bool]:
     values = payload.model_dump()
+    hash_values = dict(values)
+    # Preserve location-only retry hashes issued before display options existed.
+    if payload.purpose == "external" and payload.display_mode == "always":
+        for field in ("purpose", "display_mode", "display_schedule"):
+            hash_values.pop(field)
     request_hash = hashlib.sha256(
-        json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        json.dumps(hash_values, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     # The unique constraint arbitrates concurrent retries across processes/Pods.
     record = session.scalar(

@@ -427,7 +427,8 @@
             "type": "integer"
           },
           "text": {
-            "maxLength": 200000,
+            "description": "Original TXT/MD/CSV content; maximum 10 MB (10,000,000 UTF-8 bytes).",
+            "maxLength": 10000000,
             "minLength": 1,
             "title": "Text",
             "type": "string"
@@ -456,6 +457,70 @@
         "title": "DocumentRead",
         "type": "object"
       },
+      "DocumentSummaryRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "processing": {
+            "const": "stored_original",
+            "default": "stored_original",
+            "title": "Processing",
+            "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "created_at",
+          "updated_at",
+          "title",
+          "filename",
+          "size_bytes"
+        ],
+        "title": "DocumentSummaryRead",
+        "type": "object"
+      },
       "DocumentWrite": {
         "additionalProperties": false,
         "properties": {
@@ -466,7 +531,8 @@
             "type": "string"
           },
           "text": {
-            "maxLength": 200000,
+            "description": "Original TXT/MD/CSV content; maximum 10 MB (10,000,000 UTF-8 bytes).",
+            "maxLength": 10000000,
             "minLength": 1,
             "title": "Text",
             "type": "string"
@@ -1472,6 +1538,25 @@
           }
         ],
         "properties": {
+          "display_mode": {
+            "default": "always",
+            "enum": [
+              "always",
+              "scheduled"
+            ],
+            "title": "Display Mode",
+            "type": "string"
+          },
+          "display_schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParkingDisplaySchedule"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "floor": {
             "anyOf": [
               {
@@ -1485,6 +1570,15 @@
               }
             ],
             "title": "Floor"
+          },
+          "purpose": {
+            "default": "external",
+            "enum": [
+              "commute",
+              "external"
+            ],
+            "title": "Purpose",
+            "type": "string"
           },
           "spot": {
             "anyOf": [
@@ -1518,8 +1612,63 @@
         "title": "ParkingCreate",
         "type": "object"
       },
+      "ParkingDisplaySchedule": {
+        "additionalProperties": false,
+        "properties": {
+          "days": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 7,
+            "minItems": 1,
+            "title": "Days",
+            "type": "array"
+          },
+          "duration_minutes": {
+            "default": 90,
+            "maximum": 1440.0,
+            "minimum": 1.0,
+            "title": "Duration Minutes",
+            "type": "integer"
+          },
+          "time": {
+            "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Time",
+            "type": "string"
+          },
+          "timezone": {
+            "default": "Asia/Seoul",
+            "maxLength": 64,
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "time"
+        ],
+        "title": "ParkingDisplaySchedule",
+        "type": "object"
+      },
       "ParkingRead": {
         "properties": {
+          "display_mode": {
+            "enum": [
+              "always",
+              "scheduled"
+            ],
+            "title": "Display Mode",
+            "type": "string"
+          },
+          "display_schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParkingDisplaySchedule"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "floor": {
             "anyOf": [
               {
@@ -1534,6 +1683,14 @@
           "id": {
             "format": "uuid",
             "title": "Id",
+            "type": "string"
+          },
+          "purpose": {
+            "enum": [
+              "commute",
+              "external"
+            ],
+            "title": "Purpose",
             "type": "string"
           },
           "recorded_at": {
@@ -1569,7 +1726,10 @@
           "floor",
           "zone",
           "spot",
-          "recorded_at"
+          "recorded_at",
+          "purpose",
+          "display_mode",
+          "display_schedule"
         ],
         "title": "ParkingRead",
         "type": "object"
@@ -2074,9 +2234,16 @@
             "type": "string"
           },
           "show_until": {
-            "format": "date-time",
-            "title": "Show Until",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Until"
           },
           "title": {
             "title": "Title",
@@ -2186,7 +2353,7 @@
   "info": {
     "description": "\nPoC의 대시보드·스케줄·대화·기능·마이 화면을 위한 Mori API입니다.\n\n### 요청을 시험하는 방법\n- 로그인 없이 명세를 읽을 수 있습니다. 공개 API인 `GET /health/live`부터 실행해 보세요.\n- 사용자 API는 **네이버·카카오 로그인으로 발급한 Mori 액세스 토큰**이 필요합니다.\n  Authentication / Authorize의 HTTPBearer에 `Bearer ` 접두어 없이 토큰만 입력하세요.\n- `Idempotency-Key`가 필수인 요청은 UUID를 입력합니다.\n  새 작업에는 새 UUID를, 통신 실패로 같은 작업을 재시도할 때는 기존 UUID를 사용하세요.\n- 수정·삭제에는 조회한 `revision`이 필요합니다. 충돌하면 다시 조회한 뒤 수정하세요.\n- 날짜와 시각에는 `+09:00` 또는 `Z` 같은 UTC 오프셋을 포함하세요.\n- 채팅 응답은 `text/event-stream`(SSE)입니다. 화면에서 계속 대기할 수 있으며,\n  실제 작업 결과는 메시지 기록 및 실행 기록 API에서도 확인할 수 있습니다.\n\n### 구현 범위\n일정·메모·알림 목표·사용자 기능 정의와 결과를 저장합니다. 실제 예약 실행, 기기 푸시,\n주가 공급자와 Office 문서 변환은 아직 연결되지 않았습니다.\n요청 실행은 현재 연결된 API의 데이터를 실제로 변경합니다.\n",
     "title": "Mori API",
-    "version": "0.6.0"
+    "version": "0.7.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -4368,7 +4535,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/DocumentRead"
+                    "$ref": "#/components/schemas/DocumentSummaryRead"
                   },
                   "title": "Response List Items V1 Documents Get",
                   "type": "array"

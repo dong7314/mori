@@ -143,7 +143,7 @@ API 0.5.0은 사용자별 대화, 실제 실행 상태 SSE, Hermes 요청 해석
 사용하며 새 API 이미지와 `0004_chat` migration이 필요하다. 예약 실행과 개인 Pod 자동 생성은
 이번 범위에 포함하지 않는다.
 
-## PoC 화면 API (0.6.0)
+## PoC 화면 API (0.7.0)
 
 [화면별 API 계약과 연결 예제](docs/screen-api.md)를 추가했다. 대시보드 시간 범위, 보관함,
 메모·일정·알림 목표, 사용자 설정, 기능 정의/버전/결과, 대화 정리를 PostgreSQL에 저장한다.
@@ -152,3 +152,8 @@ API 0.5.0은 사용자별 대화, 실제 실행 상태 SSE, Hermes 요청 해석
 미연결 상태이며, PoC의 localStorage 교체와 운영 배포는 별도 작업이다.
 
 마이 탭은 `GET/PATCH /v1/me`, `GET/PUT /v1/me/settings`, `GET /v1/plans`, `GET /v1/me/subscription`으로 정리했다. 이전 `/me/preferences`, `/me/summary`는 제거했으며 `0006_account_settings` 마이그레이션을 적용한다. 결제사 미연결 상태에서는 실제 결제·해지가 실행되지 않는다.
+
+0.7.0은 [주차 용도·상시/시간 표시](docs/parking-api.md), UTF-8 10MB 텍스트 문서,
+원문을 제외한 문서 목록을 추가한다. 기존 주차 기록의 표시 방식과 요청 재전송 해시는
+`0007_parking_display`로 보존한다. 새 API 실행 전에 `uv run alembic upgrade head`를 적용한다.
+PostgreSQL을 계속 사용하며 DB 교체나 운영 배포는 수행하지 않았다.

@@ -15,6 +15,7 @@ from mori.dashboard.service import wall_time
 from mori.organizer.models import Note, UserPreference
 from mori.organizer.schemas import AssistantPreferences, NoteRead, NoteWrite
 from mori.organizer.service import create_record, idempotent_create
+from mori.parking.models import ParkingRecord
 
 
 @pytest.fixture
@@ -219,7 +220,8 @@ def test_document_original_download_no_fake_summary_and_size(client, accounts):
         == 404
     )
     assert (
-        create(client, accounts, "documents", {**payload, "text": "가" * 66667}).status_code == 422
+        create(client, accounts, "documents", {**payload, "text": "가" * 3333334}).status_code
+        == 422
     )
     for filename in ("../secret.txt", "test.docx", "test\r\nheader.txt"):
         assert (
@@ -334,7 +336,12 @@ def test_dashboard_windows_boundary_and_read_only(client, accounts):
 
 def test_parking_display_uses_existing_assistant_context(client, accounts, sessions):
     h = accounts["alice"]["headers"]
-    create(client, accounts, "parking-records", {"floor": "B3", "spot": "B16"})
+    created = create(client, accounts, "parking-records", {"floor": "B3", "spot": "B16"}).json()
+    # Simulate a record migrated from 0.6, which still uses its original commute context.
+    with sessions.begin() as session:
+        row = session.get(ParkingRecord, created["id"])
+        row.purpose, row.display_mode = "commute", "scheduled"
+        row.recorded_at = datetime(2026, 9, 1, tzinfo=UTC)
     query = {"at": "2026-10-01T08:40:00+09:00"}
     assert cards(client.get("/v1/dashboard", params=query, headers=h)) == []
     with sessions.begin() as session:

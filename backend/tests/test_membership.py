@@ -344,4 +344,9 @@ def test_upgrade_preserves_existing_user_session_and_parking_as_free(client, acc
     me = client.get("/v1/me", headers=alice["headers"])
     assert me.status_code == 200
     assert me.json()["tier"] == "free" and me.json()["role"] == "user"
-    assert client.get("/v1/parking-records/latest", headers=alice["headers"]).json() == saved.json()
+    restored = client.get("/v1/parking-records/latest", headers=alice["headers"]).json()
+    # Downgrading below 0007 removes display options; re-upgrade restores legacy semantics.
+    for field in ("id", "floor", "zone", "spot", "recorded_at"):
+        assert restored[field] == saved.json()[field]
+    assert restored["purpose"] == "commute" and restored["display_mode"] == "scheduled"
+    assert restored["display_schedule"] is None

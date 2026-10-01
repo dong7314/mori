@@ -20,7 +20,7 @@ class TimelineItem(BaseModel):
     description: str
     at: datetime
     show_from: datetime
-    show_until: datetime
+    show_until: datetime | None
     current: bool
     action: Literal["appointment", "notify", "display", "execute"]
     availability: Literal["available", "delivery_not_configured", "automation_not_configured"]

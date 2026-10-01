@@ -164,6 +164,14 @@ def finish(factory, run_id, user_id: UUID, decision):
             result = ParkingRead.model_validate(record).model_dump(mode="json")
             location = " ".join(v for v in (record.floor, record.zone, record.spot) if v)
             answer = f"주차 위치를 {location}(으)로 저장했어요."
+            if record.display_mode == "always":
+                answer += " 새 위치를 저장하기 전까지 대시보드에 계속 표시해요."
+            else:
+                schedule = record.display_schedule
+                answer += (
+                    f" {schedule['timezone']} 기준 {schedule['time']}부터 "
+                    "정한 요일에 카드로 표시해요."
+                )
         elif decision.action == "parking_lookup":
             try:
                 record = latest_parking(session, user_id)

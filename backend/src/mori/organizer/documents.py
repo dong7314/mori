@@ -3,14 +3,14 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Header, Query, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from mori.auth.dependencies import CurrentUser
 from mori.database import DatabaseSession
 from mori.errors import PRIVATE_API_RESPONSES
 from mori.organizer import service
 from mori.organizer.models import Document
-from mori.organizer.schemas import DocumentRead, DocumentWrite, Revision
+from mori.organizer.schemas import DocumentRead, DocumentSummaryRead, DocumentWrite, Revision
 
 router = APIRouter(responses=PRIVATE_API_RESPONSES, prefix="/v1/documents", tags=["documents"])
 
@@ -33,16 +33,25 @@ def create(
     )
 
 
-@router.get("", response_model=list[DocumentRead])
+@router.get("", response_model=list[DocumentSummaryRead])
 def list_items(
     user: CurrentUser,
     session: DatabaseSession,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0, le=100000),
 ):
-    return list(
-        session.scalars(
-            select(Document)
+    return (
+        session.execute(
+            select(
+                Document.id,
+                Document.title,
+                Document.filename,
+                func.octet_length(Document.text).label("size_bytes"),
+                Document.revision,
+                Document.created_at,
+                Document.updated_at,
+                Document.deleted_at,
+            )
             .where(
                 Document.user_id == user.id,
                 Document.deleted_at.is_(None),
@@ -51,6 +60,8 @@ def list_items(
             .offset(offset)
             .limit(limit)
         )
+        .mappings()
+        .all()
     )
 
 
