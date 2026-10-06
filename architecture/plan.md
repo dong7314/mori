@@ -2,16 +2,24 @@
 
 [전체 계획으로 돌아가기](../plan.md)
 
-갱신일: 2026-09-30 · 상태: 앱 우선 방향, 공용 Hermes의 Knative Serving 콜드 스타트와 유료 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
+갱신일: 2026-10-06 · 상태: React 웹 + RN 앱 방향, 공용 Hermes의 Knative Serving 콜드 스타트와 Pro 실행 환경의 유휴 중지·요청 시 재기동을 반영한 설계. 세부 자원·시간 값은 실측 전 제안이다. 기능·요금제의 기준은 [전체 계획](../plan.md)이며, 여기서는 실행 구조를 다룬다.
 
-`master` `1ba04c0`에 API 0.6.0/0006까지 구현했다. 인증된 채팅·SSE·주차 외에 화면 기록·기능 정의/버전/결과·대시보드·계정 설정을 추가했고 별도 검색 API는 없다.
+`master` `53b0fa6`에 API 0.7.0/0007까지 구현했다. 인증된 채팅·SSE·주차 외에 화면 기록·기능 정의/버전/결과·대시보드·계정 설정, 주차 표시 규칙과 텍스트 문서 10MB를 추가했고 별도 검색 API는 없다.
 Harbor 등록·일반 YAML 배포·실제 Hermes Knative 기동과 종료는 사용자 출력으로 확인했다.
 새 Mori API의 실제 배포/통합은 아직 하지 않았다. [최신 현장 기록](hermes-knative-validation-2026-09-29.md) ·
-[백엔드 기능 상태](../back/screen-api-implementation-2026-09-30.md).
+[백엔드 기능 상태](../back/plan.md) · [0.7.0 변경](../back/parking-document-update-2026-10-02.md).
 
 아래 Mori Worker·Runtime Controller·사용자별 Pod/PVC 자동 생성은 장기 설계다.
 현재 API는 사전 배정된 runtime URL을 선택해 요청하며 Kubernetes 관리 권한을 사용하지 않는다.
 공용 home은 단일 소유자만 허용하고, Pro 승인만으로 개인 Pod가 생성되지 않는다.
+
+## React 웹·RN 앱과 배포 경계
+
+제품은 React + TypeScript 반응형 웹을 React Native 앱의 WebView에서 재사용한다. 5탭과 도메인 화면은 웹, 기기 권한·녹음·로그인 복귀·공유는 RN/네이티브, OS 위젯은 별도 확장으로 구현한다. 브라우저도 같은 웹과 API를 사용하되 native 기능은 지원 여부에 맞게 안내한다. [공식 당근 사례 조사](../front/daangn-app-research-2026-10-02.md)와 [Mori 적용 설계](../front/react-native-webview-plan.md)를 구분한다.
+
+React 웹은 k3s/Harbor의 독립 release, RN 앱은 서명한 스토어 바이너리로 배포한다. 앱 build·웹 release·bridge·API 계약을 함께 기록하고 client-config로 호환되는 웹을 선택한다. RN JS OTA는 초기 범위에서 제외한다. [상세 배포·버전·복구 계획](app-release-versioning.md).
+
+웹 세션 계층·client-config·기기 등록/위젯 API는 [모바일 백엔드 계약](../back/mobile-client-contracts.md)의 신규 작업이다. 첫 구현은 기존 Mori 백엔드의 모듈로 시작할 수 있으며 기능마다 새 Pod를 만들지 않는다. 이 절은 배포 완료 현황이 아니다.
 
 ## 최신 제품 구조: 기능 정의·실행·표시의 분리
 
@@ -75,7 +83,7 @@ API 0.6.0은 기능 정의/버전·선택/결과 저장·대시보드 projection
 
 ## 현재 홈 네트워크와 배포 위치
 
-**현재 재개 상태(2026-09-30):** 공용 Hermes/SearXNG 재배포와 Hermes Knative 기동·정상 종료를 확인했다. 다음은 새 Mori API 이미지 등록·0006_account_settings까지 migration·배포와 실제 인증 사용자 요청의 통합 검증이다. 본문 추출은 같은 Hermes 이미지의 별도 venv에서 실행한다. [현장 기록](hermes-knative-validation-2026-09-29.md) · [채팅 구현](../back/chat-implementation-2026-09-29.md).
+**현재 재개 상태(2026-10-06):** 현장 검증 기록은 9월 29일의 공용 Hermes/SearXNG 재배포와 Hermes Knative 기동·정상 종료까지다. 이후 코드 기준의 다음 배포는 새 Mori API 이미지 등록·0007_parking_display까지 migration·배포와 실제 인증 사용자 요청의 통합 검증이다. 본문 추출은 같은 Hermes 이미지의 별도 venv에서 실행한다. [현장 기록](hermes-knative-validation-2026-09-29.md) · [채팅 구현](../back/chat-implementation-2026-09-29.md).
 
 2026-09-17 사용자 설명과 2026-09-21 사용자가 제공한 k3s/설치 출력에 근거한다. AI가 원격 접속해 조사한 결과는 아니다. 다섯 장비 모두 ipTIME에 연결되어 있다. GPU 노트북의 주소 `192.168.0.8`, llama.cpp 포트 `8080`, API 키 설정은 사용자에게 확인했다. 두 k3s 노드의 버전은 `v1.34.3+k3s1`이며 IP·CPU·RAM과 Knative 배치는 확인됐다. 실제 전원·절전 정책과 저장소 여유/복구는 아직 검증하지 않았다.
 
@@ -125,7 +133,7 @@ model:
 
 ```mermaid
 flowchart TD
-    App[휴대폰·태블릿 앱 / React 인앱 UI] --> API[Mori API: 인증·업무 처리]
+    App[RN 앱 WebView / React 반응형 UI] --> API[Mori API: 인증·업무 처리]
     App <-->|앱 실행 시 브리지| Native[네이티브 녹음·권한·알림·딥링크]
     Native --> API
     Widget[OS 홈 화면 위젯] --> API
@@ -156,9 +164,9 @@ flowchart TD
     API --> Files
 ```
 
-위 그림은 목표 구조이며 배포 현황도가 아니다. 큐·Runtime Controller·계정별 home 격리는 아직 구현/검증 전이다. 실제 공용 Hermes Knative 기동·종료는 확인했다. 현재 연결은 [검색 실행 구조](hermes-search-runtime.md#3-현장에서-검증한-구조와-재배포-대상)를 참조한다. 그림의 상자는 논리적인 책임이다. 초기에는 단일 백엔드 코드베이스의 API·Worker·제어 프로세스로 구성한다. 제품은 휴대폰·태블릿 앱이며 브라우저는 개발·PoC 확인에 사용한다. 앱은 Mori API에 연결한다. Hermes·DB·Pod 관리 API는 클러스터 내부에 두고, GPU API는 별도 Linux 노트북의 사설 LAN에서 Mori 측 호출만 받는다.
+위 그림은 목표 구조이며 배포 현황도가 아니다. 큐·Runtime Controller·계정별 home 격리는 아직 구현/검증 전이다. 실제 공용 Hermes Knative 기동·종료는 확인했다. 현재 연결은 [검색 실행 구조](hermes-search-runtime.md#3-현장에서-검증한-구조와-재배포-대상)를 참조한다. 그림의 상자는 논리적인 책임이다. 초기에는 단일 백엔드 코드베이스의 API·Worker·제어 프로세스로 구성한다. 제품은 휴대폰·태블릿 앱과 같은 React 기반 반응형 웹으로 제공한다. 웹/앱은 Mori API에 연결한다. Hermes·DB·Pod 관리 API는 클러스터 내부에 두고, GPU API는 별도 Linux 노트북의 사설 LAN에서 Mori 측 호출만 받는다.
 
-React 인앱 UI와 네이티브 기능을 브리지로 연결하는 방안을 검증한다. 앱 컨테이너는 Capacitor와 React Native + WebView를 비교한 뒤 선택한다. OS 위젯은 별도 구현하고, 열린 WebView나 사용자 Hermes Pod에 의존하지 않는 조회 경로를 둔다. 화면·위젯·브리지는 실제 제품에서 사용자 담당이다. [프론트 앱 설계](../front/plan.md#9-os-기능과-반응형-검증).
+앱 컨테이너는 React Native + WebView로 정하고 버전이 있는 제한된 브리지로 기기 기능을 연결한다. OS 위젯은 별도 구현하고, 열린 WebView나 사용자 Hermes Pod에 의존하지 않는 조회 경로를 둔다. 위젯 갱신은 OS 제약을 고려하며 서버 표시 구간과 기기 전달 성공을 구분한다. 화면·위젯·브리지는 사용자 담당이며 AI는 요청한 구현/계약 작업을 지원한다. [프론트 앱 설계](../front/react-native-webview-plan.md).
 
 앱 UI·네이티브 알림 응답은 같은 인증된 작업·승인 API를 사용한다. 승인과 실행 상태는 서버에 보존하고, 앱 종료·재접속·여러 기기의 중복 응답을 처리한다. 앱/WebView/브리지 버전 호환은 앱 계약에서 검증한다.
 
