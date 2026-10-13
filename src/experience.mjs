@@ -4,23 +4,23 @@ export const uid = () => globalThis.crypto.randomUUID();
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const dateKey = date => { const d = new Date(date); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 export const BUILTINS = [
-  { id: 'parking', title: '주차 기록', subtitle: '내 차가 있는 곳, 잊지 않게', icon: 'car', color: 'green' },
-  { id: 'news', title: '뉴스 브리핑', subtitle: '내 관심사만 모아 간결하게', icon: 'news', color: 'blue' },
-  { id: 'stock', title: '관심 주가', subtitle: '궁금한 종목을 한눈에', icon: 'chart', color: 'rose' },
-  { id: 'note', title: '메모', subtitle: '떠오른 생각을 가볍게', icon: 'note', color: 'amber' },
-  { id: 'schedule', title: '스케줄', subtitle: '하루의 약속을 차근차근', icon: 'calendar', color: 'purple' },
-  { id: 'reminder', title: '알림', subtitle: '챙겨야 할 순간에 맞춰', icon: 'bell', color: 'orange' },
+  { id: 'parking', title: '주차 기록', subtitle: '층과 자리 번호 저장', icon: 'car', color: 'green' },
+  { id: 'news', title: '뉴스 브리핑', subtitle: '관심 주제의 요약과 출처', icon: 'news', color: 'blue' },
+  { id: 'stock', title: '관심 주가', subtitle: '관심 종목과 가격 확인', icon: 'chart', color: 'rose' },
+  { id: 'note', title: '메모', subtitle: '제목과 내용으로 기록', icon: 'note', color: 'amber' },
+  { id: 'schedule', title: '스케줄', subtitle: '일정 등록 · 월·주·일 보기', icon: 'calendar', color: 'purple' },
+  { id: 'reminder', title: '알림', subtitle: '남은 시간 확인', icon: 'bell', color: 'orange' },
 ];
 export function seed(real = Date.now()) {
   const start = new Date(real); start.setHours(8, 40, 0, 0); const today = dateKey(start);
   return { version: VERSION, clock: { real, virtual: start.getTime() }, profile: { name: '동엽', commute: '09:00', parkingLead: 30, notify: false, recent: true, reduced: false },
     parking: { floor: '지하 3층', spot: 'B16', at: start.getTime() - 36000000, show: '08:30', enabled: true },
-    notes: [{ id: 'note-weekend', title: '주말에 하고 싶은 것', body: '한강 따라 산책하기\n읽다 만 책 마저 읽기\n좋아하는 사람과 느긋한 저녁', at: start.getTime() - 86400000 }, { id: 'note-idea', title: '문득 떠오른 아이디어', body: '작은 부탁을 잊지 않고 챙겨주는 비서.\n내 하루에 자연스럽게 스며들면 좋겠다.', at: start.getTime() - 7200000 }],
+    notes: [{ id: 'note-weekend', title: '주말에 하고 싶은 것', body: '한강 따라 산책하기\n읽다 만 책 마저 읽기\n친구와 저녁 약속 잡기', at: start.getTime() - 86400000 }, { id: 'note-idea', title: '모리 화면 아이디어', body: '출근 전에는 주차 위치를 먼저 보여주기\n오늘 일정과 메모를 한 화면에서 확인하기', at: start.getTime() - 7200000 }],
     events: [{ id: 'event-design', title: '모리 디자인 미팅', date: today, time: '10:30', place: '온라인 · 화면 흐름 함께 보기', color: 'green' }, { id: 'event-lunch', title: '친구와 점심', date: today, time: '12:30', place: '성수동', color: 'orange' }, { id: 'event-walk', title: '저녁 산책', date: today, time: '19:00', place: '집 앞 공원', color: 'purple' }],
-    reminders: [], customs: [{ id: 'custom-evening', title: '퇴근 정리', description: '하루의 생각을 내일의 할 일로', work: '오늘 저장한 메모를 모아서 할 일을 정리하기', time: '19:00', repeat: '평일', icon: 'spark', active: true, version: 1, runs: 0, result: null }],
+    reminders: [], customs: [{ id: 'custom-evening', title: '퇴근 정리', description: '오늘 메모에서 할 일 정리', work: '오늘 저장한 메모를 모아서 할 일을 정리하기', time: '19:00', repeat: '평일', icon: 'spark', active: true, version: 1, runs: 0, result: null }],
     news: { topic: 'AI와 테크', time: '09:00', active: true, status: 'ready', at: start.getTime() - 86400000, generation: 0 },
     stock: { symbol: '삼성전자', active: true, time: '09:30', at: start.getTime() - 86400000 },
-    conversations: [{ id: 'chat-welcome', title: '아침을 조금 더 가볍게', at: start.getTime() - 86400000, messages: [{ role: 'user', text: '내일 출근할 때 주차 위치 알려줘.' }, { role: 'assistant', text: '출근 시간은 오전 9시로 설정되어 있어요. 오전 8시 30분부터 대시보드에 최신 주차 위치를 보여드릴게요.', ref: 'parking' }] }], documents: [] };
+    conversations: [{ id: 'chat-welcome', title: '출근 전 주차 위치 확인', at: start.getTime() - 86400000, messages: [{ role: 'user', text: '내일 출근할 때 주차 위치 알려줘.' }, { role: 'assistant', text: '출근 시간은 오전 9시로 설정되어 있어요. 오전 8시 30분부터 대시보드에 최신 주차 위치를 보여드릴게요.', ref: 'parking' }] }], documents: [] };
 }
 export const nowOf = (state, real = Date.now()) => state.clock.virtual + real - state.clock.real;
 export function setClock(state, hour, minute = 0, real = Date.now()) { const d = new Date(nowOf(state, real)); d.setHours(hour, minute, 0, 0); state.clock = { real, virtual: d.getTime() }; }
@@ -94,7 +94,7 @@ export function applyRequest(state, raw, now = nowOf(state)) {
     if (relative) target = now + Number(relative[1]) * 60000;
     else if (/\d+\s*시/.test(text)) { const d = new Date(now), [h, m] = parseTime(text).split(':').map(Number); d.setHours(h, m, 0, 0); if (d.getTime() <= now) d.setDate(d.getDate() + 1); target = d.getTime(); }
     else return { text: '언제 알려드릴까요? “30분 뒤에 알림 줘”라고 말해보세요.', followup: 'reminder' };
-    const r = { id: uid(), title: /물/.test(text) ? '물 한 잔 마시기' : /휴식|쉬/.test(text) ? '잠깐 쉬어가기' : '잊지 않고 챙길 시간', target, created: now, cancelled: false };
+    const r = { id: uid(), title: /물/.test(text) ? '물 한 잔 마시기' : /휴식|쉬/.test(text) ? '잠깐 쉬어가기' : relative ? `${Number(relative[1])}분 알림` : `${parseTime(text)} 알림`, target, created: now, cancelled: false };
     state.reminders.push(r); return { text: '알림을 이 기기에 저장했어요. 남은 시간을 상세 화면에서 확인하고 변경할 수 있어요.', ref: `reminder:${r.id}` };
   }
   if (/뉴스/.test(text)) {
@@ -117,6 +117,6 @@ export function applyRequest(state, raw, now = nowOf(state)) {
     return { text: '생각이 사라지기 전에 적어뒀어요. 대시보드의 기록과 정리에서 다시 꺼내볼 수 있어요.', ref: `note:${n.id}` };
   }
   const f = state.customs.find(f => text.includes(f.title));
-  if (f) { if (!f.active) return { text: `‘${f.title}’ 기능은 잠시 쉬고 있어요. 상세 화면에서 다시 켤 수 있어요.`, ref: `custom:${f.id}` }; runCustom(state, f.id, now); return { text: `‘${f.title}’ 기능으로 저장된 메모를 정리했어요. 결과에서 할 일을 체크해보세요.`, ref: `custom:${f.id}` }; }
-  return { text: /안녕|고마워/.test(text) ? '반가워요. 작은 기억부터 오늘의 약속까지, 함께 챙겨볼까요?' : '어떤 부탁을 할 수 있을지 같이 살펴볼까요? 이 체험에서는 주차 기억하기, 메모, 일정, 알림과 나만의 기능을 직접 만들어볼 수 있어요.' };
+  if (f) { if (!f.active) return { text: `‘${f.title}’ 기능은 중지되어 있어요. 상세 화면에서 다시 사용할 수 있어요.`, ref: `custom:${f.id}` }; runCustom(state, f.id, now); return { text: `‘${f.title}’ 기능으로 저장된 메모를 정리했어요. 결과에서 할 일을 체크해보세요.`, ref: `custom:${f.id}` }; }
+  return { text: /안녕|고마워/.test(text) ? '안녕하세요. 주차 위치를 저장하거나 메모와 일정을 추가할 수 있어요.' : '이 체험에서는 주차 위치 저장, 메모, 일정, 알림을 사용할 수 있어요. 예를 들어 “내일 오후 2시 회의 추가해줘”라고 입력하세요.' };
 }

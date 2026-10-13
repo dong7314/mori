@@ -3,10 +3,10 @@ import { eventDuration } from './calendar-model.mjs';
 import { parkingWindows, parkingPurpose } from './parking-display.mjs';
 
 export const DASHBOARD_WINDOWS = [
-  { hours: 0, label: '지금', description: '지금 필요한 카드만 간결하게' },
-  { hours: 3, label: '3시간', description: '곧 다가오는 부탁과 약속' },
-  { hours: 5, label: '5시간', description: '다음 일까지 여유 있게 살펴보기' },
-  { hours: 24, label: '하루', description: '지금부터 24시간을 한눈에' },
+  { hours: 0, label: '지금', description: '현재 표시 중인 정보' },
+  { hours: 3, label: '3시간', description: '지금부터 3시간 이내' },
+  { hours: 5, label: '5시간', description: '지금부터 5시간 이내' },
+  { hours: 24, label: '하루', description: '지금부터 24시간 이내' },
 ];
 
 const atTime = (day, time) => {
@@ -27,11 +27,11 @@ export function dashboardTimeline(state, hours, now = nowOf(state)) {
   while (day.getTime() <= until) {
     if (state.news.active) {
       const at = atTime(day, state.news.time);
-      add('news', at, at + 180 * 60000, { kind: 'news', title: '나만의 뉴스 브리핑', description: state.news.topic, icon: 'news', color: 'blue', action: '수집 시작', detail: '브리핑과 설정 보기' });
+      add('news', at, at + 180 * 60000, { kind: 'news', title: '뉴스 브리핑', description: state.news.topic, icon: 'news', color: 'blue', action: '수집 시작', detail: '브리핑과 설정 보기' });
     }
     if (state.stock.active) {
       const at = atTime(day, state.stock.time);
-      add('stock', at, atTime(day, '16:00'), { kind: 'stock', title: `${state.stock.symbol} 살펴보기`, description: '관심 종목을 확인하는 시간', icon: 'chart', color: 'rose', action: '카드 표시', detail: '관심 종목 보기' });
+      add('stock', at, atTime(day, '16:00'), { kind: 'stock', title: state.stock.symbol, description: '관심 주가', icon: 'chart', color: 'rose', action: '카드 표시', detail: '관심 종목 보기' });
     }
     for (const f of state.customs) {
       if (!f.active || !f.work || !f.time || (f.repeat === '평일' && [0, 6].includes(day.getDay()))) continue;
@@ -40,17 +40,17 @@ export function dashboardTimeline(state, hours, now = nowOf(state)) {
       // A one-off with no stored date belongs to the next occurrence, not every day.
       if (f.repeat === '한 번' && at < now) continue;
       if (f.repeat === '한 번' && entries.some(item => item.ref === `custom:${f.id}`)) continue;
-      add(`custom:${f.id}`, at, at + 90 * 60000, { kind: 'custom', title: f.title, description: f.description || f.work, icon: f.icon || 'spark', color: 'purple', action: '실행 예약', detail: '부탁과 실행 결과 보기' });
+      add(`custom:${f.id}`, at, at + 90 * 60000, { kind: 'custom', title: f.title, description: f.description || f.work, icon: f.icon || 'spark', color: 'purple', action: '실행 예약', detail: '작업과 실행 결과 보기' });
     }
     day.setDate(day.getDate() + 1);
   }
   for (const event of state.events) {
     const at = atTime(new Date(`${event.date}T12:00:00`), event.time);
-    add(`event:${event.id}`, at, at + eventDuration(event) * 60000, { kind: 'event', title: event.title, description: event.place || '나의 약속', icon: 'calendar', color: 'purple', action: '약속 시작', detail: '약속 자세히 보기' });
+    add(`event:${event.id}`, at, at + eventDuration(event) * 60000, { kind: 'event', title: event.title, description: event.place || '장소 미정', icon: 'calendar', color: 'purple', action: '약속 시작', detail: '약속 자세히 보기' });
   }
   for (const reminder of state.reminders) {
     if (reminder.cancelled || reminder.target < now) continue;
-    add(`reminder:${reminder.id}`, reminder.target, reminder.target + 1, { kind: 'reminder', title: reminder.title, description: '잊지 않도록 챙겨드릴게요.', icon: 'bell', color: 'orange', action: '알림 예정', detail: '남은 시간 확인하기' });
+    add(`reminder:${reminder.id}`, reminder.target, reminder.target + 1, { kind: 'reminder', title: reminder.title, description: '설정한 시각에 알림', icon: 'bell', color: 'orange', action: '알림 예정', detail: '남은 시간 확인하기' });
   }
   entries.sort((a, b) => a.at - b.at || a.ref.localeCompare(b.ref));
   const groups = new Map();
@@ -60,7 +60,7 @@ export function dashboardTimeline(state, hours, now = nowOf(state)) {
       const start = new Date(date); start.setHours(block * 6, 0, 0, 0);
       const end = new Date(start); end.setHours(end.getHours() + 6);
       const dayLabel = dateKey(date) === dateKey(now) ? '오늘' : '내일';
-      groups.set(key, { key, label: item.current ? '지금 확인할 수 있어요' : `${dayLabel} ${['새벽', '아침', '오후', '저녁'][block]}`,
+      groups.set(key, { key, label: item.current ? '지금 표시 중' : `${dayLabel} ${['새벽', '아침', '오후', '저녁'][block]}`,
         span: item.current ? '이 시간에 열려 있는 카드' : `${clock(Math.max(now, start.getTime()))} – ${clock(Math.min(until, end.getTime()))}`,
         icon: item.current ? 'spark' : ['moon', 'sun', 'sun', 'moon'][block], items: [] });
     }

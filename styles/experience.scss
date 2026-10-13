@@ -1,3 +1,5 @@
+@use 'ios-experience';
+@use 'adaptive-experience';
 @font-face { font-family: Pretendard; src: url('/assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
 $ink: var(--ink);
 $muted: var(--muted);
@@ -10,7 +12,7 @@ body { overflow: hidden; }
 button, input, textarea, select { font: inherit; color: inherit; }
 button { border: 0; background: none; cursor: pointer; touch-action: manipulation; }
 button:disabled { opacity: .4; cursor: default; }
-button:not(:disabled):active { transform: scale(.975); }
+button:not(:disabled):active { opacity: .8; }
 button, a, input, textarea, select { &:focus-visible { outline: 3px solid #7ba58e; outline-offset: 3px; } }
 button { transition: background .2s, transform .2s $ease; }
 h1, h2, h3, p { margin: 0; }
@@ -283,7 +285,7 @@ dialog { border: 0; padding: 0; color: $ink; background: #fafbf8; box-shadow: 0 
 .month-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-bottom: 8px; button { min-height: 56px; font-size: 15px; background: #eef2e8; border-radius: 16px; color: #829572; &.selected { color: white; background: #56794a; font-weight: 650; } } }
 
 @media (hover: hover) {
-  .feature-tile:hover, .agenda-event:hover { border-color: #bacdb0; box-shadow: 0 6px 18px #2e4c2010; transform: translateY(-2px); }
+  .feature-tile:hover, .agenda-event:hover { border-color: #bacdb0; }
   .calendar-grid button:not(.selected):hover .calendar-date-number, .choice-options button:hover, .small-icon:hover { background: #eff4e9; }
 }
 @media (min-width: 800px) {
@@ -374,7 +376,7 @@ dialog { border: 0; padding: 0; color: $ink; background: #fafbf8; box-shadow: 0 
 .time-card.news .news-card-art b { font-size: 19px; }
 @keyframes content-arrive { from { opacity: .5; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes mic-pulse { 0%, 100% { box-shadow: 0 0 0 7px #e9f0df; } 50% { box-shadow: 0 0 0 16px #d4e4c960; } }
-@media (hover: hover) { .record-row:hover, .conversation-row:hover, .custom-row:hover { background: #f4f7f0; } .quick-actions button:hover { transform: translateY(-3px); } }
+@media (hover: hover) { .record-row:hover, .conversation-row:hover, .custom-row:hover { background: #f4f7f0; } }
 @media (min-width: 800px) { .conversation-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; } .conversation-start { max-width: 540px; } #main[data-page=my] { max-width: 720px; margin-inline: auto; width: 100%; } }
 @media (max-width: 359px) { .conversation-start { padding: 16px 12px; .mori-small { display: none; } h2 { font-size: 15px; } } .feature-tile { padding: 16px 13px; h3 { font-size: 16px; } } .profile-summary { gap: 4px; .profile-art { width: 62px; img { left: -40px; width: 125px; top: 20px; } } h2 { font-size: 22px; } p { font-size: 11px; } } .detail-hero.parking-detail .parking-map { position: absolute; margin: 0; } .setting-copy small { font-size: 11px; } }
 
@@ -402,7 +404,7 @@ dialog { border: 0; padding: 0; color: $ink; background: #fafbf8; box-shadow: 0 
 .forecast-footnote { display: flex; align-items: flex-start; justify-content: center; gap: 6px; font-size: 11px; color: #7f9073; line-height: 1.7; margin: 22px 0 10px; .icon { width: 14px; height: 14px; margin-top: 2px; } }
 @keyframes window-open { from { opacity: 0; transform: translateY(-5px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes shelf-reveal { from { opacity: .4; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@media (hover: hover) { .window-menu button:hover { background: #f1f5ec; } .forecast-card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px #415c3210; } .shelf-nav button:not(:disabled):hover { background: #e9f0e2; } }
+@media (hover: hover) { .window-menu button:hover { background: #f1f5ec; } .shelf-nav button:not(:disabled):hover { background: #e9f0e2; } }
 @media (min-width: 700px) { .forecast-rail { margin-right: -36px; padding-right: 36px; } .forecast-summary { padding: 18px 24px; } .forecast-shelf > header { margin-bottom: 16px; } }
 @media (max-width: 359px) { .now-heading h2 { font-size: 16px; letter-spacing: -.65px; } .window-trigger { padding: 8px; font-size: 11px; gap: 4px; > .icon:first-child { display: none; } } .forecast-summary { padding: 15px; p { font-size: 12px; } } .forecast-rail { margin-right: -18px; padding-right: 18px; } .forecast-card { height: 260px; padding: 18px; } .forecast-shelf > header h3 { font-size: 17px; } }
 .time-window-picker { z-index: 20; }
@@ -477,3 +479,7 @@ dialog { border: 0; padding: 0; color: $ink; background: #fafbf8; box-shadow: 0 
   .calendar-legend, .schedule-summary > div, .detail-facts > div, .timeline-slot > div, .chat-header { border-color: var(--line); }
   @media (hover: hover) { .record-row:hover, .conversation-row:hover, .quick-actions button:hover, .choice-options button:hover, .small-icon:hover, .calendar-grid button:not(.selected):hover .calendar-date-number { background: var(--soft-surface); } }
 }
+
+@include ios-experience.styles;
+
+@include adaptive-experience.styles;
