@@ -12,15 +12,23 @@ import { DOCUMENT_MAX_BYTES, documentRecord, formatBytes, storeOriginal, readOri
 import { choiceField, installChoices, setChoice } from './choice-field.mjs';
 import { EVENT_KINDS, eventKind, dayDate, eventsOn, moveDate, calendarDates, eventDuration, eventEnd, eventDaySpan, timelineHours, hasOverlap } from './calendar-model.mjs';
 import { parkingAttempt, parkingLabel } from './ui-model.mjs';
+import { createMotion } from './motion.mjs';
 
 const $ = s => document.querySelector(s);
+// Presentations owns modal lifecycles; motion owns main content, tabs and messages.
+const motion = createMotion($('#main'));
 const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const button = (action, content, cls = '', attrs = '') => `<button type="button" class="${cls}" data-action="${action}" ${attrs}>${content}</button>`;
 const arrow = icon('chevron');
 const mark = (name, color = 'green') => `<span class="feature-icon ${color}">${icon(name)}</span>`;
-const KEY = 'mori.experience.v6';
+const BASE_KEY = 'mori.experience.v6';
+const previewParam = new URLSearchParams(location.search).get('preview');
+const previewId = ['mobile', 'tablet'].includes(previewParam) ? previewParam : null;
+// Device previews start from the app's records but never overwrite one another or the app.
+const KEY = previewId ? `${BASE_KEY}.preview.${previewId}` : BASE_KEY;
+const THEME_KEY = previewId ? `mori.theme.v1.preview.${previewId}` : 'mori.theme.v1';
 let data;
-try { data = JSON.parse(localStorage.getItem(KEY)); if (data?.version !== VERSION || !Array.isArray(data.customs) || !Array.isArray(data.reminders)) data = null; } catch { data = null; }
+try { data = JSON.parse(localStorage.getItem(KEY) ?? (previewId ? localStorage.getItem(BASE_KEY) : null)); if (data?.version !== VERSION || !Array.isArray(data.customs) || !Array.isArray(data.reminders)) data = null; } catch { data = null; }
 data ||= seed();
 data.drafts ||= {};
 // Old demo preferences no longer control account settings or dashboard visibility.
@@ -28,12 +36,12 @@ data.profile.recent = true;
 data.profile.notify = true;
 data.profile.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let selectedTheme = 'system';
-try { const stored = localStorage.getItem('mori.theme.v1'); if (['system', 'light', 'dark'].includes(stored)) selectedTheme = stored; } catch { /* Storage is optional. */ }
+try { const stored = localStorage.getItem(THEME_KEY) ?? (previewId ? localStorage.getItem('mori.theme.v1') : null); if (['system', 'light', 'dark'].includes(stored)) selectedTheme = stored; } catch { /* Storage is optional. */ }
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
 function applyTheme() {
   const dark = selectedTheme === 'dark' || selectedTheme === 'system' && systemTheme.matches;
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  document.querySelector('meta[name="theme-color"]').content = dark ? '#151918' : '#f5f5f7';
+  document.querySelector('meta[name="theme-color"]').content = dark ? '#171c1b' : '#f5f6f3';
 }
 applyTheme(); systemTheme.addEventListener('change', applyTheme);
 matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event => { data.profile.reduced = event.matches; render(); });
@@ -71,14 +79,8 @@ function section(title, trailing = '') { return `<div class="section-heading"><h
 function empty(iconName, title, copy, action = '') { return `<div class="empty-state">${mark(iconName)}<h3>${title}</h3><p>${copy}</p>${action}</div>`; }
 function tag(text, cls = '') { return `<span class="tag ${cls}">${text}</span>`; }
 function eventRow(e) { return button('detail', `<span class="event-time">${e.time}</span><span class="event-line ${e.color}"></span><span class="row-content"><strong>${esc(e.title)}</strong><small>${esc(e.place || '나의 일정')}</small></span>${arrow}`, 'event-row', `data-ref="event:${e.id}"`); }
-function parkingFace(detail = false) {
-  const p = parkingConfig(data.parking, data.profile), title = detail ? 'h2' : 'h3';
-  return `<div class="card-top"><span data-card-part="icon">${mark('car')}</span><span data-card-part="label">주차 위치</span><span class="tag" data-card-part="purpose">${parkingPurpose(p)}</span></div><div class="parking-ticket"><span data-card-part="floor">${esc(p.floor)}</span><${title} data-card-part="spot">${esc(p.spot || '위치 기록')}</${title}></div>${detail ? '' : `<p class="card-caption" data-card-part="schedule">${p.display_mode === 'always' ? '다음 위치를 저장할 때까지 표시' : esc(parkingDescription(p))}</p>`}<div class="card-bottom"><span data-card-part="saved">${shortDate(p.at)} ${time(p.at)} 저장</span>${detail ? '' : `<span class="round-arrow">${icon('arrow')}</span>`}</div>`;
-}
-function recordRow(r) {
-  const preview = r.excerpt.replace(/\n/g, ' · ');
-  return button('detail', `${mark(r.icon, r.color)}<span class="row-content"><span class="record-heading"><strong><span class="sr-only">${esc(r.label)}: </span>${esc(r.title)}</strong><span class="record-date">${shortDate(r.at)}</span></span><small>${esc(preview)}${r.kind === 'document' && r.size_bytes != null ? ` · ${formatBytes(r.size_bytes)}` : ''}</small></span>${arrow}`, 'record-row', `data-ref="${r.kind}:${r.id}"`);
-}
+function mapArt() { return `<div class="parking-map" aria-hidden="true"><span class="map-road"></span><span class="map-road vertical"></span><span class="map-label">주차 위치 메모</span><div class="parking-slots"><i></i><i></i><i class="occupied">${icon('car')}</i><i></i></div><span class="map-pin">${esc(data.parking?.spot || 'P')}</span><span class="map-dot"></span><span class="map-tree one"></span><span class="map-tree two"></span></div>`; }
+function recordRow(r) { return button('detail', `${mark(r.icon, r.color)}<span class="row-content"><span class="record-kind">${r.label} · ${shortDate(r.at)}</span><strong>${esc(r.title)}</strong><small>${esc(r.excerpt.replace(/\n/g, ' · '))}${r.kind === 'document' && r.size_bytes != null ? ` · ${formatBytes(r.size_bytes)}` : ''}</small></span>${arrow}`, 'record-row', `data-ref="${r.kind}:${r.id}"`); }
 function matchingRecords() {
   const query = ui.recordSearch.trim().toLocaleLowerCase('ko-KR');
   return recordsOf(data, ui.recordFilter).filter(r => `${r.title} ${r.excerpt}`.toLocaleLowerCase('ko-KR').includes(query));
@@ -92,16 +94,27 @@ function recordsSheet(filter = ui.recordFilter) {
   const records = matchingRecords();
   openSheet('기록 보관함', `<label class="search-box library-search">${icon('search')}<input id="record-search" type="search" aria-label="기록 검색" placeholder="제목 · 메모 내용 · 파일 이름 검색" value="${esc(ui.recordSearch)}"></label><div class="filter-chips" aria-label="기록 종류">${[['all', '전체'], ['note', '메모'], ['document', '문서'], ['custom', '실행 결과']].map(([v, label]) => button('record-filter', label, filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${filter === v}"`)).join('')}</div><div class="library-count" role="status">${query ? '검색 결과' : '최근 기록'} <strong>${records.length}</strong></div><div class="record-list">${recordResults(records)}</div><div class="detail-actions library-actions">${button('new-note', icon('compose') + ' 새 메모', 'secondary-button')}${button('document', icon('upload') + ' 파일 가져오기', 'secondary-button')}</div>`, 'library-sheet');
 }
-function timeCard(ref) {
-  const [kind, id] = ref.split(':'); let content;
-  const footer = label => `<div class="card-bottom"><span>${label}</span><span class="round-arrow">${icon('arrow')}</span></div>`;
-  if (kind === 'parking') content = parkingFace();
-  if (kind === 'news') content = `<div class="card-top">${mark('news', 'blue')}<span>뉴스 브리핑</span></div><h3>${data.news.status === 'loading' ? '뉴스 수집 중' : data.news.status === 'failed' ? '뉴스를 가져오지 못했어요' : articleTitles[0]}</h3><p class="card-caption">${esc(data.news.topic)} · 매일 ${clockLabel(data.news.time)}</p><div class="briefing-preview">${data.news.status === 'ready' ? `<div><span>02</span><strong>${articleTitles[1]}</strong></div>` : `<p>${data.news.status === 'loading' ? '요약과 출처를 정리하고 있어요.' : '상세 화면에서 다시 시도할 수 있어요.'}</p>`}</div>${footer(data.news.status === 'ready' ? '예시 기사 3개 보기' : '예시 브리핑 · 수집 상태 확인')}`;
-  if (kind === 'stock') content = `<div class="card-top">${mark('chart', 'rose')}<span>관심 주가</span></div><p class="stock-symbol">${esc(data.stock.symbol)}</p><h3 class="card-price">${data.stock.symbol === '코스피' ? '2,650.24' : data.stock.symbol === '애플' ? '228.40' : '72,400'}<small>${data.stock.symbol === '코스피' ? 'pt' : data.stock.symbol === '애플' ? 'USD' : '원'}</small></h3><p class="positive">+1.82% <span>전일 대비</span></p>${sparkline()}${footer('예시 시세 · 실시간 연결 전')}`;
-  if (kind === 'schedule') { const e = todayEvents().find(e => minuteOf(e.time) >= new Date(current()).getHours() * 60 + new Date(current()).getMinutes()) || todayEvents()[0]; content = `<div class="card-top">${mark('calendar', 'purple')}<span>오늘 일정</span></div><p class="card-caption">다음 일정</p><h3>${esc(e?.title || '등록된 일정 없음')}</h3><div class="appointment-time">${e?.time || '—'}<span>${esc(e?.place || '')}</span></div>${footer(`오늘 일정 ${todayEvents().length}개 보기`)}`; }
-  if (kind === 'reminder') { const r = data.reminders.find(r => r.id === id); content = `<div class="card-top">${mark('bell', 'orange')}<span>알림</span></div><p class="card-caption">${esc(r.title)}</p><h3 class="card-countdown" data-countdown="${id}">${remaining(r.target)}</h3><p>${time(r.target)}까지 남은 시간</p><div class="mini-timer">${icon('clock')}</div>${footer('앱이 열려 있을 때만 알림')}`; }
-  if (kind === 'custom') { const f = data.customs.find(f => f.id === id); const pending = f.result?.items.find(item => !item.done); content = `<div class="card-top">${mark(f.icon, 'purple')}<span>내 기능</span></div><h3>${esc(f.title)}</h3><p class="card-caption">${esc(f.description || f.work)}</p><div class="custom-summary"><span>${icon(f.icon)}</span><strong>${f.result ? `${f.result.items.filter(item => item.done).length}/${f.result.items.length}개 완료` : `${f.repeat} ${clockLabel(f.time)}`}</strong><p>${f.result ? esc(pending?.text || '모든 항목 완료') : `오늘 저장한 메모 ${data.notes.filter(note => dateKey(note.at) === dateKey(current())).length}개`}</p></div>${footer(f.result ? `${shortDate(f.result.at)} ${time(f.result.at)} 실행` : '예약 내용 확인')}`; }
-  return button('detail', content, `time-card ${kind}`, `data-ref="${ref}" aria-label="${kind === 'parking' ? '주차 위치 상세' : `${BUILTINS.find(f => f.id === kind)?.title || '내 기능'} 상세`}"`);
+function briefCard(ref) {
+  const [kind, id] = ref.split(':');
+  let label, title, copy, stamp, symbol, color = 'blue', visual = '';
+  if (kind === 'parking') {
+    label = '기억해 둔 주차 위치'; symbol = 'car'; title = `${esc(data.parking.floor)} <span>·</span> ${esc(data.parking.spot)}`;
+    copy = parkingPurpose(parkingConfig(data.parking, data.profile)); stamp = `${shortDate(data.parking.at)} ${time(data.parking.at)} 저장`;
+    visual = '<span class="parking-emblem" aria-hidden="true"><span>P</span><svg viewBox="0 0 84 48"><path d="M12 25 20 8h42l10 17 5 5v12H7V30Z"/><path d="m24 13-5 14h46l-7-14Z"/><path d="M15 34h11m32 0h11M21 42v4m42-4v4"/></svg></span>';
+  } else if (kind === 'news') {
+    label = '나의 뉴스 브리핑'; symbol = 'news'; color = 'blue'; title = data.news.status === 'loading' ? '새 소식을 모으고 있어요' : data.news.status === 'failed' ? '브리핑을 다시 준비할까요?' : `${esc(data.news.topic)} 이야기, 핵심만`;
+    copy = data.news.status === 'ready' ? '요약부터 출처까지 한 번에 살펴보세요' : '카드를 눌러 준비 상태를 확인하세요'; stamp = data.news.status === 'ready' ? `${shortDate(data.news.at)} ${time(data.news.at)} · 브리핑 예시` : `${clockLabel(data.news.time)} 예약 · 브리핑 예시`;
+  } else if (kind === 'stock') {
+    label = '관심 종목'; symbol = 'chart'; color = 'rose'; title = esc(data.stock.symbol); copy = `<b class="brief-price">${data.stock.symbol === '코스피' ? '2,650.24 pt' : data.stock.symbol === '애플' ? '228.40 USD' : '72,400원'}</b><span class="brief-change"> +1.82%</span>`; stamp = '화면 체험용 예시 시세'; visual = sparkline();
+  } else if (kind === 'schedule') {
+    const e = todayEvents().find(e => minuteOf(e.time) >= new Date(current()).getHours() * 60 + new Date(current()).getMinutes()) || todayEvents()[0];
+    label = '다가오는 일정'; symbol = 'calendar'; color = 'purple'; title = esc(e?.title || '여유로운 하루'); copy = `${e?.time || '아직 정해진 약속이 없어요'}${e?.place ? ' · ' + esc(e.place) : ''}`; stamp = `오늘 ${todayEvents().length}개의 일정`;
+  } else if (kind === 'reminder') {
+    const r = data.reminders.find(r => r.id === id); label = '챙겨야 할 알림'; symbol = 'bell'; color = 'orange'; title = esc(r.title); copy = `<span data-countdown="${id}">${remaining(r.target)}</span> 후 알려드릴게요`; stamp = `${time(r.target)} · 기기 내 알림 체험`;
+  } else {
+    const f = data.customs.find(f => f.id === id); label = '나의 반복하는 부탁'; symbol = f.icon; color = 'purple'; title = esc(f.title); copy = esc(f.description); stamp = `${clockLabel(f.time)} · ${esc(f.repeat)}`;
+  }
+  return button('detail', `<span class="brief-top">${mark(symbol, color)}<span>${label}</span>${arrow}</span><span class="brief-body"><span class="brief-copy"><strong>${title}</strong><span>${copy}</span></span>${visual}</span><span class="brief-stamp">${icon('clock')}${stamp}</span>`, `brief-card ${kind}`, `data-ref="${ref}" aria-label="${kind === 'parking' ? '주차 위치 상세' : label + ' 상세'}"`);
 }
 function sparkline() { const paths = {'1주': 'M0 65L30 40L60 55L90 35L120 42L150 60L180 28L210 38L240 12L270 25L300 8', '1달': 'M0 75L30 62L60 68L90 80L120 53L150 48L180 60L210 25L240 32L270 15L300 4'}; if (paths[ui.chart]) return `<svg class="sparkline" viewBox="0 0 300 90" aria-label="${ui.chart} 체험용 가격 흐름"><path class="chart-fill" d="${paths[ui.chart]}V90H0Z"/><path class="chart-line" d="${paths[ui.chart]}"/></svg>`; return `<svg class="sparkline" viewBox="0 0 300 90" aria-label="체험용 가격 흐름"><path class="chart-fill" d="M0 80L20 69L42 74L60 56L80 62L98 43L117 49L132 31L150 40L173 22L193 33L212 17L233 23L258 8L278 14L300 4V90H0Z"/><path class="chart-line" d="M0 80L20 69L42 74L60 56L80 62L98 43L117 49L132 31L150 40L173 22L193 33L212 17L233 23L258 8L278 14L300 4"/></svg>`; }
 function closeWindowMenu(restoreFocus = false) {
@@ -119,9 +132,11 @@ function toggleWindowMenu() {
 function positionWindowMenu() {
   const menu = $('#dashboard-window-menu'); if (!menu || menu.hidden) return;
   menu.classList.remove('is-docked');
-  const composer = $('#quick-composer');
-  const bottom = composer.hidden ? innerHeight : composer.getBoundingClientRect().top;
-  menu.classList.toggle('is-docked', menu.getBoundingClientRect().bottom > bottom - 8);
+  const boundary = $('.app-dock').getBoundingClientRect().top;
+  const docked = menu.getBoundingClientRect().bottom > boundary - 8;
+  menu.classList.toggle('is-docked', docked);
+  menu.style.setProperty('--menu-bottom', `${innerHeight - boundary + 8}px`);
+  menu.style.maxHeight = `${Math.max(80, docked ? boundary - 24 : boundary - menu.getBoundingClientRect().top - 12)}px`;
 }
 function windowPicker() {
   const selected = DASHBOARD_WINDOWS.find(w => w.hours === ui.horizon);
@@ -140,33 +155,32 @@ function forecastShelves() {
     `;
 }
 function dashboardNow(cards) {
-  return `<section class="now-section ${ui.horizon ? 'is-browsing' : ''}" aria-label="시간별 정보">${ui.horizon ? forecastShelves() : cards.length ? `<div class="time-carousel" id="time-carousel">${cards.map(timeCard).join('')}</div>${cards.length > 1 ? `<div class="carousel-pagination"><div class="carousel-dots" aria-label="카드 탐색">${cards.map((ref, i) => button('carousel', '', i === 0 ? 'active' : '', `data-index="${i}" aria-label="${i + 1}번째 카드 · ${BUILTINS.find(f => f.id === ref.split(':')[0])?.title || '내 기능'}"`)).join('')}</div><div class="carousel-nav">${button('carousel-page', icon('back'), 'small-icon', 'data-direction="-1" aria-label="이전 정보 카드" aria-controls="time-carousel"')}<span class="carousel-position"></span>${button('carousel-page', icon('chevron'), 'small-icon', 'data-direction="1" aria-label="다음 정보 카드" aria-controls="time-carousel"')}</div></div>` : ''}` : empty('clock', '현재 표시할 정보가 없어요', '시간 범위를 바꿔 예약된 일을 확인하세요.', button('set-window', '앞으로 3시간 보기 ' + arrow, 'text-button', 'data-hours="3"'))}</section>`;
+  return `<section class="now-section ${ui.horizon ? 'is-browsing' : ''}"><div class="section-heading now-heading"><h2>${ui.horizon ? '미리 보는 하루' : '지금 챙길 것'}</h2>${windowPicker()}</div>${ui.horizon ? forecastShelves() : cards.length ? `<div class="brief-grid">${cards.map(briefCard).join('')}</div>` : empty('leaf', '지금은 여유로운 시간이에요', '다가오는 일도 미리 살펴볼까요?', button('set-window', '앞으로 3시간 보기 ' + arrow, 'text-button', 'data-hours="3"'))}</section>`;
 }
 function dashboard() {
-  const cards = visibleCards(data), events = todayEvents(), records = recordsOf(data);
-  const recentRecords = records.slice(0, 3).map(recordRow).join('');
-  const accountName = ui.liveUser?.display_name?.trim();
-  const accountLabel = accountName ? `${accountName}님` : ui.accountState === 'checking' ? '계정 확인 중' : '로그인';
-  return `<header class="dashboard-header"><h1 class="dashboard-brand" aria-label="모리 대시보드"><span class="brand-symbol" aria-hidden="true"><img src="/assets/mori.svg" alt=""></span><span>mori</span></h1>${button('go-my', `<span class="account-initial" aria-hidden="true">${accountName ? esc(Array.from(accountName)[0]) : icon('user')}</span><span class="account-name">${esc(accountLabel)}</span>${arrow}`, 'dashboard-account', `aria-label="${accountName ? esc(accountName) + '님, 내 계정 보기' : '로그인 및 내 계정'}"`)}</header>
-    <div class="dashboard-context"><p class="dashboard-date">${dateLabel(current())}</p>${windowPicker()}</div>
+  const h = new Date(current()).getHours(), cards = visibleCards(data);
+  return `<div class="home-top"><span class="wordmark">mori<span>·</span></span><div class="home-tools">${button('day-preview', `${icon(h < 18 ? 'sun' : 'moon')}<span>${h < 12 ? '아침' : h < 18 ? '낮' : '저녁'} 체험</span>`, 'preview-pill', 'aria-label="체험 시간 바꾸기"')}${button('go-my', `<span>${esc((ui.liveUser?.display_name || data.profile.name).slice(0, 1))}</span>`, 'home-profile', 'aria-label="마이 화면"')}</div></div>
+    <header class="home-greeting"><p class="home-date">${dateLabel(current())}</p><h1>${esc(ui.liveUser?.display_name || data.profile.name)}님,<br>${h < 12 ? '가벼운 하루를 시작해요' : h < 18 ? '오후도 가볍게 보내요' : '오늘도 수고했어요'}</h1><p class="greeting-caption">작은 기억은 모리에게 맡겨두세요.</p></header>
+    <section class="dashboard-shortcuts" aria-label="바로 부탁하기"><div class="quick-actions">${button('edit-parking', `${mark('car', 'green')}<span>주차 기억</span>`, '', 'aria-label="주차 기억하기"')}${button('new-event', `${mark('calendar', 'purple')}<span>일정 추가</span>`)}${button('new-note', `${mark('note', 'amber')}<span>메모 쓰기</span>`, '', 'aria-label="메모 남기기"')}${button('new-chat', `${mark('chat', 'blue')}<span>대화하기</span>`, '', 'aria-label="자유롭게 대화하기"')}</div></section>
     ${dashboardNow(cards)}
-    <section class="shortcuts-section"><div class="quick-actions" aria-label="빠른 기록">${button('edit-parking', `${mark('car')}<span>주차 기록</span>`)}${button('new-note', `${mark('note', 'amber')}<span>메모 쓰기</span>`)}${button('new-event', `${mark('calendar', 'purple')}<span>일정 추가</span>`, '', `data-date="${dateKey(current())}"`)}${button('detail', `${mark('bell', 'orange')}<span>알림 설정</span>`, '', 'data-ref="reminder"')}</div></section>
-    <div class="home-lower"><section class="home-agenda">${section('오늘 일정', button('go-schedule', '전체 ' + arrow, 'text-button'))}<div class="surface">${events.length ? events.map(eventRow).join('') : `<div class="agenda-empty">${mark('calendar', 'purple')}<div><strong>등록된 일정이 없어요</strong></div>${button('new-event', icon('plus'), 'small-icon', `data-date="${dateKey(current())}" aria-label="오늘 일정 추가"`)}</div>`}</div>
-    </section>
-    <section class="home-records">${section('최근 기록', button('records', '전체 ' + arrow, 'text-button'))}<div class="record-list dashboard-records">${recentRecords || empty('note', '저장한 기록이 없어요', '메모를 쓰거나 파일을 추가해 보세요.', button('new-note', '메모 쓰기', 'text-button'))}</div>${button('document', `${icon('file')} 파일 가져오기 ${arrow}`, 'document-entry')}</section><section class="home-conversations">    ${data.conversations.length ? section('최근 대화', button('go-conversations', '전체 ' + arrow, 'text-button')) + `<div class="surface">${data.conversations.slice().sort((a, b) => b.at - a.at).slice(0, 2).map(conversationRow).join('')}</div>` : ''}</section></div>`;
+    <div class="home-lower"><section>${section('오늘의 약속', button('go-schedule', '전체 보기 ' + arrow, 'text-button'))}<div class="surface">${todayEvents().map(eventRow).join('') || empty('calendar', '아직 약속이 없어요', '나를 위한 시간을 만들어보세요.', button('new-event', '일정 추가', 'text-button'))}</div>
+    ${data.profile.recent ? section('최근 대화', button('go-conversations', '전체 보기 ' + arrow, 'text-button')) + `<div class="surface">${data.conversations.slice().sort((a, b) => b.at - a.at).slice(0, 2).map(conversationRow).join('')}</div>` : ''}</section>
+    <section>${section('기록과 정리', button('records', '보관함 ' + arrow, 'text-button'))}<div class="record-list">${recordsOf(data).slice(0, 3).map(recordRow).join('') || empty('note', '생각을 가볍게 남겨보세요', '채팅이나 마이크로 메모를 부탁해 보세요.')}</div>${button('document', `${icon('file')} 문서 정리하기 ${arrow}`, 'document-entry')}
+    ${section('모리와 더 편하게')}<div class="surface utility-list">${button('guide', `${mark('compass', 'blue')}<span class="row-content"><strong>모리 둘러보기</strong><small>작은 부탁 하나부터 시작해요</small></span>${arrow}`, 'record-row')}${button('new-custom', `${mark('spark', 'purple')}<span class="row-content"><strong>반복하는 부탁 만들기</strong><small>시간에 맞춰 챙기는 나만의 기능</small></span>${arrow}`, 'record-row')}</div><p class="home-signoff">작은 부탁, 가벼운 하루. <span>mori</span></p></section></div>`;
 }
-function conversationRow(c) { const last = c.messages.at(-1), draft = data.drafts[c.id]; return button('open-conversation', `${mark(c.pinned ? 'pin' : 'chat', c.pinned ? 'green' : 'soft')}<span class="row-content"><strong>${esc(c.title)}</strong><small class="${draft ? 'draft-text' : ''}">${draft ? '작성 중 · ' + esc(draft) : esc(last?.text || '메시지가 없어요')}</small></span><span class="row-date">${shortDate(c.at)}</span>`, 'conversation-row', `data-id="${c.id}"`); }
+function conversationRow(c) { const last = c.messages.at(-1), draft = data.drafts[c.id]; return button('open-conversation', `${mark(c.pinned ? 'pin' : 'chat', c.pinned ? 'green' : 'soft')}<span class="row-content"><strong>${esc(c.title)}</strong><small class="${draft ? 'draft-text' : ''}">${draft ? '작성 중 · ' + esc(draft) : esc(last?.text || '새 이야기를 시작해 보세요')}</small></span><span class="row-date">${shortDate(c.at)}</span>`, 'conversation-row', `data-id="${c.id}"`); }
 function conversationContent() {
   const groups = conversationGroups(data.conversations, ui.search, current()), count = groups.reduce((n, [, items]) => n + items.length, 0);
-  return `${!ui.search ? (data.conversations.length && data.drafts.new ? `<div class="conversation-actions">${button('new-chat', '작성 중인 메시지 이어쓰기 ' + arrow, 'text-button')}</div>` : '') : `<p class="list-label" role="status">검색 결과 <span>${count}개</span></p>`}
-  <div class="conversation-groups">${groups.map(([label, items]) => `<section><p class="list-label">${label} <span>${items.length}</span></p><div class="surface">${items.map(conversationRow).join('')}</div></section>`).join('') || (ui.search ? empty('search', '검색 결과가 없어요', '다른 검색어를 입력해 주세요.', button('clear-search', '검색 지우기', 'text-button')) : empty('chat', '아직 대화가 없어요', '주차 위치를 남기거나 일정을 추가해 보세요.', button('new-chat', data.drafts.new ? '작성 중인 메시지 이어쓰기' : '새 대화', 'primary-button')))}</div>`;
+  return `
+  ${!ui.search ? `<div class="conversation-start"><div class="mori-small"><img src="/assets/mori.svg" alt=""></div><div><h2>무슨 생각 하고 계세요?</h2><p>${data.drafts.new ? '쓰던 부탁이 기다리고 있어요.' : '작은 부탁 하나부터 시작해요.'}</p>${button('new-chat', data.drafts.new ? '작성 중인 부탁 이어쓰기 ' + arrow : '새 이야기 시작하기 ' + arrow, 'text-button')}</div>${button('voice', icon('mic'), 'header-button', 'aria-label="말로 새 대화 시작"')}</div>` : `<p class="list-label" role="status">검색 결과 <span>${count}개</span></p>`}
+  <div class="conversation-groups">${groups.map(([label, items]) => `<section><p class="list-label">${label} <span>${items.length}</span></p><div class="surface">${items.map(conversationRow).join('')}</div></section>`).join('') || (ui.search ? empty('search', '찾는 이야기가 없어요', '조금 더 짧은 단어나 다른 표현으로 찾아보세요.', button('clear-search', '검색 지우기', 'text-button')) : empty('chat', '첫 이야기를 기다리고 있어요', '주차 위치, 떠오른 생각, 작은 부탁을 남겨보세요.', button('new-chat', '모리와 대화하기', 'primary-button')))}</div>`;
 }
 function conversations() {
-  return `${heading('대화', '', button('new-chat', icon('compose'), 'header-button', 'aria-label="새 대화"'))}<div class="conversation-toolbar"><label class="search-box">${icon('search')}<input id="conversation-search" type="search" placeholder="대화 검색" value="${esc(ui.search)}" aria-label="대화 검색"></label>${button('voice', icon('mic') + '<span>음성</span>', 'voice-entry', 'aria-label="음성으로 새 대화 시작"')}</div><div id="conversation-content">${conversationContent()}</div>`;
+  return `${heading('대화', '모리와 나눈 이야기', button('new-chat', icon('compose'), 'header-button', 'aria-label="새 대화"'))}<label class="search-box">${icon('search')}<input id="conversation-search" type="search" placeholder="지난 이야기 검색" value="${esc(ui.search)}" aria-label="대화 검색"></label><div id="conversation-content">${conversationContent()}</div>`;
 }
 function conversationOptions() {
   const c = data.conversations.find(c => c.id === ui.chatId); if (!c) return;
-  openSheet('대화 정리', `<form id="conversation-form" data-id="${c.id}">${field('대화 이름', 'title', c.title, 'text', 'required maxlength="80"')}<div class="form-actions"><button class="primary-button" type="submit">이름 저장</button></div></form>${button('pin-conversation', icon('pin') + (c.pinned ? '고정 해제' : '목록 맨 위에 고정하기'), 'secondary-button full', `data-id="${c.id}"`)}<p class="field-help">자주 이어가는 대화는 고정해 두세요.</p>`);
+  openSheet('대화 정리', `<form id="conversation-form" data-id="${c.id}">${field('대화 이름', 'title', c.title, 'text', 'required maxlength="80"')}<button class="primary-button" type="submit">이름 저장</button></form>${button('pin-conversation', icon('pin') + (c.pinned ? '고정 해제' : '목록 맨 위에 고정하기'), 'secondary-button full', `data-id="${c.id}"`)}<p class="field-help">자주 이어가는 대화는 고정해 두세요.</p>`);
 }
 function scheduleEvent(event, nextId = null, date = ui.date) {
   const kind = eventKind(event), span = eventDaySpan(event, date);
@@ -192,8 +206,8 @@ function schedule() {
   let agenda;
   if (ui.calendar === 'week') {
     agenda = dates.map(key => { const items = eventsOn(data.events, key); return `<section class="week-day-group ${key === ui.date ? 'is-selected' : ''}">
-      <div class="week-day-heading">${button('select-date', `${shortDate(dayDate(key))}<span>${dayDate(key).toLocaleDateString('ko-KR', { weekday: 'short' })}</span>${key === today ? '<em>오늘</em>' : ''}`, '', `data-date="${key}"`)}<small>${items.length ? items.length + '개의 약속' : '일정 없음'}</small>${button('new-event', icon('plus'), 'small-icon', `data-date="${key}" aria-label="${dateLabel(dayDate(key))} 일정 추가"`)}</div>
-      ${items.map(event => scheduleEvent(event, next?.id, key)).join('') || '<p class="week-empty">등록된 일정이 없어요.</p>'}</section>`; }).join('');
+      <div class="week-day-heading">${button('select-date', `${shortDate(dayDate(key))}<span>${dayDate(key).toLocaleDateString('ko-KR', { weekday: 'short' })}</span>${key === today ? '<em>오늘</em>' : ''}`, '', `data-date="${key}"`)}<small>${items.length ? items.length + '개의 약속' : '비워둔 하루'}</small>${button('new-event', icon('plus'), 'small-icon', `data-date="${key}" aria-label="${dateLabel(dayDate(key))} 일정 추가"`)}</div>
+      ${items.map(event => scheduleEvent(event, next?.id, key)).join('') || '<p class="week-empty">여유로운 하루네요. 나를 위한 시간을 더해도 좋아요.</p>'}</section>`; }).join('');
   } else if (ui.calendar === 'day') {
     const currentHour = new Date(current()).getHours();
     agenda = `<div class="day-timeline">${timelineHours(events, ui.date).map(hour => {
@@ -202,20 +216,20 @@ function schedule() {
       return `<div class="timeline-slot ${ui.date === today && hour === currentHour ? 'is-current' : ''}"><span class="hour-label">${hourText}${ui.date === today && hour === currentHour ? '<i>지금</i>' : ''}</span><div>${items.map(event => scheduleEvent(event, next?.id)).join('') || button('new-event', icon('plus') + '<span>일정 추가</span>', 'empty-hour', `data-date="${ui.date}" data-time="${hourText}" aria-label="${hourText} 일정 추가"`)}</div></div>`;
     }).join('')}</div>`;
   } else {
-    agenda = events.map(event => scheduleEvent(event, next?.id)).join('') || `<div class="calendar-empty">${mark('calendar', 'soft')}<h3>등록된 일정이 없어요</h3><p>선택한 날짜에 일정을 추가하세요.</p>${button('new-event', icon('plus') + ' 일정 추가', 'secondary-button')}</div>`;
+    agenda = events.map(event => scheduleEvent(event, next?.id)).join('') || `<div class="calendar-empty">${mark('sun', 'amber')}<h3>아직 약속이 없는 하루예요</h3><p>쉬어가는 시간도 좋은 일정이죠.<br>기억할 일이 생기면 여기에 남겨주세요.</p>${button('new-event', icon('plus') + ' 첫 일정 추가', 'secondary-button')}</div>`;
   }
-  return `${heading('스케줄', '', button('new-event', icon('plus'), 'header-button', 'aria-label="일정 추가"'))}
+  return `<div class="schedule-topbar">${heading('일정', '내 하루의 흐름을 한눈에', button('new-event', icon('plus'), 'header-button', 'aria-label="일정 추가"'))}
+    <div class="schedule-summary"><div><span>${scopeLabel}의 약속</span><strong>${scope.length}<small>개</small></strong></div><p>${next ? `다음은 <b>${esc(next.title)}</b><span>오늘 ${next.time} · ${esc(next.place || '장소 미정')}</span>` : '지금은 여유로운 시간이에요.<span>다가올 약속을 천천히 챙겨보세요.</span>'}</p></div></div>
     <div class="segmented calendar-modes" aria-label="달력 보기 방식">${[['month', '월'], ['week', '주'], ['day', '일']].map(([id, title]) => button('calendar-mode', title, ui.calendar === id ? 'selected' : '', `data-value="${id}" aria-pressed="${ui.calendar === id}"`)).join('')}</div>
     <div class="schedule-layout ${ui.calendar}"><section class="calendar-surface" aria-label="날짜 선택">
       <div class="month-header">${button('calendar-jump', `${year}년 ${month + 1}월 ${arrow}`, 'month-title', 'aria-label="연도와 월 선택"')}<div>${button('calendar-today', '오늘', 'today-button')}${button('month-prev', icon('back'), 'small-icon', 'aria-label="이전 기간"')}${button('month-next', arrow, 'small-icon', 'aria-label="다음 기간"')}</div></div>
-      <p class="calendar-context">${scopeLabel} 일정 <span>${scope.length}개</span></p>
       <div class="weekdays">${['일', '월', '화', '수', '목', '금', '토'].map(day => `<span>${day}</span>`).join('')}</div>
       <div class="calendar-grid ${ui.calendar !== 'month' ? 'week-strip' : ''}">${dates.map(cell).join('')}</div>
       <div class="calendar-legend">${EVENT_KINDS.map(kind => `<span><i class="${kind.value}"></i>${kind.label}</span>`).join('')}</div>
     </section><section class="agenda-panel" aria-label="일정 목록">
-      <div class="agenda-heading"><div><p>${ui.calendar === 'week' ? '이번 주' : ui.date === today ? '오늘' : selected.toLocaleDateString('ko-KR', { weekday: 'long' })}</p><h2>${ui.calendar === 'week' ? weekLabel : `${selected.getMonth() + 1}월 ${selected.getDate()}일`}</h2></div><span>${ui.calendar === 'week' ? scope.length : events.length}개의 약속</span></div>
+      <div class="agenda-heading"><div><p>${ui.calendar === 'week' ? '한 주의 흐름' : ui.date === today ? 'TODAY' : selected.toLocaleDateString('ko-KR', { weekday: 'long' })}</p><h2>${ui.calendar === 'week' ? weekLabel : `${selected.getMonth() + 1}월 ${selected.getDate()}일`}</h2></div><span>${ui.calendar === 'week' ? scope.length : events.length}개의 약속</span></div>
       <div class="agenda-body">${agenda}</div>${events.length && ui.calendar === 'month' ? button('new-event', icon('plus') + ' 이 날에 일정 추가', 'agenda-add') : ''}
-    </section></div><div class="quiet-card">${icon('spark')}<div><strong>모리에게 일정 요청</strong><p>날짜와 시간을 말해 주세요.</p></div>${button('voice', icon('mic'), 'small-icon', 'aria-label="음성으로 일정 요청"')}</div>`;
+    </section></div><div class="quiet-card">${icon('spark')}<div><strong>말로 남겨도, 같은 달력에.</strong><p>“내일 오후 2시 디자인 회의 잡아줘”</p></div>${button('prompt', icon('arrow'), 'small-icon', 'data-prompt="내일 오후 2시 디자인 회의 잡아줘" aria-label="말로 일정 추가 체험"')}</div>`;
 }
 function calendarJump(year = dayDate(ui.date).getFullYear()) {
   ui.jumpYear = year;
@@ -225,19 +239,21 @@ function featureStatus(id) {
   return ({parking: data.parking ? `${data.parking.floor} ${data.parking.spot}` : '저장된 위치 없음', news: `매일 ${clockLabel(data.news.time)}`, stock: data.stock.symbol, note: `${data.notes.length}개 저장됨`, schedule: `오늘 일정 ${todayEvents().length}개`, reminder: `진행 중 ${data.reminders.filter(r => !r.cancelled && r.target > current()).length}개`})[id];
 }
 function features() {
-  return `${heading('기능', '', button('new-custom', icon('plus'), 'header-button', 'aria-label="새 기능 만들기"'))}<div class="segmented" aria-label="기능 종류">${[['all', '전체'], ['builtin', '기본 기능'], ['custom', '내 기능']].map(([v, title]) => button('feature-filter', title, ui.filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${ui.filter === v}"`)).join('')}</div>
-    ${ui.filter !== 'custom' ? `<section class="feature-group" aria-label="기본 기능">${section('기본 기능')}<ul class="feature-grid" role="list">${BUILTINS.map(f => `<li>${button('detail', `${mark(f.icon, f.color)}<span class="feature-copy"><h3>${f.title}</h3><p class="feature-status">${esc(featureStatus(f.id))}</p></span>${arrow}`, 'feature-tile', `data-ref="${f.id}"`)}</li>`).join('')}</ul></section>` : ''}
-    ${ui.filter !== 'builtin' ? `<section class="feature-group" aria-label="내 기능">${section('내 기능')}${data.customs.length ? `<ul class="custom-list" role="list">${data.customs.map(f => `<li>${button('detail', `${mark(f.icon, 'purple')}<span class="row-content"><strong>${esc(f.title)}</strong><small>${esc(f.time ? `${f.repeat} ${clockLabel(f.time)}` : '필요할 때 실행')}${f.result ? ` · 결과 ${f.result.items.length}개` : ''}</small></span>${tag(!f.work ? '초안' : f.active ? '사용 중' : '중지', f.active ? 'green' : '')}${arrow}`, 'custom-row', `data-ref="custom:${f.id}"`)}</li>`).join('')}</ul>` : empty('spark', '등록한 기능이 없어요', '오른쪽 위 + 버튼으로 작업과 실행 시간을 추가하세요.')}</section>` : ''}${button('guide', `${icon('book')} 사용 예시 ${arrow}`, 'feature-help-link')}`;
+  return `${heading('기능', '매일의 부탁을, 나만의 방식으로', button('new-custom', icon('plus'), 'header-button', 'aria-label="새 기능 만들기"'))}<div class="segmented">${[['all', '모든 기능'], ['builtin', '기본 기능'], ['custom', '내 기능']].map(([v, title]) => button('feature-filter', title, ui.filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${ui.filter === v}"`)).join('')}</div>
+    ${ui.filter !== 'custom' ? `${section('매일을 위한 기본 기능', '<span class="section-caption">바로 사용할 수 있어요</span>')}<div class="feature-grid">${BUILTINS.map(f => button('detail', `<div class="feature-tile-top">${mark(f.icon, f.color)}${arrow}</div><h3>${f.title}</h3><p>${f.subtitle}</p><span class="feature-status">${esc(featureStatus(f.id))}</span>`, 'feature-tile', `data-ref="${f.id}"`)).join('')}</div>` : ''}
+    ${ui.filter !== 'builtin' ? `${section('나에게 맞춘 기능', `<span class="section-caption">${data.customs.filter(f => f.active).length}개 사용 중</span>`)}<div class="custom-list">${data.customs.map(f => button('detail', `${mark(f.icon, 'purple')}<span class="row-content"><strong>${esc(f.title)}</strong><small>${esc(f.time ? `${f.repeat} ${clockLabel(f.time)}` : '필요할 때 실행')}</small>${f.result ? `<span class="row-meta">최근 실행 ${shortDate(f.result.at)} · 결과 ${f.result.items.length}개</span>` : ''}</span>${tag(!f.work ? '초안' : f.active ? '사용 중' : '중지', f.active ? 'green' : '')}${arrow}`, 'custom-row', `data-ref="custom:${f.id}"`)).join('') || empty('spark', '나만의 루틴을 만들어보세요', '반복하는 부탁을 한 번만 정해두세요.')}</div><button class="create-feature" data-action="new-custom"><span class="create-icon">${icon('spark')}</span><span class="tiny-label">나만의 반복</span><h3>반복하는 부탁,<br>내 기능으로 기억해요.</h3><p>할 일과 시간을 정하면 같은 모양의 카드로 만나보세요.</p><span>새 기능 만들기 ${icon('plus')}</span></button>` : ''}`;
 }
 const themeLabel = () => ({system: '시스템 설정', light: '라이트', dark: '다크'})[selectedTheme];
 function my() {
   const user = ui.liveUser;
-  const status = ui.accountState === 'checking' ? '계정 확인 중' : ui.accountState === 'error' ? '계정에 연결하지 못했어요' : '네이버 또는 카카오 계정으로 연결하세요.';
-  return `${heading('마이')}<section class="account-overview" aria-label="내 계정"><div class="account-summary"><span class="account-avatar" aria-hidden="true">${user ? esc(Array.from(user.display_name)[0] || '') : icon('user')}</span><div><h2>${user ? esc(user.display_name) + '님' : '로그인'}</h2><p>${user ? user.providers.map(p => p === 'naver' ? '네이버' : '카카오').join(' · ') + ' 계정 연결됨' : status}</p>${user ? tag(user.tier === 'pro' ? 'Pro' : 'Free') : ''}</div></div>${!user ? `<div class="account-actions">${button('account', ui.accountState === 'error' ? '다시 시도' : ui.accountState === 'checking' ? '계정 확인 중' : '로그인', 'primary-button full', ui.accountState === 'checking' ? 'disabled' : '')}</div>` : ''}</section>
-    ${user ? `${section('계정')}<div class="settings-list">${button('account', `${mark('user', 'soft')}<span class="setting-copy"><strong>내 정보</strong><small>${user ? '이름과 연결된 계정' : '로그인 후 확인'}</small></span>${arrow}`, 'setting-row')}${button('edit-profile', `${mark('compose', 'soft')}<span class="setting-copy"><strong>이름 변경</strong><small>모리에서 사용할 이름</small></span>${arrow}`, 'setting-row')}</div>` : ''}
-    ${section('앱 설정')}<div class="settings-list">${button('theme', `${mark('moon', 'soft')}<span class="setting-copy"><strong>화면 테마</strong><small>${themeLabel()}</small></span>${arrow}`, 'setting-row')}</div>
-    ${section('요금제')}<div class="settings-list">${button('license', `${mark('spark', 'purple')}<span class="setting-copy"><strong>요금제 및 결제</strong><small>${user ? user.tier === 'pro' ? 'Pro 이용 중' : 'Free 이용 중' : '요금제와 이용 조건 확인'}</small></span>${arrow}`, 'setting-row')}</div>
-    ${user ? button('logout', '로그아웃', 'logout-button full') : ''}`;
+  const status = ui.accountState === 'checking' ? '계정을 확인하고 있어요' : ui.accountState === 'error' ? '계정 연결을 확인해 주세요' : '로그인하고 시작해요';
+  return `${heading('마이', '나의 계정과 이용 설정')}<div class="profile-summary"><div class="profile-art"><img src="/assets/mori.svg" alt="모리"></div><div><span class="account-eyebrow">${user ? '나의 모리' : '나의 모리'}</span><h2>${user ? esc(user.display_name) + '님' : '반가워요'}</h2><p>${user ? user.providers.map(p => p === 'naver' ? '네이버' : '카카오').join(' · ') + '로 로그인 중' : status}</p></div></div>
+    ${!user ? button('account', '네이버 · 카카오로 로그인 ' + icon('arrow'), 'primary-button full') : ''}
+    <div class="license-card account-plan"><div>${tag(user?.tier === 'pro' ? 'Pro' : 'Free')}<h3>${user?.tier === 'pro' ? '나만을 위한 모리' : '가볍게 시작하는 모리'}</h3><p>${user?.tier === 'pro' ? '이용 중인 요금제를 확인하세요.' : '무료로 일상의 부탁을 시작하세요.'}</p></div>${button('license', '요금제 보기 ' + arrow, 'text-button')}</div>
+    ${section('계정')}<div class="settings-list">${button('account', `${mark('user', 'soft')}<span class="setting-copy"><strong>사용자 정보</strong><small>${user ? '내 정보와 연결된 계정 확인' : '로그인 후 확인할 수 있어요'}</small></span>${arrow}`, 'setting-row')}${button('edit-profile', `${mark('compose', 'soft')}<span class="setting-copy"><strong>사용자 정보 수정</strong><small>모리가 부를 이름을 변경해요</small></span>${arrow}`, 'setting-row')}</div>
+    ${section('앱 설정')}<div class="settings-list">${button('theme', `${mark('moon', 'soft')}<span class="setting-copy"><strong>테마</strong><small>${themeLabel()}</small></span>${arrow}`, 'setting-row')}</div>
+    ${section('요금제')}<div class="settings-list">${button('license', `${mark('spark', 'purple')}<span class="setting-copy"><strong>요금제 및 결제 관리</strong><small>무료 이용 · Pro 결제 · 구독 해지</small></span>${arrow}`, 'setting-row')}</div>
+    ${user ? button('logout', '로그아웃', 'logout-button full') : ''}<div class="brand-footer">mori <span>작은 부탁, 가벼운 하루.</span></div>`;
 }
 function render() {
   const main = $('#main');
@@ -245,36 +261,13 @@ function render() {
   const previousScroll = main.scrollTop;
   const railPositions = new Map([...document.querySelectorAll('[data-forecast-rail]')].map(el => [el.id, el.scrollLeft]));
   railObserver?.disconnect();
-  carouselObserver?.disconnect();
-  const oldCarousel = $('#time-carousel');
-  const oldIndex = oldCarousel?.firstElementChild ? Math.round(oldCarousel.scrollLeft / (oldCarousel.firstElementChild.getBoundingClientRect().width + 12)) : 0;
-  const cardRef = oldCarousel?.children[oldIndex]?.dataset.ref;
-  main.innerHTML = `<div class="page-content">${({ dashboard, schedule, conversations, features, my }[ui.view] || dashboard)()}</div>`;
+  main.innerHTML = ({ dashboard, schedule, conversations, features, my }[ui.view] || dashboard)();
   main.classList.toggle('has-composer', ui.view === 'dashboard');
   main.dataset.page = ui.view;
-  main.scrollTop = previousScroll;
-  $('#tabs').innerHTML = [['dashboard', 'home', '대시보드'], ['schedule', 'calendar', '스케줄'], ['conversations', 'chat', '대화'], ['features', 'grid', '기능'], ['my', 'user', '마이']].map(([v, i, label]) => `<button type="button" data-view="${v}" ${v === ui.view ? 'aria-current="page"' : ''}>${icon(i)}<span>${label}</span></button>`).join('');
+  main.scrollTo({ top: previousScroll, behavior: 'instant' });
+  $('#tabs').innerHTML = '<span class="nav-indicator" aria-hidden="true"></span>' + [['dashboard', 'home', '오늘'], ['schedule', 'calendar', '일정'], ['conversations', 'chat', '대화'], ['features', 'grid', '기능'], ['my', 'user', '마이']].map(([v, i, label]) => `<button type="button" data-view="${v}" ${v === ui.view ? 'aria-current="page"' : ''}>${icon(i)}<span>${label}</span></button>`).join('');
   resolveControl($('#tabs'), tabFocus, { visible: true })?.focus({ preventScroll: true });
-  $('#quick-composer').hidden = ui.view !== 'dashboard'; document.documentElement.classList.toggle('reduce-motion', data.profile.reduced);
-  const carousel = $('#time-carousel'); if (carousel) {
-    const index = [...carousel.children].findIndex(card => card.dataset.ref === cardRef);
-    if (index > 0) carousel.scrollLeft = index * (carousel.firstElementChild.getBoundingClientRect().width + 12);
-    const syncCarousel = () => {
-      const max = carousel.scrollWidth - carousel.clientWidth;
-      const pagination = $('.carousel-pagination');
-      if (!pagination) return;
-      pagination.hidden = max <= 2;
-      const step = carousel.firstElementChild.getBoundingClientRect().width + 12;
-      const currentIndex = Math.round(carousel.scrollLeft / step);
-      document.querySelectorAll('.carousel-dots button').forEach((el, i) => { el.classList.toggle('active', i === currentIndex); el.setAttribute('aria-pressed', String(i === currentIndex)); });
-      const last = Math.min(carousel.children.length, Math.floor((carousel.scrollLeft + carousel.clientWidth + 14) / step));
-      $('.carousel-position').textContent = `${currentIndex + 1}${last > currentIndex + 1 ? '–' + last : ''} / ${carousel.children.length}`;
-      for (const control of pagination.querySelectorAll('[data-direction]')) control.disabled = Number(control.dataset.direction) < 0 ? carousel.scrollLeft <= 2 : carousel.scrollLeft >= max - 2;
-    };
-    carousel.addEventListener('scroll', syncCarousel, { passive: true });
-    carouselObserver = new ResizeObserver(syncCarousel);
-    carouselObserver.observe(carousel); syncCarousel();
-  }
+  $('#quick-composer').hidden = false; document.documentElement.classList.toggle('reduce-motion', data.profile.reduced);
   const syncRail = rail => {
     const max = rail.scrollWidth - rail.clientWidth;
     rail.closest('.forecast-shelf').querySelector('.shelf-nav').hidden = max <= 2;
@@ -290,13 +283,13 @@ function render() {
   }
   ui.resetRails = false;
   if (ui.windowMenu) positionWindowMenu();
+  motion.render(ui.view);
 }
 function route() {
   const next = location.hash.slice(1), previous = ui.view;
   pageScroll.set(previous, $('#main').scrollTop);
   ui.view = ['dashboard', 'schedule', 'conversations', 'features', 'my'].includes(next) ? next : 'dashboard';
   render(); $('#main').scrollTo({ top: pageScroll.get(ui.view) || 0, behavior: 'instant' });
-  if (!data.profile.reduced && previous !== ui.view) presentations.replace($('#main'), { level: true });
 }
 function go(view) { closeWindowMenu(); if (location.hash === `#${view}`) $('#main').scrollTo({ top: 0, behavior: data.profile.reduced ? 'instant' : 'smooth' }); else location.hash = view; }
 function openSheet(title, content, cls = '', { ref = detailRequest, restore = null } = {}) {
@@ -380,23 +373,21 @@ function updateParkingPreview() {
   $('#parking-location-preview').textContent = [form.elements.floor.value.trim(), form.elements.spot.value.trim()].filter(Boolean).join(' · ') || '층이나 자리 번호를 알려주세요';
   try { $('#parking-display-preview').textContent = parkingDescription(parkingValues(form)); } catch (err) { $('#parking-display-preview').textContent = err.message; }
 }
-function noteForm(id) {
-  const n = data.notes.find(n => n.id === id);
-  openSheet(n ? '메모 편집' : '새 메모', `<form id="note-form" class="note-editor" data-id="${n?.id || ''}"><div class="note-editor-meta">${shortDate(n?.at || current())} · 이 기기에 저장</div><label class="sr-only" for="note-title">제목</label><input id="note-title" name="title" value="${esc(n?.title || '')}" maxlength="80" placeholder="제목" autocomplete="off"><label class="sr-only" for="note-content">내용</label><textarea id="note-content" name="body" placeholder="떠오른 생각을 적어보세요." maxlength="12000">${esc(n?.body || '')}</textarea><p class="form-error" role="alert"></p><div class="note-editor-footer"><span id="note-length">${(n?.body || '').length.toLocaleString()}자</span><button class="primary-button" type="submit">${icon('check')} 저장</button></div></form>`, 'note-sheet');
-}
+function noteForm(id) { const n = data.notes.find(n => n.id === id); openSheet(n ? '메모 편집' : '생각 남기기', `<form id="note-form" data-id="${n?.id || ''}">${field('제목', 'title', n?.title || '', 'text', 'maxlength="80" placeholder="떠오른 생각에 이름을 붙여보세요"')}${textArea('내용', 'body', n?.body || '', 'placeholder="짧은 한 줄이어도 좋아요." id="note-content" maxlength="12000"')}<p class="form-error" role="alert"></p><span id="note-length" class="field-help">${(n?.body || '').length.toLocaleString()}자</span><button class="primary-button" type="submit">메모 저장 ${icon('check')}</button></form>`); }
 function eventForm(id, date = ui.date, startTime = '14:00') {
   const event = data.events.find(event => event.id === id);
   const duration = event ? eventDuration(event) : 60;
   const durations = [...new Set([30, 60, 90, 120, 180, duration])].sort((a, b) => a - b).map(value => ({ value, label: `${Math.floor(value / 60) ? Math.floor(value / 60) + '시간' : ''}${value % 60 ? ' ' + value % 60 + '분' : ''}`.trim() }));
-  openSheet(event ? '일정 편집' : '일정 추가', `<form id="event-form" data-id="${event?.id || ''}" data-draft-key="${event?.id || `${date}:${startTime}`}">
-    ${field('일정 이름', 'title', event?.title || '', 'text', 'required maxlength="80" placeholder="예: 모리 디자인 미팅"')}
+  openSheet(event ? '일정 편집' : '새로운 약속', `<form id="event-form" data-id="${event?.id || ''}" data-draft-key="${event?.id || `${date}:${startTime}`}">
+    <p class="form-caption">기억할 약속을 편하게 남겨주세요.</p>
+    ${field('어떤 약속인가요?', 'title', event?.title || '', 'text', 'required maxlength="80" placeholder="예: 모리 디자인 미팅"')}
     ${field('날짜', 'date', event?.date || date, 'date', 'required')}
     <div class="field-pair">${field('시작 시간', 'time', event?.time || startTime, 'time', 'required')}${choiceField('소요 시간', 'duration', duration, durations)}</div>
     ${choiceField('일정 종류', 'color', event?.color || 'green', EVENT_KINDS)}
     ${field('장소 · 선택', 'place', event?.place || '', 'text', 'maxlength="120" placeholder="장소나 온라인 링크"')}
     ${textArea('메모 · 선택', 'memo', event?.memo || '', 'maxlength="1000" placeholder="미리 챙길 준비물이나 기억할 내용"')}
     <p class="event-preview" id="event-preview" role="status"></p>
-    <p class="form-error" role="alert"></p><div class="form-footer form-actions"><button class="primary-button" type="submit">${event ? '변경 저장' : '일정 저장'} ${icon('check')}</button>${event ? button('delete-event', icon('trash') + ' 이 일정 삭제', 'danger-button', `data-id="${event.id}"`) : ''}</div>
+    <p class="form-error" role="alert"></p><div class="form-footer"><button class="primary-button" type="submit">${event ? '변경 저장' : '일정 저장'} ${icon('check')}</button>${event ? button('delete-event', icon('trash') + ' 이 일정 삭제', 'danger-button', `data-id="${event.id}"`) : ''}</div>
   </form>`, 'event-sheet');
   updateEventPreview();
 }
@@ -411,7 +402,7 @@ function updateEventPreview() {
 }
 function customForm(id) {
   const f = data.customs.find(f => f.id === id);
-  openSheet(f ? '내 기능 편집' : '기능 만들기', `${!f ? button('custom-example', '예시 채우기 · 평일 저녁에 메모 정리하기 ' + arrow, 'example-request') : ''}<form id="custom-form" data-id="${f?.id || ''}"><div id="custom-preview" class="custom-preview" aria-label="기능 카드 미리보기"></div><fieldset class="icon-picker"><legend>카드 아이콘</legend>${[['spark', '반짝임'], ['note', '메모'], ['leaf', '일상'], ['news', '정보'], ['bell', '알림'], ['compass', '여행']].map(([v, label]) => `<label><input type="radio" name="icon" value="${v}" ${(f?.icon || 'spark') === v ? 'checked' : ''}><span>${icon(v)}<span class="sr-only">${label}</span></span></label>`).join('')}</fieldset>${field('기능 이름', 'title', f?.title || '', 'text', 'maxlength="60" placeholder="예: 퇴근 정리"')}${textArea('작업 내용', 'work', f?.work || '', 'maxlength="2000" placeholder="오늘 저장한 메모를 모아서 할 일을 정리해줘"')}${field('짧은 설명 · 선택', 'description', f?.description || '', 'text', 'maxlength="180" placeholder="카드에 보여줄 한 줄"')}<div class="field-pair">${field('실행 시간 · 선택', 'time', f?.time || '', 'time')}${choiceField('반복', 'repeat', f?.repeat || '필요할 때', ['필요할 때', '매일', '평일', '한 번'])}</div><details class="support-details"><summary>참고할 내용 추가하기</summary>${textArea('참고 자료 · 선택', 'content', f?.content || '', 'maxlength="6000" placeholder="함께 확인할 내용을 남겨주세요"')}</details><p class="field-help">시간이 없으면 필요할 때 직접 실행해요.<br>체험에서는 앱이 열려 있을 때 저장한 메모를 정리해요.</p><p class="form-error" role="alert"></p><div class="form-actions"><button class="primary-button" type="submit">${f ? '변경 저장' : '내 기능 저장'} ${icon('check')}</button></div></form>`);
+  openSheet(f ? '내 기능 편집' : '나만의 기능 만들기', `<div class="form-intro compact-intro">${mark('spark', 'purple')}<h3>반복하는 부탁을 기억해요.</h3><p>미리보기로 카드에 어떻게 보일지 확인해 보세요.</p></div>${!f ? button('custom-example', '예시 채우기 · 평일 저녁에 메모 정리하기 ' + arrow, 'example-request') : ''}<form id="custom-form" data-id="${f?.id || ''}"><div id="custom-preview" class="custom-preview" aria-label="기능 카드 미리보기"></div><fieldset class="icon-picker"><legend>카드 아이콘</legend>${[['spark', '반짝임'], ['note', '메모'], ['leaf', '일상'], ['news', '정보'], ['bell', '알림'], ['compass', '여행']].map(([v, label]) => `<label><input type="radio" name="icon" value="${v}" ${(f?.icon || 'spark') === v ? 'checked' : ''}><span>${icon(v)}<span class="sr-only">${label}</span></span></label>`).join('')}</fieldset>${field('기능 이름', 'title', f?.title || '', 'text', 'maxlength="60" placeholder="예: 퇴근 정리"')}${textArea('어떤 일을 하면 좋을까요?', 'work', f?.work || '', 'maxlength="2000" placeholder="오늘 저장한 메모를 모아서 할 일을 정리해줘"')}${field('짧은 설명 · 선택', 'description', f?.description || '', 'text', 'maxlength="180" placeholder="카드에 보여줄 한 줄"')}<div class="field-pair">${field('실행 시간 · 선택', 'time', f?.time || '', 'time')}${choiceField('반복', 'repeat', f?.repeat || '필요할 때', ['필요할 때', '매일', '평일', '한 번'])}</div><details class="support-details"><summary>참고할 내용 추가하기</summary>${textArea('참고 자료 · 선택', 'content', f?.content || '', 'maxlength="6000" placeholder="함께 확인할 내용을 남겨주세요"')}</details><p class="field-help">시간이 없으면 필요할 때 직접 실행해요.<br>체험에서는 앱이 열려 있을 때 저장한 메모를 정리해요.</p><p class="form-error" role="alert"></p><button class="primary-button" type="submit">${f ? '변경 저장' : '내 기능으로 저장'} ${icon('check')}</button></form>`);
   updateCustomPreview();
 }
 function updateCustomPreview() {
@@ -430,27 +421,21 @@ function detailHeader(name, color, title, context = '', badge = '') {
 }
 function renderDetail(ref) {
   const [kind, id] = ref.split(':');
-  if (kind === 'parking') { if (!data.parking) return parkingForm(); const p = parkingConfig(data.parking, data.profile); openSheet('주차 기록', `<div class="time-card parking parking-detail">${parkingFace(true)}</div><div class="parking-detail-body" data-card-reveal><div class="detail-facts"><div><span>표시 방식</span><strong>${p.display_mode === 'always' ? '항상 표시' : '정한 시간에 표시'}</strong></div><div><span>표시 시간</span><strong>${esc(parkingDescription(p))}</strong></div></div><p class="field-help">새 위치를 저장하면 이전 위치가 바뀝니다.<br>대시보드 표시 설정은 기기 알림과 별개입니다.</p>${button('edit-parking', '위치 · 표시 설정 변경', 'primary-button')}</div>`); }
-  else if (kind === 'news') openSheet('뉴스 브리핑', `${detailHeader('news', 'blue', data.news.topic, `매일 ${clockLabel(data.news.time)} 수집`)}<p class="detail-notice">예시 기사입니다. 실제 뉴스는 아직 연결되지 않았어요.</p>
-    ${data.news.status === 'loading' ? `<div class="loading-news" role="status"><span class="loading-orb"></span><h3>뉴스 수집 중</h3><p>요약과 출처를 정리하고 있어요.</p><div class="skeleton"></div><div class="skeleton short"></div></div>` : data.news.status === 'failed' ? `<div class="error-card">${icon('cloud')}<h3>뉴스를 가져오지 못했어요</h3><p>최근 결과: ${shortDate(data.news.at)} ${time(data.news.at)}</p>${button('refresh-news', '다시 시도', 'secondary-button')}</div>` : `<p class="updated-at">${shortDate(data.news.at)} ${time(data.news.at)} · 기사 3개</p><div class="article-list">${articleTitles.map((title, i) => button('article', `<span class="article-number">${i + 1}</span><span><h3>${title}</h3><p>${['일정 등록과 알림을 연결하는 기능', '음성을 텍스트로 바꾸고 수정하는 방법', '반복 작업의 예약과 실행 결과'][i]}</p></span>${arrow}`, 'article', `data-index="${i}"`)).join('')}</div>`}
-    <div class="detail-toolbar">${button('news-settings', icon('settings') + ' 브리핑 설정', 'secondary-button')}${button('refresh-news', icon('repeat') + ' 새로고침', 'secondary-button', data.news.status === 'loading' ? 'disabled' : '')}</div><details class="support-details"><summary>수집 상태 미리보기</summary><div class="state-picker">${[['loading', '수집 중'], ['ready', '완료'], ['failed', '실패']].map(([v, title]) => button('news-state', title, data.news.status === v ? 'selected' : '', `data-value="${v}" aria-pressed="${data.news.status === v}"`)).join('')}</div><p class="field-help">실제 수집 없이 화면 상태만 변경합니다.</p></details>`);
-  else if (kind === 'stock') openSheet('관심 주가', `${detailHeader('chart', 'rose', data.stock.symbol, data.stock.symbol === '애플' ? 'NASDAQ · USD' : 'KRX · KRW')}<section class="stock-summary" aria-label="예시 주가"><div class="stock-price">${data.stock.symbol === '코스피' ? '2,650.24' : data.stock.symbol === '애플' ? '228.40' : '72,400'}<small>${data.stock.symbol === '코스피' ? ' pt' : data.stock.symbol === '애플' ? ' USD' : '원'}</small></div><p class="positive">+1.82% <span>전일 대비</span></p></section>
-    <div class="stock-chart">${sparkline()}<div class="chart-labels">${(ui.chart === '1일' ? ['09:00', '12:00', '15:30'] : ui.chart === '1주' ? ['월', '수', '금'] : ['1일', '15일', '30일']).map(v => `<span>${v}</span>`).join('')}</div></div><div class="segmented" aria-label="주가 표시 기간">${['1일', '1주', '1달'].map(v => button('chart-range', v, ui.chart === v ? 'selected' : '', `data-value="${v}" aria-pressed="${ui.chart === v}"`)).join('')}</div>
-    <p class="detail-notice">예시 시세이며 실시간으로 갱신되지 않아요.</p><div class="detail-facts"><div><span>기준 시각</span><strong>${shortDate(data.stock.at)} ${time(data.stock.at)}</strong></div></div>${button('stock-settings', '관심 종목 변경', 'primary-button')}`);
-  else if (kind === 'note' && id) { const n = data.notes.find(n => n.id === id); if (!n) return; openSheet('메모', `<div class="detail-title">${mark('note', 'amber')}<p>${shortDate(n.at)} ${time(n.at)}</p><h2>${esc(n.title)}</h2></div><div class="note-body">${esc(n.body)}</div><div class="detail-actions">${button('edit-note', icon('compose') + ' 편집', 'secondary-button', `data-id="${id}"`)}${button('delete-note', icon('trash') + ' 삭제', 'secondary-button', `data-id="${id}"`)}</div>`, 'note-sheet'); }
+  if (kind === 'parking') { if (!data.parking) return parkingForm(); const p = parkingConfig(data.parking, data.profile); openSheet('주차 기록', `<div class="detail-hero parking-detail">${mark('car')}<p>${parkingPurpose(p)} · 잘 기억하고 있어요</p><h2>${esc(p.floor)}<br><strong>${esc(p.spot || '내 차가 있는 곳')}</strong></h2>${mapArt()}</div><div class="detail-facts"><div><span>기억한 시간</span><strong>${shortDate(p.at)} ${time(p.at)}</strong></div><div><span>표시 방식</span><strong>${p.display_mode === 'always' ? '항상 표시' : '정한 시간에 표시'}</strong></div><div><span>대시보드</span><strong>${esc(parkingDescription(p))}</strong></div></div><p class="field-help">다른 곳에 주차하면 가장 최근 위치로 바뀌어요.<br>표시 설정은 기기 알림 예약과 별개예요.</p>${button('edit-parking', '위치 · 표시 설정 바꾸기 ' + icon('car'), 'primary-button')}`); }
+  else if (kind === 'news') openSheet('뉴스 브리핑', `<div class="detail-title">${mark('news', 'blue')}<p>${esc(data.news.topic)} · ${clockLabel(data.news.time)}</p><h2>오늘의 이야기,<br>핵심만 간결하게.</h2>${tag('체험용 예시 기사', 'blue')}</div>${data.news.status === 'loading' ? `<div class="loading-news"><span class="loading-orb"></span><h3>관심 있는 이야기를 모으고 있어요.</h3><p>요약과 출처를 함께 정리할게요.</p><div class="skeleton"></div><div class="skeleton short"></div></div>` : data.news.status === 'failed' ? `<div class="error-card">${icon('cloud')}<h3>브리핑이 조금 늦어지고 있어요.</h3><p>마지막 결과: ${shortDate(data.news.at)} ${time(data.news.at)}<br>새 결과가 도착하면 갱신할게요.</p>${button('refresh-news', '다시 수집하기', 'secondary-button')}</div>` : `<p class="updated-at">${shortDate(data.news.at)} ${time(data.news.at)} 기준 · 예시 3개</p><div class="article-list">${articleTitles.map((title, i) => button('article', `<span class="article-number">0${i + 1}</span><span><h3>${title}</h3><p>${['작은 일을 맡기며 달라지는 일상의 모습.', '기술과 함께 더 명확하게 생각하는 방법.', '정보를 줄이고 해야 할 일에 집중하기.'][i]}</p><small>모리 테크 레터 · 예시 출처</small></span>${arrow}`, 'article', `data-index="${i}"`)).join('')}</div>`}<div class="detail-actions">${button('news-settings', '관심사 · 시간 설정', 'secondary-button')}${button('refresh-news', icon('repeat') + ' 새로 수집', 'secondary-button', data.news.status === 'loading' ? 'disabled' : '')}</div><details class="support-details"><summary>브리핑 상태별 화면 체험</summary><div class="state-picker">${[['loading', '수집 중'], ['ready', '완료'], ['failed', '실패']].map(([v, title]) => button('news-state', title, data.news.status === v ? 'selected' : '', `data-value="${v}" aria-pressed="${data.news.status === v}"`)).join('')}</div><p class="field-help">실제 수집 요청 없이 화면 상태를 바꿔보는 옵션이에요.</p></details>`);
+  else if (kind === 'stock') openSheet('관심 주가', `<div class="detail-title">${mark('chart', 'rose')}<p>관심 종목 · 화면 체험용 데이터</p><h2>${esc(data.stock.symbol)}</h2><div class="stock-price">${data.stock.symbol === '코스피' ? '2,650.24' : data.stock.symbol === '애플' ? '228.40' : '72,400'}<small>${data.stock.symbol === '코스피' ? ' pt' : data.stock.symbol === '애플' ? ' USD' : '원'}</small></div><p class="positive">+1.82% <span>예시 등락</span></p></div><div class="stock-chart">${sparkline()}<div class="chart-labels">${(ui.chart === '1일' ? ['09:00', '12:00', '15:30'] : ui.chart === '1주' ? ['월', '수', '금'] : ['1일', '15일', '30일']).map(v => `<span>${v}</span>`).join('')}</div></div><div class="segmented">${['1일', '1주', '1달'].map(v => button('chart-range', v, ui.chart === v ? 'selected' : '', `data-value="${v}"`)).join('')}</div><p class="field-help">${ui.chart} 표시 범위 체험 · 실시간 가격과 투자 정보가 아니에요.</p><div class="detail-facts"><div><span>시장 · 통화</span><strong>${data.stock.symbol === '애플' ? 'NASDAQ · USD' : 'KRX · KRW'}</strong></div><div><span>예시 기준 시각</span><strong>${shortDate(data.stock.at)} ${time(data.stock.at)}</strong></div><div><span>데이터 출처</span><strong>화면 체험용 예시</strong></div></div>${button('stock-settings', '관심 종목 바꾸기', 'primary-button')}`);
+  else if (kind === 'note' && id) { const n = data.notes.find(n => n.id === id); if (!n) return; openSheet('메모', `<div class="detail-title">${mark('note', 'amber')}<p>${shortDate(n.at)} ${time(n.at)}</p><h2>${esc(n.title)}</h2></div><div class="note-body">${esc(n.body)}</div><div class="detail-actions">${button('edit-note', icon('compose') + ' 편집하기', 'secondary-button', `data-id="${id}"`)}${button('delete-note', icon('trash') + ' 삭제', 'secondary-button', `data-id="${id}"`)}</div>`); }
   else if (kind === 'note') { ui.recordSearch = ''; recordsSheet('note'); }
   else if (kind === 'schedule') return closeSheet().then(() => go('schedule'));
-  else if (kind === 'event') { const e = data.events.find(e => e.id === id); if (!e) return; const kind = eventKind(e); openSheet('일정', `${detailHeader('calendar', kind.value, e.title, dateLabel(dayDate(e.date)), tag(kind.label, kind.value))}<div class="event-detail-time">${icon('clock')}<div><strong>${e.time} <span>– ${eventEnd(e)}</span></strong><small>${eventDuration(e)}분 동안</small></div></div><div class="event-detail-place">${icon('pin')}<span>${esc(e.place || '장소를 정하지 않았어요')}</span></div>${e.memo ? `<div class="note-body">${esc(e.memo)}</div>` : ''}${button('edit-event', icon('compose') + ' 일정 편집', 'primary-button', `data-id="${id}"`)}`); }
-  else if (kind === 'reminder' && id) { const r = data.reminders.find(r => r.id === id); if (!r) return; const done = current() >= r.target; openSheet('알림', `<div class="timer-scene ${r.cancelled ? 'cancelled' : ''}"><p>${esc(r.title)}</p><div class="timer-ring"><svg viewBox="0 0 240 240" aria-hidden="true"><circle class="timer-track" cx="120" cy="120" r="108"/><circle class="timer-progress" cx="120" cy="120" r="108" stroke-dasharray="679" stroke-dashoffset="0"/></svg><div><span data-countdown="${id}">${r.cancelled ? '중지됨' : remaining(r.target)}</span><small>${r.cancelled ? '다시 시작할 수 있어요' : done ? '목표 시각이 되었어요' : '남은 시간'}</small></div></div><h2>${time(r.target)}</h2><p>앱에서만 표시되며 기기 알림은 보내지 않아요.</p></div><div class="detail-actions">${button('timer-extend', '+ 5분', 'secondary-button', `data-id="${id}"`)}${button('timer-cancel', r.cancelled ? '다시 30분 시작' : '알림 취소', r.cancelled ? 'primary-button' : 'secondary-button', `data-id="${id}"`)}</div><details class="support-details"><summary>알림 완료 화면 미리보기</summary><p class="field-help">체험 시간을 이 알림의 목표 시각으로 이동해요.</p>${button('timer-finish', '목표 시각으로 이동하기', 'text-button full', `data-id="${id}"`)}</details>`, 'timer-sheet'); }
-  else if (kind === 'reminder') openSheet('알림', `${detailHeader('bell', 'orange', '알림 시간', '지금부터 몇 분 뒤에 알릴까요?')}<div class="reminder-presets">${[5, 15, 30, 60].map(m => button('preset-reminder', `<b>${m}</b><span>분 뒤</span>`, '', `data-minutes="${m}"`)).join('')}</div><h3 class="reminder-section-heading">알림 목록</h3><div class="surface">${data.reminders.map(r => button('detail', `${mark('bell', 'orange')}<span class="row-content"><strong>${esc(r.title)}</strong><small>${r.cancelled ? '중지됨' : r.target <= current() ? '완료된 알림' : `${time(r.target)} · ${remaining(r.target)}`}</small></span>${arrow}`, 'record-row', `data-ref="reminder:${r.id}"`)).join('') || '<p class="field-help">등록된 알림이 없어요.</p>'}</div><p class="detail-notice">앱이 열려 있을 때만 표시되며 기기 알림은 보내지 않아요.</p>`);
-  else if (kind === 'custom') { const f = data.customs.find(f => f.id === id); if (!f) return; openSheet('내 기능', `${detailHeader(f.icon, 'purple', f.title, '', tag(!f.work ? '초안' : f.active ? '사용 중' : '중지'))}${f.description ? `<p class="sheet-description">${esc(f.description)}</p>` : ''}<section class="detail-block"><h3>작업 내용</h3><div class="work-card"><p>${esc(f.work || '편집에서 실행할 작업을 입력하세요.')}</p></div></section><div class="detail-facts"><div><span>실행 일정</span><strong>${esc(f.time ? `${f.repeat} ${clockLabel(f.time)}` : '직접 실행')}</strong></div></div>${f.content ? `<section class="detail-block"><h3>참고 내용</h3><div class="note-body">${esc(f.content)}</div></section>` : ''}
-      ${f.result ? `<section class="detail-block"><div class="section-heading"><h3>실행 결과</h3><small>${shortDate(f.result.at)} ${time(f.result.at)}</small></div><div class="checklist">${f.result.items.map((item, i) => button('check-item', `<span class="check-box ${item.done ? 'checked' : ''}">${item.done ? icon('check') : ''}</span><span>${esc(item.text)}</span>`, item.done ? 'done' : '', `data-id="${id}" data-index="${i}" aria-pressed="${item.done}"`)).join('')}</div></section>` : '<p class="field-help">아직 실행 결과가 없어요.</p>'}
-      <div class="detail-toolbar">${button('edit-custom', icon('compose') + ' 편집', 'secondary-button', `data-id="${id}"`)}${button('toggle-custom', f.active ? '중지' : '다시 사용', 'secondary-button', `data-id="${id}"`)}</div>${button('run-custom', '지금 실행', 'primary-button', `data-id="${id}" ${!f.active || !f.work ? 'disabled' : ''}`)}<p class="detail-notice">체험에서는 저장된 메모로 할 일 목록을 만듭니다.</p>`); }
+  else if (kind === 'event') { const e = data.events.find(e => e.id === id); if (!e) return; const kind = eventKind(e); openSheet('나의 약속', `<div class="event-detail-top">${mark('calendar', kind.value)}${tag(kind.label, kind.value)}</div><div class="detail-title"><h2>${esc(e.title)}</h2><p>${dateLabel(dayDate(e.date))}</p></div><div class="event-detail-time">${icon('clock')}<div><strong>${e.time} <span>– ${eventEnd(e)}</span></strong><small>${eventDuration(e)}분 동안</small></div></div><div class="event-detail-place">${icon('pin')}<span>${esc(e.place || '장소를 정하지 않았어요')}</span></div>${e.memo ? `<div class="note-body">${esc(e.memo)}</div>` : ''}${button('edit-event', icon('compose') + ' 일정 편집하기', 'primary-button', `data-id="${id}"`)}`); }
+  else if (kind === 'reminder' && id) { const r = data.reminders.find(r => r.id === id); if (!r) return; const done = current() >= r.target; openSheet('나의 알림', `<div class="timer-scene ${r.cancelled ? 'cancelled' : ''}"><p>${esc(r.title)}</p><div class="timer-ring"><svg viewBox="0 0 240 240" aria-hidden="true"><circle class="timer-track" cx="120" cy="120" r="108"/><circle class="timer-progress" cx="120" cy="120" r="108" stroke-dasharray="679" stroke-dashoffset="0"/></svg><div><span data-countdown="${id}">${r.cancelled ? '중지됨' : remaining(r.target)}</span><small>${r.cancelled ? '다시 시작할 수 있어요' : done ? '목표 시각이 되었어요' : '남은 시간'}</small></div></div><h2>${time(r.target)}</h2><p>이 기기의 알림 체험 · 실제 푸시는 전송하지 않아요</p></div><div class="detail-actions">${button('timer-extend', '+ 5분', 'secondary-button', `data-id="${id}"`)}${button('timer-cancel', r.cancelled ? '다시 30분 시작' : '알림 취소', r.cancelled ? 'primary-button' : 'secondary-button', `data-id="${id}"`)}</div><details class="support-details"><summary>알림 완료 화면 미리보기</summary><p class="field-help">체험 시간을 이 알림의 목표 시각으로 이동해요.</p>${button('timer-finish', '목표 시각으로 이동하기', 'text-button full', `data-id="${id}"`)}</details>`, 'timer-sheet'); }
+  else if (kind === 'reminder') openSheet('알림', `<div class="form-intro">${mark('bell', 'orange')}<h3>언제 챙겨드릴까요?</h3><p>짧은 휴식도, 중요한 순간도.</p></div><div class="reminder-presets">${[5, 15, 30, 60].map(m => button('preset-reminder', `<b>${m}</b><span>분 뒤</span>`, '', `data-minutes="${m}"`)).join('')}</div><div class="surface">${data.reminders.map(r => button('detail', `${mark('bell', 'orange')}<span class="row-content"><strong>${esc(r.title)}</strong><small>${r.cancelled ? '중지됨' : r.target <= current() ? '완료된 알림' : `${time(r.target)} · ${remaining(r.target)}`}</small></span>${arrow}`, 'record-row', `data-ref="reminder:${r.id}"`)).join('')}</div>`);
+  else if (kind === 'custom') { const f = data.customs.find(f => f.id === id); if (!f) return; openSheet('나만의 기능', `<div class="detail-title">${mark(f.icon, 'purple')}<p>내 기능 · 버전 ${f.version}</p><h2>${esc(f.title)}</h2>${f.description ? `<p>${esc(f.description)}</p>` : ''}${tag(!f.work ? '초안' : f.active ? '사용 중' : '잠시 중지', f.active ? 'green' : '')}</div><div class="work-card"><span class="tiny-label">이렇게 도와드려요</span><p>${esc(f.work || '어떤 일을 할지 편집에서 추가해 주세요.')}</p><div>${icon('clock')} ${esc(f.time ? `${f.repeat} ${clockLabel(f.time)}` : '필요할 때 직접 실행')}</div></div>${f.content ? `<div class="note-body">${esc(f.content)}</div>` : ''}${f.result ? `<div class="section-heading"><h3>최근 실행 결과</h3><small>${time(f.result.at)} · v${f.result.version}</small></div><div class="checklist">${f.result.items.map((item, i) => button('check-item', `<span class="check-box ${item.done ? 'checked' : ''}">${item.done ? icon('check') : ''}</span><span>${esc(item.text)}</span>`, item.done ? 'done' : '', `data-id="${id}" data-index="${i}" aria-pressed="${item.done}"`)).join('')}</div><p class="field-help">저장된 메모를 할 일로 옮기는 로컬 실행 예시예요.</p>` : '<p class="field-help">아직 실행 결과가 없어요. 지금 실행해 결과 화면을 체험해 보세요.</p>'}<div class="detail-actions">${button('edit-custom', '편집', 'secondary-button', `data-id="${id}"`)}${button('toggle-custom', f.active ? '잠시 중지' : '다시 켜기', 'secondary-button', `data-id="${id}"`)}</div>${button('run-custom', icon('spark') + ' 지금 실행하기', 'primary-button', `data-id="${id}" ${!f.active || !f.work ? 'disabled' : ''}`)}<p class="field-help center">정의 · 실행 · 결과가 함께 연결되는 기능 체험</p>`); }
   else if (kind === 'document') return documentDetail(id);
   ui.detail = ref;
 }
-function guide() { openSheet('사용 예시', `<div class="guide-intro"><img src="/assets/mori.svg" alt="모리"><h2>이렇게 요청해 보세요</h2><p>예시를 선택하면 요청이 바로 실행됩니다.</p></div><div class="scenario-list">${[['car', 'green', '주차 위치 저장', '지하 3층 B16에 주차했어. 내일 출근할 때 알려줘'], ['news', 'blue', '뉴스 브리핑', '매일 오전 9시에 AI 뉴스를 수집해서 정리해줘'], ['chart', 'rose', '관심 주가 확인', '삼성전자 주가 알려줘'], ['note', 'amber', '메모 남기기', '이번 주말에 한강 산책하기 메모해줘'], ['calendar', 'purple', '일정 등록', '내일 오후 2시 디자인 미팅 일정 추가해줘'], ['bell', 'orange', '30분 뒤 알림', '30분 뒤에 잠깐 쉬라고 알림 줘'], ['spark', 'purple', '내 기능 만들기', '매일 저녁 8시에 오늘 메모를 모아서 정리하는 기능 만들어줘. 제목은 하루 마무리로 해줘']].map(([i, c, title, prompt], idx) => button('prompt', `${mark(i, c)}<span><small>0${idx + 1}</small><strong>${title}</strong></span>${arrow}`, 'scenario-row', `data-prompt="${esc(prompt)}"`)).join('')}</div>${button('document', icon('file') + ' 파일 가져오기', 'secondary-button full')}<p class="field-help center">현재 대화는 주차·메모·일정 등 정해진 요청을 처리합니다.</p>`); }
-function dayPreview() { openSheet('체험 시간 변경', `<p class="sheet-description">선택한 시각에 표시되는 정보와 예약 실행을 확인합니다.</p><div class="day-choices">${[[8, 40, 'sun', '아침', '출근길 주차 · 아침 뉴스'], [9, 0, 'news', '브리핑', '수집 시작부터 완료까지'], [13, 0, 'sun', '낮', '관심 주가 · 다음 약속'], [19, 0, 'moon', '저녁', '퇴근 정리 · 하루 마무리']].map(([h, m, i, title, desc]) => button('set-clock', `${icon(i)}<strong>${title}</strong><span>${h}:${String(m).padStart(2, '0')}</span><small>${desc}</small>`, '', `data-hour="${h}" data-minute="${m}"`)).join('')}</div><p class="field-help">체험 시간을 이동해요. 저장된 기록과 예약은 유지돼요.</p>`); }
+function guide() { openSheet('모리와 하루를 보내보세요', `<div class="guide-intro"><img src="/assets/mori.svg" alt="모리"><h2>작은 부탁 하나부터.</h2><p>예시를 누르면 대화와 결과가 연결돼요.</p></div><div class="scenario-list">${[['car', 'green', '주차하고, 출근길에 다시 만나기', '지하 3층 B16에 주차했어. 내일 출근할 때 알려줘'], ['news', 'blue', '매일 아침 나만의 뉴스', '매일 오전 9시에 AI 뉴스를 수집해서 정리해줘'], ['chart', 'rose', '관심 있는 종목 챙기기', '삼성전자 주가 알려줘'], ['note', 'amber', '떠오른 생각 남기기', '이번 주말에 한강 산책하기 메모해줘'], ['calendar', 'purple', '말로 만드는 새로운 약속', '내일 오후 2시 디자인 미팅 일정 추가해줘'], ['bell', 'orange', '30분 뒤, 잠깐 쉬어가기', '30분 뒤에 잠깐 쉬라고 알림 줘'], ['spark', 'purple', '나만의 커스텀 기능', '매일 저녁 8시에 오늘 메모를 모아서 정리하는 기능 만들어줘. 제목은 하루 마무리로 해줘']].map(([i, c, title, prompt], idx) => button('prompt', `${mark(i, c)}<span><small>0${idx + 1}</small><strong>${title}</strong></span>${arrow}`, 'scenario-row', `data-prompt="${esc(prompt)}"`)).join('')}</div>${button('document', icon('file') + ' 파일 정리도 체험하기', 'secondary-button full')}<p class="field-help center">실제 AI 서버 없이 작동하는 앱 시나리오 체험이에요.</p>`); }
+function dayPreview() { openSheet('모리와 하루 미리보기', `<p class="sheet-description">시간이 바뀌면 필요한 정보도 달라져요.<br>카드가 나타나는 순간을 살펴보세요.</p><div class="day-choices">${[[8, 40, 'sun', '아침', '출근길 주차 · 아침 뉴스'], [9, 0, 'news', '브리핑', '수집 시작부터 완료까지'], [13, 0, 'sun', '낮', '관심 주가 · 다음 약속'], [19, 0, 'moon', '저녁', '퇴근 정리 · 하루 마무리']].map(([h, m, i, title, desc]) => button('set-clock', `${icon(i)}<strong>${title}</strong><span>${h}:${String(m).padStart(2, '0')}</span><small>${desc}</small>`, '', `data-hour="${h}" data-minute="${m}"`)).join('')}</div><p class="field-help">체험 시간을 이동해요. 저장된 기록과 예약은 유지돼요.</p>`); }
 function persistDraft() { const key = ui.chatId || 'new', value = $('#chat-input').value; if (value) data.drafts[key] = value; else delete data.drafts[key]; save(); }
 function syncComposer() {
   const input = $('#chat-input');
@@ -468,11 +453,12 @@ function openChat(id = null, returnSource = null) {
 function renderChat(forceScroll = false) {
   const c = data.conversations.find(c => c.id === ui.chatId), messages = $('#messages');
   const nearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 100, scroll = messages.scrollTop;
-  $('#chat-title').textContent = c?.title || '모리와 대화';
+  $('#chat-title').textContent = c?.title || '모리에게 부탁하기';
   $('#chat-options').hidden = !c;
-  messages.innerHTML = !c?.messages.length ? `<div class="chat-welcome"><img src="/assets/mori.svg" alt="모리"><h2>메시지로 시작하세요</h2><p>직접 입력하거나 아래 예시를 선택하세요.</p></div><div class="chat-suggestions">${[['car', '주차 위치 저장', '지하 3층 B16에 주차했어'], ['note', '메모 남기기', '메모해줘: '], ['calendar', '일정 등록', '내일 오후 2시 미팅 일정 추가해줘']].map(([i, title, t]) => button('chat-example', `${icon(i)}<span>${title}</span>${icon('plus')}`, '', `data-prompt="${esc(t)}"`)).join('')}</div>` : c.messages.map(m => `<div class="message ${m.role}">${m.role === 'assistant' ? `<span class="assistant-avatar">${icon('spark')}</span>` : ''}<div><p>${esc(m.text)}</p>${m.ref ? button('detail', `${icon('check')}<span><small>처리 결과</small><strong>${referenceTitle(m.ref)}</strong></span>${arrow}`, 'message-result', `data-ref="${m.ref}"`) : ''}</div></div>`).join('');
-  if (busy.has(ui.chatId)) messages.insertAdjacentHTML('beforeend', `<div class="assistant-progress"><span class="typing"><i></i><i></i><i></i></span> 요청을 확인하고 있어요</div>`);
+  messages.innerHTML = !c?.messages.length ? `<div class="chat-welcome"><img src="/assets/mori.svg" alt="모리"><p>내 곁의 작은 비서</p><h2>무엇을 챙겨드릴까요?</h2><span>이야기는 편하게,<br>기억할 일은 모리에게.</span></div><div class="chat-suggestions">${[['car', '주차 위치 기억하기', '지하 3층 B16에 주차했어'], ['note', '떠오른 생각 남기기', '메모해줘: '], ['spark', '내 기능 실행하기', '퇴근 정리 실행해줘']].map(([i, title, t]) => button('chat-example', `${mark(i)}<span>${title}</span>${arrow}`, '', `data-prompt="${esc(t)}"`)).join('')}</div><p class="field-help center">예시를 고른 뒤 내용을 고쳐서 보내세요.</p>` : c.messages.map(m => `<div class="message ${m.role}">${m.role === 'assistant' ? `<span class="assistant-avatar">${icon('spark')}</span>` : ''}<div><p>${esc(m.text)}</p>${m.ref ? button('detail', `${icon('check')}<span><small>부탁한 일의 결과</small><strong>${referenceTitle(m.ref)}</strong></span>${arrow}`, 'message-result', `data-ref="${m.ref}"`) : ''}</div></div>`).join('');
+  if (busy.has(ui.chatId)) messages.insertAdjacentHTML('beforeend', `<div class="assistant-progress"><span class="typing"><i></i><i></i><i></i></span> 내 기능과 요청을 확인하고 있어요</div>`);
   syncComposer(); messages.scrollTop = forceScroll || nearBottom ? messages.scrollHeight : scroll;
+  motion.messages(messages, ui.chatId || 'new');
 }
 function announceChat(message, id) {
   if (ui.chatId === id && $('#chat-panel').open) $('#chat-announcement').textContent = message;
@@ -543,7 +529,7 @@ function recordVoice() {
   session.onend = () => { if (recognition !== session) return; recognition = null; voiceListening = false; voiceStatus($('#voice-transcript').value.trim() ? '이렇게 들었어요' : '아직 들은 내용이 없어요', '말한 내용을 고치거나 키보드로 이어갈 수 있어요.'); };
   try { session.start(); voiceListening = true; voiceStatus('듣고 있어요', '마이크를 다시 누르면 녹음을 마쳐요.'); } catch { voiceStatus('음성을 시작하지 못했어요', '음성 예시로도 모든 흐름을 체험할 수 있어요.'); }
 }
-function documentSheet() { openSheet('파일 가져오기', `<div class="form-intro">${mark('file', 'blue')}<h3>텍스트 파일 보관</h3><p>메모와 문서를 같은 보관함에서 꺼내보세요.</p></div><label class="upload-zone">${icon('upload')}<strong>텍스트 파일 불러오기</strong><span>TXT · MD · CSV, 최대 10MB</span><input id="document-upload" type="file" accept=".txt,.md,.csv,text/plain,text/markdown,text/csv"></label><div class="document-benefits"><span>${icon('check')}원문과 줄바꿈 그대로</span><span>${icon('file')}기록 보관함에 저장</span></div>${button('sample-document', '예시 회의 메모로 체험하기 ' + icon('arrow'), 'secondary-button full')}<p class="field-help">파일 원문은 이 기기에 보관해요. 문서 변환과 AI 요약은 지원하지 않아요.</p>`); }
+function documentSheet() { openSheet('파일 속 생각도 한곳에', `<div class="form-intro">${mark('file', 'blue')}<h3>원문 그대로, 가볍게 보관.</h3><p>메모와 문서를 같은 보관함에서 꺼내보세요.</p></div><label class="upload-zone">${icon('upload')}<strong>텍스트 파일 불러오기</strong><span>TXT · MD · CSV, 최대 10MB</span><input id="document-upload" type="file" accept=".txt,.md,.csv,text/plain,text/markdown,text/csv"></label><div class="document-benefits"><span>${icon('check')}원문과 줄바꿈 그대로</span><span>${icon('file')}기록 보관함에 저장</span></div>${button('sample-document', '예시 회의 메모로 체험하기 ' + icon('arrow'), 'secondary-button full')}<p class="field-help">파일은 이 기기에 보관해요. Word·Excel·PDF 변환과 AI 요약은 아직 연결 전이에요.</p>`); }
 async function documentDetail(id) {
   const d = data.documents.find(d => d.id === id); if (!d) return;
   const ref = `document:${id}`;
@@ -565,7 +551,7 @@ async function saveDocument(name, content, sheetEpoch = ui.sheetEpoch) {
 }
 function profileDetails() {
   const user = ui.liveUser;
-  openSheet('사용자 정보', `<div class="detail-title">${mark('user')}<h2>${esc(user.display_name)}님</h2></div><dl class="account-facts"><div><dt>이름</dt><dd>${esc(user.display_name)}</dd></div><div><dt>연결된 계정</dt><dd>${user.providers.map(p => p === 'naver' ? '네이버' : '카카오').join(' · ')}</dd></div><div><dt>이용 요금제</dt><dd>${user.tier === 'pro' ? 'Pro' : 'Free'}</dd></div>${user.created_at ? `<div><dt>가입일</dt><dd>${new Date(user.created_at).toLocaleDateString('ko-KR')}</dd></div>` : ''}</dl>${button('edit-profile', '사용자 정보 수정', 'primary-button full')}`, '', { restore: profileDetails });
+  openSheet('사용자 정보', `<div class="detail-title">${mark('user')}<h2>${esc(user.display_name)}님</h2><p>내 곁의 작은 비서, 모리</p></div><dl class="account-facts"><div><dt>이름</dt><dd>${esc(user.display_name)}</dd></div><div><dt>연결된 계정</dt><dd>${user.providers.map(p => p === 'naver' ? '네이버' : '카카오').join(' · ')}</dd></div><div><dt>이용 요금제</dt><dd>${user.tier === 'pro' ? 'Pro' : 'Free'}</dd></div>${user.created_at ? `<div><dt>가입일</dt><dd>${new Date(user.created_at).toLocaleDateString('ko-KR')}</dd></div>` : ''}</dl>${button('edit-profile', '사용자 정보 수정', 'primary-button full')}`, '', { restore: profileDetails });
 }
 async function accountSheet() {
   openSheet('내 계정', '<p class="sheet-description" role="status">계정 정보를 확인하고 있어요.</p>');
@@ -580,7 +566,7 @@ async function accountSheet() {
   } catch { if (epoch === ui.sheetEpoch && $('#sheet').open) openSheet('로그인', empty('cloud', '로그인 정보를 불러오지 못했어요', '잠시 후 다시 시도해 주세요.', button('account', '다시 시도', 'primary-button'))); }
 }
 function themeSheet() {
-  openSheet('테마', `<p class="sheet-description">기기 설정을 따르거나 화면 밝기를 선택하세요.</p><form id="theme-form"><fieldset class="theme-options"><legend class="sr-only">화면 테마</legend>${[['system', '시스템 설정', '기기 설정에 맞춰 자동으로'], ['light', '라이트', '밝은 배경'], ['dark', '다크', '어두운 배경']].map(([value, label, copy]) => `<label class="theme-option"><input type="radio" name="theme" value="${value}" ${selectedTheme === value ? 'checked' : ''}><span class="theme-preview ${value}" aria-hidden="true"><i></i><i></i></span><span><strong>${label}</strong><small>${copy}</small></span>${icon('check')}</label>`).join('')}</fieldset><p class="form-error" role="alert"></p><div class="form-actions"><button type="submit" class="primary-button full">테마 적용</button></div><p class="field-help center">${ui.liveUser ? '내 계정에 저장해요.' : '로그인 전에는 이 기기에 적용해요.'}</p></form>`);
+  openSheet('테마', `<p class="sheet-description">눈에 편한 화면을 골라주세요.</p><form id="theme-form"><fieldset class="theme-options"><legend class="sr-only">화면 테마</legend>${[['system', '시스템 설정', '기기 설정에 맞춰 자동으로'], ['light', '라이트', '밝고 산뜻한 화면'], ['dark', '다크', '차분하고 편안한 화면']].map(([value, label, copy]) => `<label class="theme-option"><input type="radio" name="theme" value="${value}" ${selectedTheme === value ? 'checked' : ''}><span class="theme-preview ${value}" aria-hidden="true"><i></i><i></i></span><span><strong>${label}</strong><small>${copy}</small></span>${icon('check')}</label>`).join('')}</fieldset><p class="form-error" role="alert"></p><button type="submit" class="primary-button full">적용하기</button><p class="field-help center">${ui.liveUser ? '내 계정에 저장해요.' : '로그인 전에는 이 기기에 적용해요.'}</p></form>`);
 }
 async function subscriptionSheet() {
   openSheet('요금제 및 결제', '<p class="sheet-description" role="status">요금제를 확인하고 있어요.</p>');
@@ -588,7 +574,7 @@ async function subscriptionSheet() {
   try {
     const [plans, subscription] = await Promise.all([api('/plans'), ui.liveUser ? api('/subscription') : Promise.resolve(null)]);
     if (epoch !== ui.sheetEpoch || !$('#sheet').open) return;
-    openSheet('요금제 및 결제', `<div class="form-intro">${mark('spark', 'purple')}<h3>이용 요금제</h3><p>${esc(subscription?.message || '사용할 요금제와 이용 조건을 확인하세요.')}</p></div><div class="account-plan-options">${plans.map(plan => `<article class="account-plan-option ${subscription?.plan === plan.id ? 'selected' : ''}"><header><span>${plan.name}</span>${subscription?.plan === plan.id ? tag('이용 중') : ''}</header><h3>${plan.amount === null ? '준비 중' : plan.amount === 0 ? '무료' : plan.amount.toLocaleString('ko-KR') + '원'}</h3><p>${esc(plan.description)}</p>${plan.id === 'free' ? button(ui.liveUser ? 'close' : 'account', subscription?.plan === 'pro' ? '기본 요금제' : ui.liveUser ? '현재 요금제 유지' : '로그인하고 이용하기', 'secondary-button full', subscription?.plan === 'pro' ? 'disabled' : '') : '<button type="button" class="primary-button full" disabled>Pro 결제 준비 중</button>'}</article>`).join('')}</div><div class="subscription-cancel"><strong>Pro 구독 해지</strong><p>${subscription?.access_source === 'admin_approval' ? '관리자 승인 이용권은 결제 구독이 아니에요.' : '현재 해지할 결제 구독이 없어요.'}</p><button type="button" class="secondary-button full" disabled>결제 취소 · 구독 해지</button></div><p class="field-help">Pro 가격과 결제 서비스는 준비 중이에요. 결제 연결 전에는 요금이 청구되지 않아요.</p>`);
+    openSheet('요금제 및 결제', `<div class="form-intro">${mark('spark', 'purple')}<h3>나에게 맞는 모리</h3><p>${esc(subscription?.message || '무료로 시작하고, 필요한 순간에 더 가까이.')}</p></div><div class="account-plan-options">${plans.map(plan => `<article class="account-plan-option ${subscription?.plan === plan.id ? 'selected' : ''}"><header><span>${plan.name}</span>${subscription?.plan === plan.id ? tag('이용 중') : ''}</header><h3>${plan.amount === null ? '준비 중' : plan.amount === 0 ? '무료' : plan.amount.toLocaleString('ko-KR') + '원'}</h3><p>${esc(plan.description)}</p>${plan.id === 'free' ? button(ui.liveUser ? 'close' : 'account', subscription?.plan === 'pro' ? '기본 요금제' : ui.liveUser ? '무료로 계속 이용하기' : '무료로 시작하기', 'secondary-button full', subscription?.plan === 'pro' ? 'disabled' : '') : '<button type="button" class="primary-button full" disabled>Pro 결제 준비 중</button>'}</article>`).join('')}</div><div class="subscription-cancel"><strong>Pro 구독 해지</strong><p>${subscription?.access_source === 'admin_approval' ? '관리자 승인 이용권은 결제 구독이 아니에요.' : '현재 해지할 결제 구독이 없어요.'}</p><button type="button" class="secondary-button full" disabled>결제 취소 · 구독 해지</button></div><p class="field-help">Pro 가격과 결제 서비스는 준비 중이에요. 결제 연결 전에는 요금이 청구되지 않아요.</p>`);
   } catch { if (epoch === ui.sheetEpoch && $('#sheet').open) openSheet('요금제 및 결제', empty('cloud', '요금제를 불러오지 못했어요', '잠시 후 다시 시도해 주세요.', button('license', '다시 시도', 'primary-button'))); }
 }
 
@@ -603,7 +589,7 @@ document.addEventListener('click', async event => {
   if (a === 'toggle-window') return toggleWindowMenu();
   if (a === 'set-window') {
     const hours = Number(el.dataset.hours); if (!DASHBOARD_WINDOWS.some(w => w.hours === hours)) return;
-    ui.horizon = hours; ui.windowMenu = false; ui.resetRails = true; render(); presentations.replace($('.now-section'), { level: true });
+    ui.horizon = hours; ui.windowMenu = false; ui.resetRails = true; render();
     return $('#dashboard-window-trigger')?.focus({ preventScroll: true });
   }
   if (a === 'shelf-page') {
@@ -740,7 +726,7 @@ document.addEventListener('submit', async event => {
           const prefs = await api('/settings', {method: 'PUT', data: {theme: v.theme, revision: ui.settingsRevision}});
           if (owner !== ui.liveUser?.id) return; ui.settingsRevision = prefs.revision; ui.settingsState = 'ready';
         }
-        selectedTheme = v.theme; try { localStorage.setItem('mori.theme.v1', selectedTheme); } catch { /* Applied for this session. */ } applyTheme();
+        selectedTheme = v.theme; try { localStorage.setItem(THEME_KEY, selectedTheme); } catch { /* Applied for this session. */ } applyTheme();
       }
       render();
       if (epoch !== ui.sheetEpoch || !form.isConnected) return toast(form.id === 'profile-form' ? '사용자 정보를 수정했어요.' : '테마를 적용했어요.');
@@ -850,7 +836,7 @@ document.addEventListener('focusout', () => requestAnimationFrame(syncVisibleVie
 window.addEventListener('resize', syncVisibleViewport);
 syncVisibleViewport();
 window.addEventListener('hashchange', route);
-window.addEventListener('resize', () => { if (ui.windowMenu) positionWindowMenu(); });
+window.addEventListener('resize', () => { if (ui.windowMenu) positionWindowMenu(); motion.render(ui.view); });
 let lastMinute = '';
 setInterval(() => {
   if (tickScheduled(data)) { save(); render(); if (ui.detail && $('#sheet').open) openDetail(ui.detail); }

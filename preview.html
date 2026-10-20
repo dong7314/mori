@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>모리 · 모바일과 태블릿 미리보기</title>
+  <link rel="icon" href="/assets/mori.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles/main.css">
+  <script src="/src/preview.mjs" type="module"></script>
+</head>
+<body class="device-preview" data-preview-mode="both">
+  <header class="preview-toolbar">
+    <div class="preview-identity"><strong>mori<span>·</span></strong><span>모바일 · 태블릿 미리보기</span></div>
+    <div class="preview-controls">
+      <div class="preview-modes" role="group" aria-label="화면 보기">
+        <button type="button" data-preview-mode="mobile" aria-pressed="false">모바일</button>
+        <button type="button" data-preview-mode="tablet" aria-pressed="false">태블릿</button>
+        <button type="button" data-preview-mode="both" aria-pressed="true">나란히</button>
+      </div>
+      <button type="button" id="preview-actual" aria-pressed="false">100% 크기</button>
+      <a href="/" target="_blank" rel="noopener">앱 열기 ↗</a>
+    </div>
+  </header>
+  <p class="preview-instructions">화면 안의 탭을 눌러 전환을 확인하세요. <strong>일정의 + 버튼</strong>은 입력 시트, <strong>마이크 버튼</strong>은 음성 화면을 엽니다. 미리보기의 체험 기록은 실제 앱과 별도로 저장됩니다.</p>
+  <main class="preview-stage" aria-label="실제 앱 화면">
+    <section class="preview-device preview-mobile" aria-label="모바일 앱">
+      <header><h1>모바일</h1><span>390 × 844</span></header>
+      <div class="preview-screen"><iframe src="/?preview=mobile#dashboard" title="모리 모바일 390×844" width="390" height="844"></iframe></div>
+    </section>
+    <section class="preview-device preview-tablet" aria-label="태블릿 앱">
+      <header><h1>태블릿</h1><span>768 × 1024</span></header>
+      <div class="preview-screen"><iframe src="/?preview=tablet#dashboard" title="모리 태블릿 768×1024" width="768" height="1024"></iframe></div>
+    </section>
+  </main>
+</body>
+</html>
