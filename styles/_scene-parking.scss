@@ -1,0 +1,49 @@
+// The map is deliberately schematic: the saved bay is a visual anchor, not a route.
+.feature-scene--parking {
+  .parking-ground {
+    fill: color-mix(in srgb, var(--scene-accent) 8%, var(--scene-paper));
+    stroke: color-mix(in srgb, var(--scene-accent) 22%, var(--scene-paper));
+    stroke-width: .9;
+  }
+  .parking-boundary {
+    fill: none;
+    stroke: color-mix(in srgb, var(--scene-accent) 17%, var(--scene-paper));
+    stroke-width: .8;
+  }
+  .parking-aisle { fill: color-mix(in srgb, var(--scene-accent) 4%, var(--scene-paper)); }
+  .parking-lane {
+    fill: none;
+    stroke: color-mix(in srgb, var(--scene-accent) 30%, var(--scene-paper));
+    stroke-width: 1;
+    stroke-dasharray: 5 6;
+    stroke-linecap: round;
+  }
+  .parking-bay {
+    fill: none;
+    stroke: color-mix(in srgb, var(--scene-accent) 32%, var(--scene-paper));
+    stroke-width: 1;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .parking-column { fill: color-mix(in srgb, var(--scene-accent) 22%, var(--scene-paper)); }
+  .parking-floor-pill { fill: var(--scene-paper); stroke: color-mix(in srgb, var(--scene-accent) 14%, var(--scene-paper)); stroke-width: .7; }
+  .parking-floor-text { fill: var(--scene-ink); font-size: 9.5px; }
+  .parking-vehicle { fill: var(--scene-accent); }
+  .parking-vehicle--quiet { fill: color-mix(in srgb, var(--scene-accent) 35%, var(--scene-paper)); }
+  .parking-vehicle--distant { opacity: .65; }
+  .parking-window { fill: var(--scene-paper); opacity: .72; }
+  .parking-car-roof { fill: var(--scene-paper); opacity: .16; }
+  .parking-car-wheels { fill: none; stroke: color-mix(in srgb, var(--scene-accent) 75%, var(--scene-ink)); stroke-width: 1.4; stroke-linecap: round; }
+  .parking-headlights { fill: none; stroke: var(--scene-paper); stroke-opacity: .9; stroke-width: 1; stroke-linecap: round; }
+  .parking-selected-bay {
+    fill: color-mix(in srgb, var(--scene-accent) 15%, var(--scene-paper));
+    stroke: var(--scene-accent);
+    stroke-width: 1.25;
+  }
+  .parking-pin { stroke: var(--scene-paper); stroke-width: 1.2; stroke-linejoin: round; }
+  .parking-pin-center { fill: var(--scene-paper); }
+  .parking-position-label { fill: var(--scene-accent); }
+  .scene-position-text { font-size: 12px; }
+  .scene-position-text.is-long { font-size: 10.5px; }
+  .parking-caption { font-size: 6.5px; fill: var(--scene-muted); }
+}

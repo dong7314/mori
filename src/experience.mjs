@@ -35,6 +35,17 @@ export function visibleCards(state, now = nowOf(state)) {
   state.customs.filter(f => f.active && f.time && (f.repeat !== '평일' || ![0, 6].includes(d.getDay())) && Math.abs(minute - minuteOf(f.time)) < 90).forEach(f => cards.push(`custom:${f.id}`));
   return cards;
 }
+// Keep scheduled items first while leaving every built-in feature accessible.
+// Reminder occurrences already represent the reminder feature; do not add a
+// second, generic reminder card beside them.
+export function dashboardCards(state, now = nowOf(state)) {
+  const cards = [...new Set(visibleCards(state, now))];
+  const present = new Set(cards.map(ref => ref.split(':')[0]));
+  for (const { id } of BUILTINS) {
+    if (!present.has(id)) cards.push(id);
+  }
+  return cards;
+}
 export function parseTime(text, fallback = '09:00') {
   const m = text.match(/(오전|오후|저녁|아침)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/);
   if (!m) return fallback;

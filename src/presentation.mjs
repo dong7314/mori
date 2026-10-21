@@ -1,4 +1,4 @@
-import { captureControl, resolveControl } from './navigation-focus.mjs';
+import { captureControl, resolveControl, isAvailableControl } from './navigation-focus.mjs';
 
 // Keep text at its natural aspect ratio. Only the surface boundary changes size.
 export function cardGeometry(source, target, radius = 28, targetRadius = 0) {
@@ -17,12 +17,47 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
   const easing = 'cubic-bezier(.22,1,.36,1)';
   // A result inside chat can share its action with a dashboard card. Keep the
   // originating surface so a rerender cannot send focus behind the open dialog.
-  const resolveSource = state => resolveControl(state.sourceRoot, state.source, { visible: true });
+  function resolveOrigin(state, { visible = false } = {}) {
+    const exact = resolveControl(state.sourceRoot, state.source, { visible });
+    if (exact) return exact;
+    const attributes = new Map(state.source?.attributes || []);
+    const kind = attributes.get('data-card-kind');
+    // A generic empty feature card can acquire a record id after creating its
+    // first item. Keep that feature as the origin; never redirect a deleted
+    // specific record to an unrelated item of the same kind.
+    if (!kind || attributes.get('data-ref') !== kind ||
+        !state.source?.element?.matches?.('.brief-card')) return null;
+    return [...(state.sourceRoot?.querySelectorAll?.('.brief-card[data-card-kind]') || [])].find(element =>
+      element.isConnected && element.matches?.('.brief-card') && element.getAttribute('data-card-kind') === kind &&
+      (!visible || isAvailableControl(element))) || null;
+  }
+  const resolveSource = state => resolveOrigin(state, { visible: true });
+  // showModal makes the background inert. Geometry is still useful while that
+  // card is behind the modal, even though it cannot currently receive focus.
+  const resolveVisualSource = state => resolveOrigin(state);
   const visibleRect = element => {
-    if (!element?.isConnected) return null;
+    if (!element?.isConnected || !element.getClientRects?.().length ||
+        element.closest?.('[hidden], dialog:not([open])')) return null;
     const rect = element.getBoundingClientRect();
-    return rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.bottom <= innerHeight && rect.left >= 0 && rect.right <= innerWidth ? rect : null;
+    const left = Math.max(0, rect.left), top = Math.max(0, rect.top);
+    const right = Math.min(innerWidth, rect.right ?? rect.left + rect.width);
+    const bottom = Math.min(innerHeight, rect.bottom ?? rect.top + rect.height);
+    // A card at the edge can still expand from its visible portion. Completely
+    // offscreen cards use a simple presentation instead of flying across the UI.
+    if (right - left < 24 || bottom - top < 24) return null;
+    return { left, top, right, bottom, width: right - left, height: bottom - top };
   };
+  const isCard = element => element?.matches?.('.brief-card, .forecast-card, .time-card.parking');
+  function captureVisual(source) {
+    const rect = isCard(source) && visibleRect(source);
+    if (!rect) return null;
+    const parts = new Map([...(source.querySelectorAll?.('[data-card-part]') || [])].map(element => [element.dataset.cardPart, {
+      rect: element.getBoundingClientRect(),
+      opacity: getComputedStyle(element).opacity,
+      fontSize: getComputedStyle(element).fontSize,
+    }]));
+    return { rect, parts, radius: parseFloat(getComputedStyle(source).borderRadius) || 28 };
+  }
   const readFrame = (element, template) => {
     const style = getComputedStyle(element);
     return Object.fromEntries(Object.keys(template).map(key => [key, key.startsWith('--') ? style.getPropertyValue(key).trim() || template[key] : key === 'clipPath' && style[key] === 'none' ? template[key] : style[key] || template[key]]));
@@ -45,29 +80,42 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     });
     if (state) state.frozen = null;
   };
-  function plan(dialog, state) {
-    const source = resolveSource(state), rect = visibleRect(source);
+  function plan(dialog, state, openingVisual = null, returning = false) {
+    const source = resolveVisualSource(state);
+    const visual = openingVisual || captureVisual(source);
     const target = state.target;
-    const hero = dialog.querySelector?.('.parking-detail');
+    const hero = dialog.querySelector?.('.card-detail-hero') || dialog.querySelector?.('.parking-detail');
     const scroller = dialog.querySelector?.('#sheet-content');
-    // Match actual common content, not every unrelated list row to a full page.
-    const shared = source?.matches?.('.time-card.parking') && hero && !scroller?.scrollTop;
-    const geometry = shared && cardGeometry(rect, target, parseFloat(getComputedStyle(source).borderRadius) || 28, parseFloat(getComputedStyle(dialog).borderRadius) || 0);
+    // A scrolled page closes back through its hero. Only the modal scroller moves;
+    // the dashboard remains at the same scroll position behind it.
+    const returningScroll = returning && visual ? scroller?.scrollTop || 0 : 0;
+    if (returningScroll) scroller.scrollTop = 0;
+    const shared = visual && (hero || dialog.classList?.contains('card-page'));
+    const geometry = shared && cardGeometry(visual.rect, target, visual.radius, parseFloat(getComputedStyle(dialog).borderRadius) || 0);
     if (geometry) {
-      const parts = [...hero.querySelectorAll('[data-card-part]')].flatMap(element => {
-        const from = source.querySelector(`[data-card-part="${element.dataset.cardPart}"]`);
+      const parts = [...(hero?.querySelectorAll?.('[data-card-part]') || [])].flatMap(element => {
+        const name = element.dataset.cardPart;
+        const from = visual.parts.get(name);
         if (!from) return [];
-        const a = from.getBoundingClientRect(), b = element.getBoundingClientRect();
-        const style = getComputedStyle(element), sourceStyle = getComputedStyle(from);
-        const scale = parseFloat(sourceStyle.fontSize) / parseFloat(style.fontSize) || 1;
+        const a = from.rect, b = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
         const base = style.transform === 'none' ? '' : style.transform;
-        return [{ element, frames: [
-          { transform: `translate(${a.left - b.left - geometry.x}px, ${a.top - b.top - geometry.y}px) scale(${scale}) ${base}`.trim(), opacity: sourceStyle.opacity },
-          { transform: base || 'none', opacity: style.opacity },
-        ] }];
+        const art = name === 'art' || element.matches?.('svg');
+        const scale = art && b.width > 0 && b.height > 0 ? Math.min(a.width / b.width, a.height / b.height) : 1;
+        const start = {
+          transform: `translate(${a.left - b.left - geometry.x}px, ${a.top - b.top - geometry.y}px)${art ? ` scale(${scale})` : ''} ${base}`.trim(),
+          transformOrigin: '0px 0px', opacity: from.opacity,
+        };
+        const end = { transform: base || 'none', transformOrigin: '0px 0px', opacity: style.opacity };
+        // Text never gets stretched. If the expanded hero changes type size, the
+        // browser lays the type out at each size instead of scaling its glyphs.
+        if (!art && parseFloat(from.fontSize) > 0 && parseFloat(style.fontSize) > 0) {
+          start.fontSize = from.fontSize; end.fontSize = style.fontSize;
+        }
+        return [{ element, returningScroll, frames: [start, end] }];
       });
-      const reveals = [...dialog.querySelectorAll('[data-card-reveal], .sheet-header')].map(element => ({ element, frames: [
-        { opacity: 0, transform: 'translateY(12px)' }, { opacity: 1, transform: 'translateY(0px)' },
+      const reveals = [...(dialog.querySelectorAll?.('[data-card-reveal], .sheet-header') || [])].map(element => ({ element, returningScroll: element.hasAttribute?.('data-card-reveal') ? returningScroll : 0, frames: [
+        { opacity: 0, transform: 'translateY(16px)' }, { opacity: 1, transform: 'translateY(0px)' },
       ] }));
       return { frames: geometry.frames, parts, reveals, card: true };
     }
@@ -85,7 +133,15 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     for (const track of [...motion.parts, ...motion.reveals]) {
       if (!track.element.isConnected) continue;
       const revealing = motion.reveals.includes(track);
-      const frames = closing ? [current?.get(track.element) || readFrame(track.element, track.frames[1]), track.frames[0]] : [current?.get(track.element) || track.frames[0], track.frames[1]];
+      let frames = closing ? [current?.get(track.element) || readFrame(track.element, track.frames[1]), track.frames[0]] : [current?.get(track.element) || track.frames[0], track.frames[1]];
+      if (closing && track.returningScroll) {
+        const shifted = frame => ({ ...frame, transform: `translateY(${-track.returningScroll}px) ${frame.transform === 'none' ? '' : frame.transform || ''}`.trim() });
+        // Resetting the scroller exposes the hero for its return animation. Keep
+        // its shared parts at their pre-reset positions in the first frame, then
+        // let them travel to their card positions. The old body stays displaced
+        // for both frames of its shorter fade. Fixed headers are never shifted.
+        frames = revealing ? frames.map(shifted) : [shifted(frames[0]), frames[1]];
+      }
       const animation = track.element.animate(frames, { ...options, duration: revealing ? closing ? 150 : 240 : duration, delay: revealing && !closing && !current ? 100 : 0 });
       animation.finished.catch(() => {});
       state.tracks.push({ ...track, animation });
@@ -114,6 +170,8 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     if (dialog.open && !previous?.closing) return;
     const current = previous?.closing ? snapshot(dialog, previous) : null;
     cancel(previous); clearFrozen(previous); clearDrag(dialog);
+    // Read the origin before the top-layer modal changes focus/inertness.
+    const openingVisual = captureVisual(source);
     const state = { source: captureControl(source), sourceRoot: source?.closest('dialog') || document, kind, animation: null, tracks: [], closing: null };
     states.set(dialog, state);
     openOrder = openOrder.filter(view => view !== dialog && view.open);
@@ -122,7 +180,7 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     dialog.removeAttribute('data-closing'); dialog.removeAttribute('data-card-motion');
     if (!dialog.open) dialog.showModal();
     state.target = dialog.getBoundingClientRect();
-    state.motion = plan(dialog, state);
+    state.motion = plan(dialog, state, openingVisual);
     if (!reducedMotion()) finishOpening(dialog, state, run(dialog, state, state.motion, false, current));
   }
   function dismiss(dialog, { dragOffset = 0 } = {}) {
@@ -132,13 +190,13 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     states.set(dialog, state);
     const current = snapshot(dialog, state);
     cancel(state); clearDrag(dialog);
-    // Resolve the source again after rerenders or editing. Scrolled/changed details
-    // use the simple dismissal instead of morphing unrelated text into the card.
+    // Resolve the source again after rerenders or editing. Even a nested card
+    // page without shared hero parts can return its surface to the same origin.
     if (!state.animation && !dragOffset) {
       state.target = dialog.getBoundingClientRect();
-      state.motion = plan(dialog, state);
+      state.motion = plan(dialog, state, null, true);
     }
-    state.motion ||= plan(dialog, state);
+    state.motion ||= plan(dialog, state, null, true);
     dialog.dataset.closing = 'true';
     state.closing = (async () => {
       if (!reducedMotion()) {
@@ -167,8 +225,8 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     const reset = () => { drag = null; clearDrag(dialog); };
     dialog.addEventListener('pointerdown', event => {
       if (drag || event.isPrimary === false || event.button !== 0 || dialog.dataset.closing || event.target.closest('button') ||
-        !event.target.closest('.sheet-handle, .sheet-header, .chat-header, .voice-panel > header, .parking-detail') ||
-        (event.target.closest('.parking-detail') && dialog.querySelector('#sheet-content').scrollTop > 0)) return;
+        !event.target.closest('.sheet-handle, .sheet-header, .chat-header, .voice-panel > header, .parking-detail, .card-detail-hero') ||
+        (event.target.closest('.parking-detail, .card-detail-hero') && dialog.querySelector('#sheet-content')?.scrollTop > 0)) return;
       event.preventDefault();
       const state = states.get(dialog);
       if (state && !state.animation) {
@@ -194,9 +252,12 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
           drag.state.animation = null; drag.state.tracks = []; drag.state.frozen = new Map();
           current?.forEach((frame, element) => {
             if (element === dialog) return;
-            const properties = ['transform', 'opacity'];
+            const properties = ['transform', 'opacity', ...(frame.fontSize ? ['font-size'] : []), ...(frame.transformOrigin ? ['transform-origin'] : [])];
             drag.state.frozen.set(element, new Map(properties.map(key => [key, element.style.getPropertyValue(key)])));
-            for (const key of properties) element.style.setProperty(key, frame[key]);
+            for (const key of properties) {
+              const value = frame[key.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())];
+              element.style.setProperty(key, value);
+            }
           });
         }
         if (drag.base?.clipPath) dialog.style.clipPath = drag.base.clipPath;

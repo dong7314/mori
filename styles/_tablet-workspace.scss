@@ -1,0 +1,192 @@
+// A tablet keeps the same reading order as the phone: context, actions, current
+// information, then the day's agenda and saved material. Only its density changes.
+@media (min-width: 700px) {
+  :root { --gutter: clamp(28px, 4.2vw, 48px); }
+
+  .app-frame { max-width: 1184px; }
+  #main { padding-top: calc(24px + env(safe-area-inset-top)); padding-bottom: calc(8rem + env(safe-area-inset-bottom)); }
+
+  // Both persistent controls remain within the same reachable bottom band.
+  .app-dock {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 24px var(--gutter) calc(18px + env(safe-area-inset-bottom));
+  }
+  .quick-composer { flex: 0 1 300px; width: auto; min-width: 240px; min-height: 65px; padding: 7px; }
+  .quick-composer > button:first-child { min-height: 49px; padding-inline: 10px; }
+  .quick-composer .quick-mic { width: 47px; height: 47px; flex-basis: 47px; }
+  .tab-bar { flex: 0 1 450px; width: auto; min-width: 0; min-height: 65px; }
+  .tab-bar button { min-height: 53px; font-size: .6875rem; }
+
+  #main[data-page=dashboard] {
+    display: grid;
+    grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr);
+    column-gap: 28px;
+    align-content: start;
+    align-items: start;
+    > .home-top { grid-column: 1 / -1; margin-bottom: 24px; }
+    > .home-greeting { margin-bottom: 28px; }
+    > .dashboard-shortcuts { align-self: center; padding-top: 12px; }
+    > .now-section, > .home-lower { grid-column: 1 / -1; min-width: 0; }
+    .home-greeting h1 { font-size: 1.8125rem; line-height: 1.35; }
+    .greeting-caption { font-size: .875rem; }
+    .quick-actions { max-width: none; gap: 12px; margin: 0; }
+    .quick-actions button { gap: 10px; min-height: 88px; padding-bottom: 0; }
+    .quick-actions .feature-icon { width: 54px; height: 54px; border-radius: 19px; }
+    .now-heading { margin: 0 0 14px; }
+    .section-heading { min-height: 44px; }
+  }
+
+  // A single item fills the band. With three, lead with a wide compact card,
+  // followed by two secondary cards rather than stretching one into empty space.
+  .brief-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+  .brief-card { display: flex; flex-direction: column; min-height: 174px; padding: 20px 22px; border-radius: 23px; }
+  .brief-card .brief-body { flex: 1; margin-block: 14px; }
+  .brief-card .brief-stamp { margin-top: auto; }
+  .brief-card .brief-copy > strong { font-size: 1.25rem; line-height: 1.4; }
+  .brief-card.parking .brief-copy > strong { font-size: clamp(1.375rem, 2.8vw, 1.875rem); }
+  .brief-grid:has(> .brief-card:only-child) {
+    grid-template-columns: minmax(0, 1fr);
+    > .brief-card { min-height: 174px; }
+    .brief-copy { max-width: 42rem; }
+  }
+  .brief-grid:has(> .brief-card:nth-child(3):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    > .brief-card:first-child { grid-column: 1 / -1; min-height: 184px; }
+    > .brief-card:not(:first-child) { min-height: 184px; }
+    > .brief-card:first-child .brief-body { align-items: center; }
+    > .brief-card:first-child .brief-copy > strong { font-size: 1.75rem; }
+    > .brief-card:first-child.parking .brief-copy > strong { font-size: 2.125rem; }
+  }
+
+  .home-lower {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 28px;
+    > section { min-width: 0; }
+    > section > .section-heading:first-child { margin-top: 26px; }
+    .surface, .record-list { padding-inline: 18px; border-radius: 22px; }
+    .event-row, .record-row, .conversation-row { min-height: 82px; }
+    .row-content strong { font-size: .9375rem; }
+    .row-content small { font-size: .8125rem; }
+    .empty-state { padding-block: 24px; }
+    .document-entry { min-height: 52px; }
+    .home-signoff { margin-top: 24px; }
+  }
+
+  // Time browsing stays a horizontally browsable collection, never a four-up
+  // miniature phone layout. Its start edge follows the normal card band.
+  .forecast-summary { padding: 18px 22px; margin-bottom: 24px; }
+  .forecast-card { flex-basis: calc(50% - 7px); min-height: 212px; padding: 22px; }
+  .forecast-rail { gap: 14px; padding-bottom: 16px; }
+  .forecast-shelf { margin-bottom: 24px; }
+  .forecast-shelf > header { min-height: 44px; }
+
+  // Secondary tabs have one shared reading width and a consistent title edge.
+  #main[data-page=conversations], #main[data-page=my] {
+    > * { width: min(100%, 840px); margin-inline: auto; }
+  }
+  #main[data-page=conversations] {
+    > .page-heading { margin-top: 12px; }
+    .conversation-start { max-width: none; padding: 24px; margin-block: 24px; }
+    .conversation-groups { max-width: none; }
+    .conversation-row { min-height: 86px; }
+  }
+  #main[data-page=my] {
+    > .profile-summary, > .account-plan, > .settings-list, > .primary-button { max-width: 840px; }
+    > .page-heading { margin-top: 12px; }
+    > .profile-summary { padding-block: 24px; }
+    > .section-heading { margin-top: 26px; }
+    > .settings-list .setting-row { min-height: 84px; }
+    > .brand-footer { margin-top: 32px; }
+  }
+  #main[data-page=features] {
+    > .page-heading { margin-top: 12px; }
+    > .segmented { max-width: 440px; }
+    .feature-grid { gap: 16px; }
+    .feature-tile { min-height: 190px; padding: 22px; }
+    .custom-list { max-width: none; }
+    .create-feature { padding: 24px; }
+  }
+
+  // The month and selected day's agenda form a single workspace. In week/day
+  // mode the date strip stays wide enough for seven real touch targets.
+  .schedule-topbar { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 28px; align-items: center; margin: 12px 0 24px; }
+  .schedule-topbar .page-heading { margin: 0; }
+  .schedule-topbar .schedule-summary { margin: 0; min-height: 100px; padding: 17px 20px; }
+  .calendar-modes { width: 320px; max-width: 100%; margin-bottom: 20px; }
+  .schedule-layout.month { grid-template-columns: minmax(350px, 1.15fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .calendar-surface { padding: 18px 14px 15px; border-radius: 23px; }
+  .calendar-grid button { min-height: 55px; }
+  .calendar-date-number { width: 36px; height: 36px; font-size: 1rem; }
+  .calendar-legend { gap: 14px; margin-top: 12px; }
+  .calendar-legend span { font-size: .6875rem; }
+  .agenda-heading { min-height: 55px; align-items: center; margin: 0 2px 12px; }
+  .agenda-heading h2 { font-size: 1.25rem; }
+  .agenda-event { padding: 18px 16px; margin-block: 10px; }
+  .agenda-content > strong { font-size: 1rem; }
+  .agenda-place { font-size: .8125rem; }
+  .calendar-empty { padding: 28px 16px; }
+  .schedule-layout.week, .schedule-layout.day {
+    gap: 24px;
+    .calendar-surface { max-width: none; width: 100%; margin: 0; }
+    .calendar-legend { display: none; }
+  }
+  .schedule-layout.week .week-day-group {
+    display: grid;
+    grid-template-columns: 160px minmax(0, 1fr);
+    column-gap: 22px;
+    align-items: start;
+    padding-block: 16px;
+    border-top: 1px solid var(--line);
+    > .agenda-event { grid-column: 2; margin: 0 0 10px; }
+    > .agenda-event:last-child { margin-bottom: 0; }
+    > .week-empty { display: none; }
+  }
+  .schedule-layout.week .week-day-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    column-gap: 4px;
+    margin: 0;
+    > button:first-child { grid-column: 1 / -1; min-height: 44px; text-align: left; font-size: .9375rem; em { display: inline-block; white-space: nowrap; } }
+    > small { grid-column: 1; grid-row: 2; margin: 0; font-size: .75rem; }
+    > .small-icon { grid-column: 2; grid-row: 2; }
+  }
+  .schedule-layout.week .week-day-group:has(> .week-empty) {
+    padding-block: 9px;
+    > .week-day-heading { grid-column: 1 / -1; display: flex; gap: 12px; }
+    .week-day-heading > small { margin: 0 0 0 auto; }
+  }
+  .schedule-layout.day .day-timeline { padding: 8px 22px; }
+  .schedule-layout.day .timeline-slot { grid-template-columns: 58px minmax(0, 1fr); gap: 18px; padding-block: 14px; }
+  .schedule-layout.day .hour-label { font-size: .8125rem; }
+  .schedule-layout.day .empty-hour { min-height: 48px; font-size: .8125rem; }
+  .quiet-card { margin-top: 20px; padding: 18px 4px; }
+}
+
+@media (min-width: 1024px) {
+  #main[data-page=dashboard] { column-gap: 48px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  #main[data-page=dashboard] > .home-greeting { margin-bottom: 30px; }
+  #main[data-page=dashboard] > .dashboard-shortcuts { justify-self: end; width: min(100%, 440px); }
+  #main[data-page=dashboard] .quick-actions { gap: 22px; }
+  .brief-grid { gap: 16px; }
+  .brief-card { padding: 22px 24px; }
+  .home-lower { gap: 32px; }
+  .home-lower .surface, .home-lower .record-list { padding-inline: 22px; }
+  .forecast-card { flex-basis: calc(40% - 10px); }
+  .schedule-layout.month { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 32px; }
+  .schedule-layout.week, .schedule-layout.day { grid-template-columns: minmax(350px, .85fr) minmax(0, 1.15fr); gap: 28px; align-items: start; }
+  .schedule-layout.week .calendar-surface, .schedule-layout.day .calendar-surface { position: sticky; top: 12px; }
+  .schedule-layout.week .week-day-group { grid-template-columns: 130px minmax(0, 1fr); column-gap: 14px; }
+  .calendar-grid button { min-height: 60px; }
+  .calendar-grid.week-strip button { min-height: 55px; }
+  .feature-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+  #main[data-page=features] .feature-tile { min-height: 198px; padding: 24px; }
+}
+
+@media (min-width: 700px) and (max-height: 560px) and (orientation: landscape) {
+  .app-dock { padding-top: 12px; }
+  .quick-composer { display: none; }
+  #main { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
+}

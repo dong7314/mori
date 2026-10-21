@@ -3,7 +3,7 @@ import { eventDuration } from './calendar-model.mjs';
 import { parkingWindows, parkingPurpose } from './parking-display.mjs';
 
 export const DASHBOARD_WINDOWS = [
-  { hours: 0, label: '지금', description: '현재 표시 중인 정보' },
+  { hours: 0, label: '지금', description: '기본 기능과 지금 필요한 정보' },
   { hours: 3, label: '3시간', description: '지금부터 3시간 이내' },
   { hours: 5, label: '5시간', description: '지금부터 5시간 이내' },
   { hours: 24, label: '하루', description: '지금부터 24시간 이내' },

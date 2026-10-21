@@ -1,9 +1,9 @@
 import { createPresentations } from './presentation.mjs';
 import { captureControl, resolveControl, isAvailableControl } from './navigation-focus.mjs';
-import { appendTranscript } from './voice-transcript.mjs';
+import { createVoiceSession } from './voice-session.mjs';
 import { createAccountLoader } from './account-session.mjs';
 import { createFormDrafts } from './form-drafts.mjs';
-import { VERSION, BUILTINS, seed, uid, esc, dateKey, nowOf, setClock, visibleCards, applyRequest, runCustom, minuteOf, tickScheduled } from './experience.mjs';
+import { VERSION, BUILTINS, seed, uid, esc, dateKey, nowOf, setClock, dashboardCards, applyRequest, runCustom, minuteOf, tickScheduled } from './experience.mjs';
 import { DASHBOARD_WINDOWS, dashboardTimeline } from './dashboard-timeline.mjs';
 import { recordsOf, conversationGroups, customPreview } from './experience-library.mjs';
 import { api } from './api.mjs';
@@ -13,6 +13,7 @@ import { choiceField, installChoices, setChoice } from './choice-field.mjs';
 import { EVENT_KINDS, eventKind, dayDate, eventsOn, moveDate, calendarDates, eventDuration, eventEnd, eventDaySpan, timelineHours, hasOverlap } from './calendar-model.mjs';
 import { parkingAttempt, parkingLabel } from './ui-model.mjs';
 import { createMotion } from './motion.mjs';
+import { cardVisual, featureArt, stockCandlestickChart } from './card-visuals.mjs';
 
 const $ = s => document.querySelector(s);
 // Presentations owns modal lifecycles; motion owns main content, tabs and messages.
@@ -45,17 +46,18 @@ function applyTheme() {
 }
 applyTheme(); systemTheme.addEventListener('change', applyTheme);
 matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event => { data.profile.reduced = event.matches; render(); });
-const ui = { view: 'dashboard', horizon: 0, windowMenu: false, resetRails: false, date: dateKey(nowOf(data)), month: new Date(nowOf(data)), calendar: 'month', filter: 'all', chatId: null, search: '', chart: '1일', detail: null, voiceText: '', recordFilter: 'all', recordSearch: '', liveUser: null, liveParking: null, sheetEpoch: 0, accountState: 'checking', settingsRevision: 0, settingsState: 'checking' };
+const ui = { view: 'dashboard', horizon: 0, windowMenu: false, resetRails: false, date: dateKey(nowOf(data)), month: new Date(nowOf(data)), calendar: 'month', filter: 'all', chatId: null, search: '', chart: '1일', detail: null, recordFilter: 'all', recordSearch: '', liveUser: null, liveParking: null, sheetEpoch: 0, accountState: 'checking', settingsRevision: 0, settingsState: 'checking' };
 ui.month.setDate(1);
 installChoices();
-let toastTimer, recognition, voiceListening = false, liveAttempt = null, fileBusy = false, deletedEvent = null, deletedNote = null;
+let toastTimer, recognition, liveAttempt = null, fileBusy = false, deletedEvent = null, deletedNote = null;
 const busy = new Set();
 const presentations = createPresentations({ reducedMotion: () => data.profile.reduced });
 const formDrafts = createFormDrafts();
 const draftForm = () => $('#sheet-content form:is(#note-form, #event-form, #custom-form)');
 const loadAccount = createAccountLoader({ request: api, state: ui, onSettings: prefs => { selectedTheme = prefs.theme; applyTheme(); }, onChange: () => render() });
-let presentationSource = null, detailRequest = null, sheetCurrent = null, sheetTrail = [], returningSheet = false, sheetOrigin = null;
-let voiceFromChat = false;
+let presentationSource = null, detailRequest = null, sheetCurrent = null, sheetTrail = [], returningSheet = false, sheetOrigin = null, sheetCardOrigin = null;
+const voiceSession = createVoiceSession();
+let voiceExpanded = false, voiceFallback = false, voiceFallbackEdited = false, voiceEndTimer;
 // Capture the control before delegated handlers replace it. Never retain a trigger
 // across async work: background refreshes must not create navigation steps.
 document.addEventListener('click', event => {
@@ -94,29 +96,69 @@ function recordsSheet(filter = ui.recordFilter) {
   const records = matchingRecords();
   openSheet('기록 보관함', `<label class="search-box library-search">${icon('search')}<input id="record-search" type="search" aria-label="기록 검색" placeholder="제목 · 메모 내용 · 파일 이름 검색" value="${esc(ui.recordSearch)}"></label><div class="filter-chips" aria-label="기록 종류">${[['all', '전체'], ['note', '메모'], ['document', '문서'], ['custom', '실행 결과']].map(([v, label]) => button('record-filter', label, filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${filter === v}"`)).join('')}</div><div class="library-count" role="status">${query ? '검색 결과' : '최근 기록'} <strong>${records.length}</strong></div><div class="record-list">${recordResults(records)}</div><div class="detail-actions library-actions">${button('new-note', icon('compose') + ' 새 메모', 'secondary-button')}${button('document', icon('upload') + ' 파일 가져오기', 'secondary-button')}</div>`, 'library-sheet');
 }
+const latestNote = () => data.notes.reduce((a, b) => !a || new Date(b.at) > new Date(a.at) ? b : a, null);
+const nextReminder = () => data.reminders.filter(r => !r.cancelled && r.target > current()).sort((a, b) => a.target - b.target)[0];
+function featurePreviewParams(kind, id = '') {
+  if (kind === 'parking') return { floor: data.parking?.floor, spot: data.parking?.spot };
+  if (kind === 'news') return { topic: data.news.topic, status: data.news.status, articleCount: data.news.status === 'ready' ? articleTitles.length : undefined };
+  if (kind === 'stock') return { symbol: data.stock.symbol, isExample: true };
+  if (kind === 'note') {
+    const latest = latestNote();
+    return { count: data.notes.length, title: latest?.title };
+  }
+  if (kind === 'schedule') {
+    const e = id ? data.events.find(e => e.id === id) : todayEvents().find(e => minuteOf(e.time) >= new Date(current()).getHours() * 60 + new Date(current()).getMinutes()) || todayEvents()[0];
+    if (!e) return {};
+    const date = dayDate(e.date);
+    return { month: date.getMonth() + 1, day: date.getDate(), time: e?.time, title: e?.title };
+  }
+  if (kind === 'reminder') {
+    const r = id ? data.reminders.find(r => r.id === id) : nextReminder();
+    if (!r) return {};
+    const target = new Date(r.target);
+    return { time: `${String(target.getHours()).padStart(2, '0')}:${String(target.getMinutes()).padStart(2, '0')}`, remaining: remaining(r.target), fraction: Math.max(0, Math.min(1, (r.target - current()) / Math.max(1, r.target - r.created))), reminderId: r.id };
+  }
+  return {};
+}
 function briefCard(ref) {
   const [kind, id] = ref.split(':');
-  let label, title, copy, stamp, symbol, color = 'blue', visual = '';
+  let label, title, copy, stamp, symbol, color = 'blue', visual = '', actionRef = ref;
   if (kind === 'parking') {
-    label = '기억해 둔 주차 위치'; symbol = 'car'; title = `${esc(data.parking.floor)} <span>·</span> ${esc(data.parking.spot)}`;
-    copy = parkingPurpose(parkingConfig(data.parking, data.profile)); stamp = `${shortDate(data.parking.at)} ${time(data.parking.at)} 저장`;
-    visual = '<span class="parking-emblem" aria-hidden="true"><span>P</span><svg viewBox="0 0 84 48"><path d="M12 25 20 8h42l10 17 5 5v12H7V30Z"/><path d="m24 13-5 14h46l-7-14Z"/><path d="M15 34h11m32 0h11M21 42v4m42-4v4"/></svg></span>';
+    label = '주차 기억'; symbol = 'car'; color = 'green';
+    title = data.parking ? `<span class="parking-floor">${esc(data.parking.floor)}</span><span class="parking-bay">${esc(data.parking.spot)}</span>` : '어디에 주차하셨나요?';
+    copy = data.parking ? parkingPurpose(parkingConfig(data.parking, data.profile)) : '층과 자리 번호를 남겨두세요';
+    stamp = data.parking ? `${shortDate(data.parking.at)} ${time(data.parking.at)} 저장` : '눌러서 위치 기록';
+    visual = cardVisual('parking', featurePreviewParams('parking'));
   } else if (kind === 'news') {
-    label = '나의 뉴스 브리핑'; symbol = 'news'; color = 'blue'; title = data.news.status === 'loading' ? '새 소식을 모으고 있어요' : data.news.status === 'failed' ? '브리핑을 다시 준비할까요?' : `${esc(data.news.topic)} 이야기, 핵심만`;
-    copy = data.news.status === 'ready' ? '요약부터 출처까지 한 번에 살펴보세요' : '카드를 눌러 준비 상태를 확인하세요'; stamp = data.news.status === 'ready' ? `${shortDate(data.news.at)} ${time(data.news.at)} · 브리핑 예시` : `${clockLabel(data.news.time)} 예약 · 브리핑 예시`;
+    label = '나의 뉴스 브리핑'; symbol = 'news'; color = 'blue'; title = data.news.status === 'loading' ? '새 소식을 모으고 있어요' : data.news.status === 'failed' ? '브리핑을 다시 준비할까요?' : `${esc(data.news.topic)} 브리핑`;
+    copy = data.news.status === 'ready' ? '요약과 출처 확인' : '카드를 눌러 준비 상태를 확인하세요'; stamp = data.news.status === 'ready' ? `${shortDate(data.news.at)} ${time(data.news.at)} · 브리핑 예시` : data.news.active ? `${clockLabel(data.news.time)} 예약 · 브리핑 예시` : '자동 수집 꺼짐 · 브리핑 예시';
+    visual = cardVisual('news', featurePreviewParams('news'));
   } else if (kind === 'stock') {
-    label = '관심 종목'; symbol = 'chart'; color = 'rose'; title = esc(data.stock.symbol); copy = `<b class="brief-price">${data.stock.symbol === '코스피' ? '2,650.24 pt' : data.stock.symbol === '애플' ? '228.40 USD' : '72,400원'}</b><span class="brief-change"> +1.82%</span>`; stamp = '화면 체험용 예시 시세'; visual = sparkline();
+    label = '관심 종목'; symbol = 'chart'; color = 'rose'; title = esc(data.stock.symbol); copy = `<b class="brief-price">${data.stock.symbol === '코스피' ? '2,650.24 pt' : data.stock.symbol === '애플' ? '228.40 USD' : '72,400원'}</b><span class="brief-change"> +1.82%</span>`; stamp = '화면 체험용 예시 시세'; visual = cardVisual('stock', featurePreviewParams('stock'));
+  } else if (kind === 'note') {
+    const n = latestNote();
+    label = '메모'; symbol = 'note'; color = 'amber'; title = esc(n?.title || '메모를 남겨보세요');
+    const excerpt = Array.from((n?.body || '').replace(/\s+/g, ' ').trim());
+    copy = n ? esc(excerpt.length > 42 ? `${excerpt.slice(0, 41).join('')}…` : excerpt.join('')) : '떠오른 생각을 잊기 전에 적어두세요';
+    stamp = n ? `${data.notes.length}개 메모 · ${shortDate(n.at)} 최근 기록` : '눌러서 첫 메모 작성';
+    visual = cardVisual('note', featurePreviewParams('note'));
   } else if (kind === 'schedule') {
     const e = todayEvents().find(e => minuteOf(e.time) >= new Date(current()).getHours() * 60 + new Date(current()).getMinutes()) || todayEvents()[0];
-    label = '다가오는 일정'; symbol = 'calendar'; color = 'purple'; title = esc(e?.title || '여유로운 하루'); copy = `${e?.time || '아직 정해진 약속이 없어요'}${e?.place ? ' · ' + esc(e.place) : ''}`; stamp = `오늘 ${todayEvents().length}개의 일정`;
+    label = '스케줄'; symbol = 'calendar'; color = 'purple'; title = esc(e?.title || '오늘 일정이 없어요'); copy = `${e?.time || '달력에서 새 일정을 추가하세요'}${e?.place ? ' · ' + esc(e.place) : ''}`; stamp = `오늘 ${todayEvents().length}개의 일정`;
+    visual = cardVisual('schedule', featurePreviewParams('schedule'));
   } else if (kind === 'reminder') {
-    const r = data.reminders.find(r => r.id === id); label = '챙겨야 할 알림'; symbol = 'bell'; color = 'orange'; title = esc(r.title); copy = `<span data-countdown="${id}">${remaining(r.target)}</span> 후 알려드릴게요`; stamp = `${time(r.target)} · 기기 내 알림 체험`;
+    const r = id ? data.reminders.find(r => r.id === id) : nextReminder();
+    label = '알림'; symbol = 'bell'; color = 'orange'; title = esc(r?.title || '알림 만들기');
+    copy = r ? `<span data-countdown="${esc(r.id)}">${remaining(r.target)}</span> 후 알려드릴게요` : '시간을 골라 알림을 시작하세요';
+    stamp = r ? `${time(r.target)} · 기기 내 알림 체험` : '5분 · 15분 · 30분 · 1시간';
+    if (r) actionRef = `reminder:${r.id}`;
+    visual = cardVisual('reminder', featurePreviewParams('reminder', r?.id));
   } else {
-    const f = data.customs.find(f => f.id === id); label = '나의 반복하는 부탁'; symbol = f.icon; color = 'purple'; title = esc(f.title); copy = esc(f.description); stamp = `${clockLabel(f.time)} · ${esc(f.repeat)}`;
+    const f = data.customs.find(f => f.id === id); label = '나의 반복하는 부탁'; symbol = f.icon; color = 'purple'; title = esc(f.title); copy = esc(f.description || f.work); stamp = f.time ? `${clockLabel(f.time)} · ${esc(f.repeat)}` : '필요할 때 실행';
+    visual = cardVisual('custom', { icon: f.icon, time: f.time });
   }
-  return button('detail', `<span class="brief-top">${mark(symbol, color)}<span>${label}</span>${arrow}</span><span class="brief-body"><span class="brief-copy"><strong>${title}</strong><span>${copy}</span></span>${visual}</span><span class="brief-stamp">${icon('clock')}${stamp}</span>`, `brief-card ${kind}`, `data-ref="${ref}" aria-label="${kind === 'parking' ? '주차 위치 상세' : label + ' 상세'}"`);
+  return button('detail', `<span class="brief-top" data-card-part="label">${mark(symbol, color)}<span>${label}</span>${arrow}</span><span class="brief-body"><span class="brief-copy"><strong data-card-part="title">${title}</strong><span data-card-part="summary">${copy}</span></span>${visual}</span><span class="brief-stamp" data-card-part="stamp">${icon('clock')}${stamp}</span>`, `brief-card ${kind}`, `data-ref="${esc(actionRef)}" data-card-kind="${kind}" aria-label="${kind === 'parking' ? '주차 위치 상세' : label + ' 상세'}"`);
 }
-function sparkline() { const paths = {'1주': 'M0 65L30 40L60 55L90 35L120 42L150 60L180 28L210 38L240 12L270 25L300 8', '1달': 'M0 75L30 62L60 68L90 80L120 53L150 48L180 60L210 25L240 32L270 15L300 4'}; if (paths[ui.chart]) return `<svg class="sparkline" viewBox="0 0 300 90" aria-label="${ui.chart} 체험용 가격 흐름"><path class="chart-fill" d="${paths[ui.chart]}V90H0Z"/><path class="chart-line" d="${paths[ui.chart]}"/></svg>`; return `<svg class="sparkline" viewBox="0 0 300 90" aria-label="체험용 가격 흐름"><path class="chart-fill" d="M0 80L20 69L42 74L60 56L80 62L98 43L117 49L132 31L150 40L173 22L193 33L212 17L233 23L258 8L278 14L300 4V90H0Z"/><path class="chart-line" d="M0 80L20 69L42 74L60 56L80 62L98 43L117 49L132 31L150 40L173 22L193 33L212 17L233 23L258 8L278 14L300 4"/></svg>`; }
 function closeWindowMenu(restoreFocus = false) {
   ui.windowMenu = false;
   const menu = $('#dashboard-window-menu'); if (menu) menu.hidden = true;
@@ -145,7 +187,10 @@ function windowPicker() {
 }
 function forecastCard(item) {
   const atLabel = item.end === null ? '항상 표시' : `${item.current && dateKey(item.at) !== dateKey(current()) ? '어제 ' : ''}${time(item.at)}`;
-  return button('detail', `<div class="forecast-card-top">${mark(item.icon, item.color)}${item.current ? '' : `<span class="forecast-status">${item.action}</span>`}</div><div class="forecast-time">${atLabel}${item.current && item.end !== null ? '<small>부터</small>' : ''}</div><h4>${esc(item.title)}</h4><p>${esc(item.description)}</p><div class="forecast-card-bottom"><span>${item.detail}</span>${icon('arrow')}</div><span class="forecast-art" aria-hidden="true">${icon(item.icon)}</span>`, `forecast-card ${item.color} ${item.current ? 'is-current' : ''}`, `data-ref="${item.ref}" data-occurrence="${item.key}" aria-label="${esc(item.title)}, ${atLabel}, ${item.current ? '지금 확인 가능' : item.action}"`);
+  const kind = item.kind === 'event' ? 'schedule' : item.kind;
+  const params = featurePreviewParams(kind, item.ref.split(':')[1]);
+  const art = featureArt(kind, item.kind === 'news' && !item.current ? { ...params, status: 'scheduled', articleCount: undefined } : params);
+  return button('detail', `<div class="forecast-card-top">${mark(item.icon, item.color)}${item.current ? '' : `<span class="forecast-status">${item.action}</span>`}</div><div class="forecast-body"><div class="forecast-copy"><div class="forecast-time">${atLabel}${item.current && item.end !== null ? '<small>부터</small>' : ''}</div><h4>${esc(item.title)}</h4><p>${esc(item.description)}</p></div>${art}</div><div class="forecast-card-bottom"><span>${item.detail}</span>${icon('arrow')}</div>`, `forecast-card ${item.color} ${item.current ? 'is-current' : ''}`, `data-ref="${item.ref}" data-occurrence="${item.key}" aria-label="${esc(item.title)}, ${atLabel}, ${item.current ? '지금 확인 가능' : item.action}"`);
 }
 function forecastShelves() {
   const result = dashboardTimeline(data, ui.horizon, current());
@@ -158,7 +203,7 @@ function dashboardNow(cards) {
   return `<section class="now-section ${ui.horizon ? 'is-browsing' : ''}"><div class="section-heading now-heading"><h2>${ui.horizon ? '미리 보는 하루' : '지금 챙길 것'}</h2>${windowPicker()}</div>${ui.horizon ? forecastShelves() : cards.length ? `<div class="brief-grid">${cards.map(briefCard).join('')}</div>` : empty('leaf', '지금은 여유로운 시간이에요', '다가오는 일도 미리 살펴볼까요?', button('set-window', '앞으로 3시간 보기 ' + arrow, 'text-button', 'data-hours="3"'))}</section>`;
 }
 function dashboard() {
-  const h = new Date(current()).getHours(), cards = visibleCards(data);
+  const h = new Date(current()).getHours(), cards = dashboardCards(data);
   return `<div class="home-top"><span class="wordmark">mori<span>·</span></span><div class="home-tools">${button('day-preview', `${icon(h < 18 ? 'sun' : 'moon')}<span>${h < 12 ? '아침' : h < 18 ? '낮' : '저녁'} 체험</span>`, 'preview-pill', 'aria-label="체험 시간 바꾸기"')}${button('go-my', `<span>${esc((ui.liveUser?.display_name || data.profile.name).slice(0, 1))}</span>`, 'home-profile', 'aria-label="마이 화면"')}</div></div>
     <header class="home-greeting"><p class="home-date">${dateLabel(current())}</p><h1>${esc(ui.liveUser?.display_name || data.profile.name)}님,<br>${h < 12 ? '가벼운 하루를 시작해요' : h < 18 ? '오후도 가볍게 보내요' : '오늘도 수고했어요'}</h1><p class="greeting-caption">작은 기억은 모리에게 맡겨두세요.</p></header>
     <section class="dashboard-shortcuts" aria-label="바로 부탁하기"><div class="quick-actions">${button('edit-parking', `${mark('car', 'green')}<span>주차 기억</span>`, '', 'aria-label="주차 기억하기"')}${button('new-event', `${mark('calendar', 'purple')}<span>일정 추가</span>`)}${button('new-note', `${mark('note', 'amber')}<span>메모 쓰기</span>`, '', 'aria-label="메모 남기기"')}${button('new-chat', `${mark('chat', 'blue')}<span>대화하기</span>`, '', 'aria-label="자유롭게 대화하기"')}</div></section>
@@ -172,7 +217,7 @@ function conversationRow(c) { const last = c.messages.at(-1), draft = data.draft
 function conversationContent() {
   const groups = conversationGroups(data.conversations, ui.search, current()), count = groups.reduce((n, [, items]) => n + items.length, 0);
   return `
-  ${!ui.search ? `<div class="conversation-start"><div class="mori-small"><img src="/assets/mori.svg" alt=""></div><div><h2>무슨 생각 하고 계세요?</h2><p>${data.drafts.new ? '쓰던 부탁이 기다리고 있어요.' : '작은 부탁 하나부터 시작해요.'}</p>${button('new-chat', data.drafts.new ? '작성 중인 부탁 이어쓰기 ' + arrow : '새 이야기 시작하기 ' + arrow, 'text-button')}</div>${button('voice', icon('mic'), 'header-button', 'aria-label="말로 새 대화 시작"')}</div>` : `<p class="list-label" role="status">검색 결과 <span>${count}개</span></p>`}
+  ${!ui.search ? `<div class="conversation-start"><div class="mori-small"><img src="/assets/mori.svg" alt=""></div><div><h2>무슨 생각 하고 계세요?</h2><p>${data.drafts.new ? '쓰던 부탁이 기다리고 있어요.' : '작은 부탁 하나부터 시작해요.'}</p>${button('new-chat', data.drafts.new ? '작성 중인 부탁 이어쓰기 ' + arrow : '새 이야기 시작하기 ' + arrow, 'text-button')}</div>${button('voice', icon('mic'), 'header-button', 'aria-label="음성으로 입력"')}</div>` : `<p class="list-label" role="status">검색 결과 <span>${count}개</span></p>`}
   <div class="conversation-groups">${groups.map(([label, items]) => `<section><p class="list-label">${label} <span>${items.length}</span></p><div class="surface">${items.map(conversationRow).join('')}</div></section>`).join('') || (ui.search ? empty('search', '찾는 이야기가 없어요', '조금 더 짧은 단어나 다른 표현으로 찾아보세요.', button('clear-search', '검색 지우기', 'text-button')) : empty('chat', '첫 이야기를 기다리고 있어요', '주차 위치, 떠오른 생각, 작은 부탁을 남겨보세요.', button('new-chat', '모리와 대화하기', 'primary-button')))}</div>`;
 }
 function conversations() {
@@ -229,7 +274,7 @@ function schedule() {
     </section><section class="agenda-panel" aria-label="일정 목록">
       <div class="agenda-heading"><div><p>${ui.calendar === 'week' ? '한 주의 흐름' : ui.date === today ? 'TODAY' : selected.toLocaleDateString('ko-KR', { weekday: 'long' })}</p><h2>${ui.calendar === 'week' ? weekLabel : `${selected.getMonth() + 1}월 ${selected.getDate()}일`}</h2></div><span>${ui.calendar === 'week' ? scope.length : events.length}개의 약속</span></div>
       <div class="agenda-body">${agenda}</div>${events.length && ui.calendar === 'month' ? button('new-event', icon('plus') + ' 이 날에 일정 추가', 'agenda-add') : ''}
-    </section></div><div class="quiet-card">${icon('spark')}<div><strong>말로 남겨도, 같은 달력에.</strong><p>“내일 오후 2시 디자인 회의 잡아줘”</p></div>${button('prompt', icon('arrow'), 'small-icon', 'data-prompt="내일 오후 2시 디자인 회의 잡아줘" aria-label="말로 일정 추가 체험"')}</div>`;
+    </section></div><div class="quiet-card">${icon('spark')}<div><strong>음성으로 일정 입력</strong><p>말한 내용을 확인한 뒤 보내세요.</p></div>${button('voice', icon('mic'), 'small-icon', 'aria-label="음성으로 일정 입력"')}</div>`;
 }
 function calendarJump(year = dayDate(ui.date).getFullYear()) {
   ui.jumpYear = year;
@@ -240,7 +285,7 @@ function featureStatus(id) {
 }
 function features() {
   return `${heading('기능', '매일의 부탁을, 나만의 방식으로', button('new-custom', icon('plus'), 'header-button', 'aria-label="새 기능 만들기"'))}<div class="segmented">${[['all', '모든 기능'], ['builtin', '기본 기능'], ['custom', '내 기능']].map(([v, title]) => button('feature-filter', title, ui.filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${ui.filter === v}"`)).join('')}</div>
-    ${ui.filter !== 'custom' ? `${section('매일을 위한 기본 기능', '<span class="section-caption">바로 사용할 수 있어요</span>')}<div class="feature-grid">${BUILTINS.map(f => button('detail', `<div class="feature-tile-top">${mark(f.icon, f.color)}${arrow}</div><h3>${f.title}</h3><p>${f.subtitle}</p><span class="feature-status">${esc(featureStatus(f.id))}</span>`, 'feature-tile', `data-ref="${f.id}"`)).join('')}</div>` : ''}
+    ${ui.filter !== 'custom' ? `${section('매일을 위한 기본 기능', '<span class="section-caption">6가지</span>')}<div class="feature-grid">${BUILTINS.map(f => button('detail', `<span class="feature-tile-copy"><h3>${f.title}</h3><p>${f.subtitle}</p><span class="feature-status">${esc(featureStatus(f.id))}</span></span>${featureArt(f.id, featurePreviewParams(f.id))}${arrow}`, `feature-tile feature-tile--${f.id}`, `data-ref="${f.id}"`)).join('')}</div>` : ''}
     ${ui.filter !== 'builtin' ? `${section('나에게 맞춘 기능', `<span class="section-caption">${data.customs.filter(f => f.active).length}개 사용 중</span>`)}<div class="custom-list">${data.customs.map(f => button('detail', `${mark(f.icon, 'purple')}<span class="row-content"><strong>${esc(f.title)}</strong><small>${esc(f.time ? `${f.repeat} ${clockLabel(f.time)}` : '필요할 때 실행')}</small>${f.result ? `<span class="row-meta">최근 실행 ${shortDate(f.result.at)} · 결과 ${f.result.items.length}개</span>` : ''}</span>${tag(!f.work ? '초안' : f.active ? '사용 중' : '중지', f.active ? 'green' : '')}${arrow}`, 'custom-row', `data-ref="custom:${f.id}"`)).join('') || empty('spark', '나만의 루틴을 만들어보세요', '반복하는 부탁을 한 번만 정해두세요.')}</div><button class="create-feature" data-action="new-custom"><span class="create-icon">${icon('spark')}</span><span class="tiny-label">나만의 반복</span><h3>반복하는 부탁,<br>내 기능으로 기억해요.</h3><p>할 일과 시간을 정하면 같은 모양의 카드로 만나보세요.</p><span>새 기능 만들기 ${icon('plus')}</span></button>` : ''}`;
 }
 const themeLabel = () => ({system: '시스템 설정', light: '라이트', dark: '다크'})[selectedTheme];
@@ -292,9 +337,36 @@ function route() {
   render(); $('#main').scrollTo({ top: pageScroll.get(ui.view) || 0, behavior: 'instant' });
 }
 function go(view) { closeWindowMenu(); if (location.hash === `#${view}`) $('#main').scrollTo({ top: 0, behavior: data.profile.reduced ? 'instant' : 'smooth' }); else location.hash = view; }
+function cardDetailHero() {
+  if (!sheetCardOrigin) return '';
+  const source = resolveControl(document, sheetCardOrigin.control) || [...$('#main').querySelectorAll('.brief-card')].find(card => card.dataset.ref?.split(':')[0] === sheetCardOrigin.kind);
+  if (!source) return sheetCardOrigin.hero || '';
+  const hero = document.createElement('article');
+  hero.className = `card-detail-hero ${source.className}`;
+  hero.innerHTML = source.innerHTML;
+  hero.querySelector('.brief-top > .icon:last-child')?.remove();
+  // The page summary is presentational; only the real detail body has controls.
+  hero.querySelectorAll('[data-action], [tabindex], [id]').forEach(element => {
+    element.removeAttribute('data-action'); element.removeAttribute('tabindex'); element.removeAttribute('id');
+  });
+  sheetCardOrigin.hero = hero.outerHTML;
+  return sheetCardOrigin.hero;
+}
+function cardDetailBody(content, ref, hasHero) {
+  if (!hasHero) return content;
+  const template = document.createElement('template');
+  template.innerHTML = content;
+  const kind = ref?.split(':')[0];
+  // The expanded card already carries the title and summary. Continue directly
+  // into the facts, articles or chart rather than repeating the same header.
+  if (kind === 'parking') {
+    template.content.querySelector('.parking-detail')?.remove();
+  } else if (['stock', 'news'].includes(kind)) template.content.querySelector('.detail-title')?.remove();
+  return template.innerHTML;
+}
 function openSheet(title, content, cls = '', { ref = detailRequest, restore = null } = {}) {
   formDrafts.capture(draftForm());
-  const dialog = $('#sheet'), wasOpen = dialog.open, source = presentationSource;
+  const dialog = $('#sheet'), wasOpen = dialog.open && !dialog.hasAttribute('data-closing'), source = presentationSource;
   const scroller = $('#sheet-content'), previousRef = ui.detail;
   const refreshing = wasOpen && Boolean(ref) && ref === previousRef && !returningSheet;
   const previousScroll = scroller.scrollTop;
@@ -305,6 +377,8 @@ function openSheet(title, content, cls = '', { ref = detailRequest, restore = nu
     sheetTrail = [];
     const origin = source || document.activeElement;
     sheetOrigin = { root: origin?.closest('dialog') || document, control: captureControl(origin) };
+    const card = origin?.closest('.brief-card');
+    sheetCardOrigin = card && $('#main').contains(card) ? { control: captureControl(card), ref: ref || card.dataset.ref, kind: card.dataset.ref.split(':')[0] } : null;
   }
   if (!returningSheet && !refreshing && wasOpen && sheetCurrent && source?.closest('#sheet') && nested.includes(action)) {
     sheetTrail.push({ ...sheetCurrent, ref: previousRef, scroll: $('#sheet-content').scrollTop, control: captureControl(source) });
@@ -313,15 +387,16 @@ function openSheet(title, content, cls = '', { ref = detailRequest, restore = nu
   const existing = ref ? sheetTrail.findIndex(entry => entry.ref === ref) : -1;
   if (existing >= 0) sheetTrail = sheetTrail.slice(0, existing);
   ++ui.sheetEpoch; ui.detail = null;
-  const detail = Boolean(ref && !['schedule', 'note'].includes(ref)) || Boolean(ref?.includes(':')) || (wasOpen && sheetTrail.some(entry => entry.detail)) || (wasOpen && previousRef?.startsWith('document:'));
+  const detail = Boolean(sheetCardOrigin) || Boolean(ref && !['schedule', 'note'].includes(ref)) || Boolean(ref?.includes(':')) || (wasOpen && sheetTrail.some(entry => entry.detail)) || (wasOpen && previousRef?.startsWith('document:'));
+  const cardHero = sheetCardOrigin && (ref === sheetCardOrigin.ref || !ref && !sheetTrail.length) ? cardDetailHero() : '';
   sheetCurrent = { title, content, cls, detail, restore };
   $('#sheet-title').textContent = title;
-  $('#sheet-content').innerHTML = content;
+  $('#sheet-content').innerHTML = sheetCardOrigin ? `${cardHero}<section class="card-detail-body" data-card-reveal>${cardDetailBody(content, ref, Boolean(cardHero))}</section>` : content;
   if (formDrafts.restore(draftForm())) {
     draftForm().insertAdjacentHTML('afterbegin', `<div class="draft-notice"><span>저장하지 않은 내용을 이어서 작성해요.</span>${button('discard-form-draft', '초안 지우기', 'text-button')}</div>`);
     syncDraftForm();
   }
-  dialog.className = `sheet ${cls} ${detail ? 'detail-page' : ''} ${ref === 'parking' ? 'parking-story' : ''}`;
+  dialog.className = `sheet ${cls} ${detail ? 'detail-page' : ''} ${ref === 'parking' ? 'parking-story' : ''} ${sheetCardOrigin ? 'card-page' : ''} ${cardHero ? 'has-card-hero' : ''}`;
   dialog.dataset.detailKind = ref?.split(':')[0] || '';
   $('#sheet-back').hidden = !sheetTrail.length;
   $('#sheet-back').setAttribute('aria-label', sheetTrail.length ? `${sheetTrail.at(-1).title} 화면으로 돌아가기` : '이전 화면');
@@ -358,7 +433,7 @@ function parkingForm(live = false) {
   const record = live ? ui.liveParking : data.parking, p = record ? parkingConfig(record, data.profile) : { purpose: 'external', display_mode: 'always' };
   const schedule = p.display_schedule || { time: '08:30', days: [0, 1, 2, 3, 4], duration_minutes: 90 };
   const choices = (legend, name, options, value) => `<fieldset class="parking-options"><legend>${legend}</legend><div>${options.map(([v, title, description]) => `<label><input type="radio" name="${name}" value="${v}" ${v === value ? 'checked' : ''}><span><strong>${title}</strong><small>${description}</small></span></label>`).join('')}</div></fieldset>`;
-  openSheet(live ? '계정에 주차 위치 저장' : '주차 위치 저장', `<form id="${live ? 'live-parking' : 'parking-form'}" class="parking-form"><div class="form-intro compact-intro">${mark('car')}<h3>주차 위치</h3><p>${live ? '로그인한 계정에 저장해요.' : '저장하면 이전 주차 위치가 바뀌어요.'}</p></div><div class="field-pair">${field('층 · 선택', 'floor', record?.floor || '', 'text', 'maxlength="32" placeholder="지하 3층"')}${field('구역 · 자리', 'spot', record?.spot || '', 'text', 'maxlength="64" placeholder="B16"')}</div>${choices('주차 용도', 'purpose', [['external', '외부 주차', '방문한 곳의 주차 위치'], ['commute', '출근용', '출근할 때 확인할 위치']], p.purpose)}${choices('대시보드 표시', 'display_mode', [['always', '항상 표시', '다음 위치를 저장할 때까지'], ['scheduled', '정한 시간', '선택한 요일과 시간에 표시']], p.display_mode)}<div id="parking-schedule" ${p.display_mode === 'always' ? 'hidden' : ''}><div class="field-pair">${field('표시 시작', 'time', schedule.time, 'time')}${choiceField('표시 기간', 'duration_minutes', schedule.duration_minutes, [...new Set([30, 60, 90, 120, 180, 1440, schedule.duration_minutes])].sort((a, b) => a - b).map(value => ({ value, label: value === 1440 ? '24시간' : `${value}분` })))}</div><fieldset class="parking-weekdays"><legend>표시할 요일</legend>${['월', '화', '수', '목', '금', '토', '일'].map((label, index) => `<label><input type="checkbox" name="days" value="${index}" ${schedule.days.includes(index) ? 'checked' : ''}><span>${label}</span></label>`).join('')}</fieldset><p class="field-help">한국 시간 기준 · 기기 알림은 보내지 않아요.</p></div><div class="parking-preview" role="status"><span>${icon('car')}저장할 위치</span><strong id="parking-location-preview"></strong><p id="parking-display-preview"></p></div><p class="form-error" role="alert"></p><div class="form-actions"><button class="primary-button" type="submit">위치 저장 ${icon('check')}</button></div></form>`, 'parking-sheet');
+  openSheet(live ? '계정에 주차 위치 저장' : '주차 위치 저장', `<form id="${live ? 'live-parking' : 'parking-form'}" class="parking-form"><div class="form-intro compact-intro">${mark('car')}<h3>주차 위치</h3><p>${live ? '로그인한 계정에 저장해요.' : '저장하면 이전 주차 위치가 바뀌어요.'}</p></div><div class="field-pair">${field('층 · 선택', 'floor', record?.floor || '', 'text', 'maxlength="32" placeholder="지하 3층"')}${field('구역 · 자리', 'spot', record?.spot || '', 'text', 'maxlength="64" placeholder="B16"')}</div>${choices('주차 용도', 'purpose', [['external', '외부 주차', '방문한 곳의 주차 위치'], ['commute', '출근용', '출근할 때 확인할 위치']], p.purpose)}${choices(live ? '대시보드 표시' : '대시보드 우선 표시', 'display_mode', [['always', live ? '항상 표시' : '항상 먼저', '다음 위치를 저장할 때까지'], ['scheduled', '정한 시간', live ? '선택한 요일과 시간에 표시' : '선택한 요일과 시간에 먼저 표시']], p.display_mode)}${live ? '' : '<p class="field-help">주차 카드는 항상 확인할 수 있어요. 이 설정은 먼저 보여줄 시간을 정해요.</p>'}<div id="parking-schedule" ${p.display_mode === 'always' ? 'hidden' : ''}><div class="field-pair">${field('표시 시작', 'time', schedule.time, 'time')}${choiceField('표시 기간', 'duration_minutes', schedule.duration_minutes, [...new Set([30, 60, 90, 120, 180, 1440, schedule.duration_minutes])].sort((a, b) => a - b).map(value => ({ value, label: value === 1440 ? '24시간' : `${value}분` })))}</div><fieldset class="parking-weekdays"><legend>표시할 요일</legend>${['월', '화', '수', '목', '금', '토', '일'].map((label, index) => `<label><input type="checkbox" name="days" value="${index}" ${schedule.days.includes(index) ? 'checked' : ''}><span>${label}</span></label>`).join('')}</fieldset><p class="field-help">한국 시간 기준 · 기기 알림은 보내지 않아요.</p></div><div class="parking-preview" role="status"><span>${icon('car')}저장할 위치</span><strong id="parking-location-preview"></strong><p id="parking-display-preview"></p></div><p class="form-error" role="alert"></p><div class="form-actions"><button class="primary-button" type="submit">위치 저장 ${icon('check')}</button></div></form>`, 'parking-sheet');
   updateParkingPreview();
 }
 function parkingValues(form) {
@@ -421,12 +496,15 @@ function detailHeader(name, color, title, context = '', badge = '') {
 }
 function renderDetail(ref) {
   const [kind, id] = ref.split(':');
-  if (kind === 'parking') { if (!data.parking) return parkingForm(); const p = parkingConfig(data.parking, data.profile); openSheet('주차 기록', `<div class="detail-hero parking-detail">${mark('car')}<p>${parkingPurpose(p)} · 잘 기억하고 있어요</p><h2>${esc(p.floor)}<br><strong>${esc(p.spot || '내 차가 있는 곳')}</strong></h2>${mapArt()}</div><div class="detail-facts"><div><span>기억한 시간</span><strong>${shortDate(p.at)} ${time(p.at)}</strong></div><div><span>표시 방식</span><strong>${p.display_mode === 'always' ? '항상 표시' : '정한 시간에 표시'}</strong></div><div><span>대시보드</span><strong>${esc(parkingDescription(p))}</strong></div></div><p class="field-help">다른 곳에 주차하면 가장 최근 위치로 바뀌어요.<br>표시 설정은 기기 알림 예약과 별개예요.</p>${button('edit-parking', '위치 · 표시 설정 바꾸기 ' + icon('car'), 'primary-button')}`); }
+  if (kind === 'parking') { if (!data.parking) return parkingForm(); const p = parkingConfig(data.parking, data.profile); openSheet('주차 기록', `<div class="detail-hero parking-detail">${mark('car')}<p>${parkingPurpose(p)} · 잘 기억하고 있어요</p><h2>${esc(p.floor)}<br><strong>${esc(p.spot || '내 차가 있는 곳')}</strong></h2>${mapArt()}</div><div class="detail-facts"><div><span>기억한 시간</span><strong>${shortDate(p.at)} ${time(p.at)}</strong></div><div><span>표시 방식</span><strong>${p.display_mode === 'always' ? '항상 표시' : '정한 시간에 표시'}</strong></div><div><span>대시보드</span><strong>${esc(parkingDescription(p))}</strong></div></div><p class="field-help">주차 카드는 항상 확인할 수 있고, 정한 시간에는 앞쪽에 보여드려요.<br>다른 곳에 주차하면 가장 최근 위치로 바뀌어요. 기기 알림은 별도로 예약해야 해요.</p>${button('edit-parking', '위치 · 표시 설정 바꾸기 ' + icon('car'), 'primary-button')}`); }
   else if (kind === 'news') openSheet('뉴스 브리핑', `<div class="detail-title">${mark('news', 'blue')}<p>${esc(data.news.topic)} · ${clockLabel(data.news.time)}</p><h2>오늘의 이야기,<br>핵심만 간결하게.</h2>${tag('체험용 예시 기사', 'blue')}</div>${data.news.status === 'loading' ? `<div class="loading-news"><span class="loading-orb"></span><h3>관심 있는 이야기를 모으고 있어요.</h3><p>요약과 출처를 함께 정리할게요.</p><div class="skeleton"></div><div class="skeleton short"></div></div>` : data.news.status === 'failed' ? `<div class="error-card">${icon('cloud')}<h3>브리핑이 조금 늦어지고 있어요.</h3><p>마지막 결과: ${shortDate(data.news.at)} ${time(data.news.at)}<br>새 결과가 도착하면 갱신할게요.</p>${button('refresh-news', '다시 수집하기', 'secondary-button')}</div>` : `<p class="updated-at">${shortDate(data.news.at)} ${time(data.news.at)} 기준 · 예시 3개</p><div class="article-list">${articleTitles.map((title, i) => button('article', `<span class="article-number">0${i + 1}</span><span><h3>${title}</h3><p>${['작은 일을 맡기며 달라지는 일상의 모습.', '기술과 함께 더 명확하게 생각하는 방법.', '정보를 줄이고 해야 할 일에 집중하기.'][i]}</p><small>모리 테크 레터 · 예시 출처</small></span>${arrow}`, 'article', `data-index="${i}"`)).join('')}</div>`}<div class="detail-actions">${button('news-settings', '관심사 · 시간 설정', 'secondary-button')}${button('refresh-news', icon('repeat') + ' 새로 수집', 'secondary-button', data.news.status === 'loading' ? 'disabled' : '')}</div><details class="support-details"><summary>브리핑 상태별 화면 체험</summary><div class="state-picker">${[['loading', '수집 중'], ['ready', '완료'], ['failed', '실패']].map(([v, title]) => button('news-state', title, data.news.status === v ? 'selected' : '', `data-value="${v}" aria-pressed="${data.news.status === v}"`)).join('')}</div><p class="field-help">실제 수집 요청 없이 화면 상태를 바꿔보는 옵션이에요.</p></details>`);
-  else if (kind === 'stock') openSheet('관심 주가', `<div class="detail-title">${mark('chart', 'rose')}<p>관심 종목 · 화면 체험용 데이터</p><h2>${esc(data.stock.symbol)}</h2><div class="stock-price">${data.stock.symbol === '코스피' ? '2,650.24' : data.stock.symbol === '애플' ? '228.40' : '72,400'}<small>${data.stock.symbol === '코스피' ? ' pt' : data.stock.symbol === '애플' ? ' USD' : '원'}</small></div><p class="positive">+1.82% <span>예시 등락</span></p></div><div class="stock-chart">${sparkline()}<div class="chart-labels">${(ui.chart === '1일' ? ['09:00', '12:00', '15:30'] : ui.chart === '1주' ? ['월', '수', '금'] : ['1일', '15일', '30일']).map(v => `<span>${v}</span>`).join('')}</div></div><div class="segmented">${['1일', '1주', '1달'].map(v => button('chart-range', v, ui.chart === v ? 'selected' : '', `data-value="${v}"`)).join('')}</div><p class="field-help">${ui.chart} 표시 범위 체험 · 실시간 가격과 투자 정보가 아니에요.</p><div class="detail-facts"><div><span>시장 · 통화</span><strong>${data.stock.symbol === '애플' ? 'NASDAQ · USD' : 'KRX · KRW'}</strong></div><div><span>예시 기준 시각</span><strong>${shortDate(data.stock.at)} ${time(data.stock.at)}</strong></div><div><span>데이터 출처</span><strong>화면 체험용 예시</strong></div></div>${button('stock-settings', '관심 종목 바꾸기', 'primary-button')}`);
+  else if (kind === 'stock') openSheet('관심 주가', `<div class="detail-title">${mark('chart', 'rose')}<p>관심 종목 · 화면 체험용 데이터</p><h2>${esc(data.stock.symbol)}</h2><div class="stock-price">${data.stock.symbol === '코스피' ? '2,650.24' : data.stock.symbol === '애플' ? '228.40' : '72,400'}<small>${data.stock.symbol === '코스피' ? ' pt' : data.stock.symbol === '애플' ? ' USD' : '원'}</small></div><p class="positive">+1.82% <span>예시 등락</span></p></div><div class="stock-chart">${stockCandlestickChart(ui.chart)}<div class="chart-labels">${(ui.chart === '1일' ? ['09:00', '12:00', '15:30'] : ui.chart === '1주' ? ['월', '수', '금'] : ['1일', '15일', '30일']).map(v => `<span>${v}</span>`).join('')}</div></div><div class="segmented">${['1일', '1주', '1달'].map(v => button('chart-range', v, ui.chart === v ? 'selected' : '', `data-value="${v}"`)).join('')}</div><p class="field-help">${ui.chart} 예시 차트 · 빨간 봉은 상승, 파란 봉은 하락을 나타내요.<br>실시간 가격과 투자 정보가 아니에요.</p><div class="detail-facts"><div><span>시장 · 통화</span><strong>${data.stock.symbol === '애플' ? 'NASDAQ · USD' : 'KRX · KRW'}</strong></div><div><span>예시 기준 시각</span><strong>${shortDate(data.stock.at)} ${time(data.stock.at)}</strong></div><div><span>데이터 출처</span><strong>화면 체험용 예시</strong></div></div>${button('stock-settings', '관심 종목 바꾸기', 'primary-button')}`);
   else if (kind === 'note' && id) { const n = data.notes.find(n => n.id === id); if (!n) return; openSheet('메모', `<div class="detail-title">${mark('note', 'amber')}<p>${shortDate(n.at)} ${time(n.at)}</p><h2>${esc(n.title)}</h2></div><div class="note-body">${esc(n.body)}</div><div class="detail-actions">${button('edit-note', icon('compose') + ' 편집하기', 'secondary-button', `data-id="${id}"`)}${button('delete-note', icon('trash') + ' 삭제', 'secondary-button', `data-id="${id}"`)}</div>`); }
-  else if (kind === 'note') { ui.recordSearch = ''; recordsSheet('note'); }
-  else if (kind === 'schedule') return closeSheet().then(() => go('schedule'));
+  else if (kind === 'note') { if (!data.notes.length) return noteForm(); ui.recordSearch = ''; recordsSheet('note'); }
+  else if (kind === 'schedule') {
+    if (!sheetCardOrigin && !presentationSource?.matches('.brief-card')) return closeSheet().then(() => go('schedule'));
+    openSheet('스케줄', `<p class="sheet-description">${dateLabel(current())}</p><div class="surface">${todayEvents().map(eventRow).join('') || empty('calendar', '오늘 일정이 없어요', '새 약속을 추가하거나 달력에서 다른 날을 확인하세요.')}</div><div class="detail-actions">${button('new-event', icon('plus') + ' 일정 추가', 'secondary-button')}${button('go-schedule', '달력으로 보기 ' + arrow, 'secondary-button')}</div>`);
+  }
   else if (kind === 'event') { const e = data.events.find(e => e.id === id); if (!e) return; const kind = eventKind(e); openSheet('나의 약속', `<div class="event-detail-top">${mark('calendar', kind.value)}${tag(kind.label, kind.value)}</div><div class="detail-title"><h2>${esc(e.title)}</h2><p>${dateLabel(dayDate(e.date))}</p></div><div class="event-detail-time">${icon('clock')}<div><strong>${e.time} <span>– ${eventEnd(e)}</span></strong><small>${eventDuration(e)}분 동안</small></div></div><div class="event-detail-place">${icon('pin')}<span>${esc(e.place || '장소를 정하지 않았어요')}</span></div>${e.memo ? `<div class="note-body">${esc(e.memo)}</div>` : ''}${button('edit-event', icon('compose') + ' 일정 편집하기', 'primary-button', `data-id="${id}"`)}`); }
   else if (kind === 'reminder' && id) { const r = data.reminders.find(r => r.id === id); if (!r) return; const done = current() >= r.target; openSheet('나의 알림', `<div class="timer-scene ${r.cancelled ? 'cancelled' : ''}"><p>${esc(r.title)}</p><div class="timer-ring"><svg viewBox="0 0 240 240" aria-hidden="true"><circle class="timer-track" cx="120" cy="120" r="108"/><circle class="timer-progress" cx="120" cy="120" r="108" stroke-dasharray="679" stroke-dashoffset="0"/></svg><div><span data-countdown="${id}">${r.cancelled ? '중지됨' : remaining(r.target)}</span><small>${r.cancelled ? '다시 시작할 수 있어요' : done ? '목표 시각이 되었어요' : '남은 시간'}</small></div></div><h2>${time(r.target)}</h2><p>이 기기의 알림 체험 · 실제 푸시는 전송하지 않아요</p></div><div class="detail-actions">${button('timer-extend', '+ 5분', 'secondary-button', `data-id="${id}"`)}${button('timer-cancel', r.cancelled ? '다시 30분 시작' : '알림 취소', r.cancelled ? 'primary-button' : 'secondary-button', `data-id="${id}"`)}</div><details class="support-details"><summary>알림 완료 화면 미리보기</summary><p class="field-help">체험 시간을 이 알림의 목표 시각으로 이동해요.</p>${button('timer-finish', '목표 시각으로 이동하기', 'text-button full', `data-id="${id}"`)}</details>`, 'timer-sheet'); }
   else if (kind === 'reminder') openSheet('알림', `<div class="form-intro">${mark('bell', 'orange')}<h3>언제 챙겨드릴까요?</h3><p>짧은 휴식도, 중요한 순간도.</p></div><div class="reminder-presets">${[5, 15, 30, 60].map(m => button('preset-reminder', `<b>${m}</b><span>분 뒤</span>`, '', `data-minutes="${m}"`)).join('')}</div><div class="surface">${data.reminders.map(r => button('detail', `${mark('bell', 'orange')}<span class="row-content"><strong>${esc(r.title)}</strong><small>${r.cancelled ? '중지됨' : r.target <= current() ? '완료된 알림' : `${time(r.target)} · ${remaining(r.target)}`}</small></span>${arrow}`, 'record-row', `data-ref="reminder:${r.id}"`)).join('')}</div>`);
@@ -435,20 +513,22 @@ function renderDetail(ref) {
   ui.detail = ref;
 }
 function guide() { openSheet('모리와 하루를 보내보세요', `<div class="guide-intro"><img src="/assets/mori.svg" alt="모리"><h2>작은 부탁 하나부터.</h2><p>예시를 누르면 대화와 결과가 연결돼요.</p></div><div class="scenario-list">${[['car', 'green', '주차하고, 출근길에 다시 만나기', '지하 3층 B16에 주차했어. 내일 출근할 때 알려줘'], ['news', 'blue', '매일 아침 나만의 뉴스', '매일 오전 9시에 AI 뉴스를 수집해서 정리해줘'], ['chart', 'rose', '관심 있는 종목 챙기기', '삼성전자 주가 알려줘'], ['note', 'amber', '떠오른 생각 남기기', '이번 주말에 한강 산책하기 메모해줘'], ['calendar', 'purple', '말로 만드는 새로운 약속', '내일 오후 2시 디자인 미팅 일정 추가해줘'], ['bell', 'orange', '30분 뒤, 잠깐 쉬어가기', '30분 뒤에 잠깐 쉬라고 알림 줘'], ['spark', 'purple', '나만의 커스텀 기능', '매일 저녁 8시에 오늘 메모를 모아서 정리하는 기능 만들어줘. 제목은 하루 마무리로 해줘']].map(([i, c, title, prompt], idx) => button('prompt', `${mark(i, c)}<span><small>0${idx + 1}</small><strong>${title}</strong></span>${arrow}`, 'scenario-row', `data-prompt="${esc(prompt)}"`)).join('')}</div>${button('document', icon('file') + ' 파일 정리도 체험하기', 'secondary-button full')}<p class="field-help center">실제 AI 서버 없이 작동하는 앱 시나리오 체험이에요.</p>`); }
-function dayPreview() { openSheet('모리와 하루 미리보기', `<p class="sheet-description">시간이 바뀌면 필요한 정보도 달라져요.<br>카드가 나타나는 순간을 살펴보세요.</p><div class="day-choices">${[[8, 40, 'sun', '아침', '출근길 주차 · 아침 뉴스'], [9, 0, 'news', '브리핑', '수집 시작부터 완료까지'], [13, 0, 'sun', '낮', '관심 주가 · 다음 약속'], [19, 0, 'moon', '저녁', '퇴근 정리 · 하루 마무리']].map(([h, m, i, title, desc]) => button('set-clock', `${icon(i)}<strong>${title}</strong><span>${h}:${String(m).padStart(2, '0')}</span><small>${desc}</small>`, '', `data-hour="${h}" data-minute="${m}"`)).join('')}</div><p class="field-help">체험 시간을 이동해요. 저장된 기록과 예약은 유지돼요.</p>`); }
+function dayPreview() { openSheet('모리와 하루 미리보기', `<p class="sheet-description">시간이 바뀌면 필요한 정보도 달라져요.<br>먼저 보여줄 카드가 어떻게 달라지는지 살펴보세요.</p><div class="day-choices">${[[8, 40, 'sun', '아침', '출근길 주차 · 아침 뉴스'], [9, 0, 'news', '브리핑', '수집 시작부터 완료까지'], [13, 0, 'sun', '낮', '관심 주가 · 다음 약속'], [19, 0, 'moon', '저녁', '퇴근 정리 · 하루 마무리']].map(([h, m, i, title, desc]) => button('set-clock', `${icon(i)}<strong>${title}</strong><span>${h}:${String(m).padStart(2, '0')}</span><small>${desc}</small>`, '', `data-hour="${h}" data-minute="${m}"`)).join('')}</div><p class="field-help">체험 시간을 이동해요. 저장된 기록과 예약은 유지돼요.</p>`); }
 function persistDraft() { const key = ui.chatId || 'new', value = $('#chat-input').value; if (value) data.drafts[key] = value; else delete data.drafts[key]; save(); }
 function syncComposer() {
   const input = $('#chat-input');
-  input.rows = Math.min(4, Math.max(1, input.value.split('\n').length, Math.ceil(input.value.length / 28)));
-  $('#chat-send').disabled = !input.value.trim() || input.value.length > 4000 || busy.has(ui.chatId);
+  input.rows = 1;
+  input.style.height = 'auto';
+  if (input.scrollHeight) input.style.height = `${Math.min(input.scrollHeight, parseFloat(getComputedStyle(input).maxHeight) || 160)}px`;
+  $('#chat-send').disabled = !input.value.trim() || input.value.length > 4000 || busy.has(ui.chatId) || voiceActive();
 }
 function openChat(id = null, returnSource = null) {
   if ($('#chat-panel').open) persistDraft();
-  if (ui.chatId !== id) { ui.voiceText = ''; $('#voice-transcript').value = ''; }
+  stopVoice();
   ui.chatId = id; $('#chat-input').value = data.drafts[id || 'new'] || '';
   $('#chat-announcement').textContent = '';
   const source = [returnSource, presentationSource, $('#main [data-action=new-chat]'), $('#main [data-action=guide]'), $('#quick-composer [data-action=new-chat]'), $('#tabs [aria-current=page]')].find(isAvailableControl);
-  renderChat(true); presentations.show($('#chat-panel'), { source, kind: 'chat' }); moveToast();
+  renderChat(true); presentations.show($('#chat-panel'), { source, kind: 'chat' }); syncComposer(); moveToast();
 }
 function renderChat(forceScroll = false) {
   const c = data.conversations.find(c => c.id === ui.chatId), messages = $('#messages');
@@ -465,7 +545,12 @@ function announceChat(message, id) {
 }
 function referenceTitle(ref) { const [kind, id] = ref.split(':'); return esc(({ parking: '주차 위치 확인', news: '뉴스 브리핑 보기', stock: '관심 주가 보기', note: '저장한 메모 보기', reminder: '카운트다운 보기', event: '저장한 일정 보기', custom: data.customs.find(f => f.id === id)?.title || '내 기능 보기' })[kind] || '결과 보기'); }
 async function send(raw, { preserveDraft = false } = {}) {
-  const text = raw.trim(); if (!text || text.length > 4000 || busy.has(ui.chatId)) return;
+  const text = raw.trim(); if (!text || text.length > 4000 || busy.has(ui.chatId) || voiceActive()) return;
+  if (voiceExpanded && !$('#voice-fallback').hidden && $('#voice-transcript').value.trim()) {
+    $('#voice-transcript').focus();
+    return toast('인식한 내용을 입력창에 추가하거나 취소한 뒤 보내세요.');
+  }
+  stopVoice();
   const retainedDraft = preserveDraft ? $('#chat-input').value : '';
   const wasNew = !ui.chatId; let c = data.conversations.find(c => c.id === ui.chatId); if (!c) { c = { id: uid(), title: text.slice(0, 26), at: current(), messages: [] }; data.conversations.unshift(c); ui.chatId = c.id; }
   const request = c.awaiting && !preserveDraft ? `${c.awaiting === 'parking' ? '주차 ' : '알림 '}${text}` : text; c.awaiting = null;
@@ -475,7 +560,7 @@ async function send(raw, { preserveDraft = false } = {}) {
   if (!data.conversations.includes(c)) { busy.delete(id); return; }
   const reply = applyRequest(data, request); c.messages.push({ role: 'assistant', ...reply }); c.awaiting = reply.followup; busy.delete(id); save(); render(); if (ui.chatId === id) renderChat();
   announceChat(reply.text, id);
-  if (reply.ref?.startsWith('reminder:') && $('#chat-panel').open && ui.chatId === id && !$('#sheet').open && !$('#voice-panel').open) openDetail(reply.ref);
+  if (reply.ref?.startsWith('reminder:') && $('#chat-panel').open && ui.chatId === id && !$('#sheet').open && !voiceExpanded) openDetail(reply.ref);
 }
 async function prompt(text) {
   const origin = sheetOrigin;
@@ -483,51 +568,132 @@ async function prompt(text) {
   if (!$('#chat-panel').open) openChat(null, resolveControl(origin?.root, origin?.control, { visible: true }));
   send(text, { preserveDraft: true });
 }
-function openVoice() {
-  voiceFromChat = $('#chat-panel').open;
-  if (voiceFromChat) persistDraft();
-  $('#voice-transcript').value = ui.voiceText;
-  presentations.show($('#voice-panel'), { source: presentationSource, kind: 'voice' }); moveToast();
-  voiceStatus(ui.voiceText ? '이어서 입력하세요' : '눌러서 말하기', '마이크를 누르고 말해 주세요.');
-  updateVoiceInput();
+function voiceActive() { return ['requesting', 'listening', 'processing'].includes(voiceSession.state.phase); }
+function abortRecognition() {
+  clearTimeout(voiceEndTimer);
+  const session = recognition; recognition = null;
+  if (!session) return;
+  session.onstart = session.onend = session.onerror = session.onresult = null;
+  try { session.abort(); } catch { /* A browser may already have ended the session. */ }
 }
-function updateVoiceInput() {
-  const hasText = Boolean($('#voice-transcript').value.trim());
-  $('#voice-panel').classList.toggle('has-transcript', hasText);
-  $('#voice-send').disabled = !hasText;
+async function openVoice() {
+  const source = presentationSource;
+  if ($('#sheet').open) await closeSheet();
+  if (!$('#chat-panel').open) openChat(ui.chatId, source);
+  if (voiceExpanded) return closeVoice();
+  voiceSession.reset($('#chat-input').value);
+  voiceExpanded = true; voiceFallback = false; voiceFallbackEdited = false; $('#voice-transcript').value = '';
+  renderVoice(); $('#record-button').focus({ preventScroll: true });
 }
-async function voiceToChat() {
-  const text = $('#voice-transcript').value.trim();
-  const draft = voiceFromChat ? $('#chat-input').value.trim() : (data.drafts.new || '').trim();
-  const combined = [draft, text].filter(Boolean).join('\n');
-  if (combined.length > 4000) return toast('메시지는 4,000자까지 입력할 수 있어요.');
-  stopVoice();
-  await presentations.dismiss($('#voice-panel'));
-  if (!voiceFromChat) openChat();
-  ui.voiceText = ''; $('#voice-transcript').value = '';
-  $('#chat-input').value = combined;
-  persistDraft(); syncComposer(); $('#chat-input').focus();
+function renderVoice() {
+  const state = voiceSession.state, active = voiceActive();
+  const supported = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  $('#voice-input').hidden = !voiceExpanded;
+  $('#chat-form').classList.toggle('voice-expanded', voiceExpanded);
+  $('#chat-form').dataset.voicePhase = state.phase;
+  $('#chat-mic').setAttribute('aria-expanded', String(voiceExpanded));
+  $('#chat-mic').setAttribute('aria-label', voiceExpanded ? '음성 입력 접기' : '음성 입력 열기');
+  $('#chat-input').readOnly = active;
+  $('#voice-examples').hidden = active;
+  const messages = {
+    idle: supported ? '마이크를 누른 뒤 말해 주세요.' : '이 브라우저는 음성 인식을 지원하지 않아요. 아래에 입력하거나 예시를 골라 보세요.',
+    requesting: '마이크 연결을 기다리고 있어요. 브라우저의 권한 요청을 확인해 주세요.',
+    listening: '듣고 있어요. 다 말하면 녹음을 마쳐 주세요.',
+    processing: '말한 내용을 정리하고 있어요.',
+    ready: '입력창에 담았어요. 내용을 확인한 뒤 보내세요.',
+    error: ({ 'not-allowed': '마이크 권한이 꺼져 있어요. 권한을 바꾸거나 아래에 직접 입력하세요.', 'service-not-allowed': '이 브라우저에서 음성 인식을 사용할 수 없어요. 아래에 직접 입력하세요.', 'audio-capture': '마이크를 찾지 못했어요. 연결을 확인하거나 아래에 직접 입력하세요.', 'no-speech': '말소리를 듣지 못했어요. 다시 말하거나 아래에 직접 입력하세요.', network: '음성 인식 연결이 끊겼어요. 다시 시도하거나 아래에서 이어 쓰세요.', limit: '기존 메시지와 합치면 4,000자를 넘어요. 인식한 말을 줄인 뒤 다시 추가하세요.' })[state.error] || '음성 인식을 시작하지 못했어요. 다시 시도하거나 아래에 직접 입력하세요.',
+  };
+  $('#voice-subtitle').textContent = messages[state.phase];
+  $('#voice-title').textContent = ({ requesting: '마이크 연결 중', listening: '듣고 있어요', processing: '인식 중', ready: '입력 완료', error: '음성 입력 확인' })[state.phase] || '음성으로 입력';
+  $('#voice-preview').textContent = state.transcript || (state.phase === 'listening' ? '말한 내용이 여기에 나타나요' : '');
+  $('#voice-preview').hidden = !state.transcript && state.phase !== 'listening';
+  const record = $('#record-button');
+  record.disabled = !supported || state.phase === 'processing';
+  record.setAttribute('aria-label', state.phase === 'requesting' ? '마이크 요청 취소' : state.phase === 'listening' ? '녹음 마치기' : state.phase === 'ready' ? '이어서 녹음' : '녹음 시작');
+  record.innerHTML = icon(['requesting', 'listening', 'processing'].includes(state.phase) ? 'stop' : 'mic') + `<span>${state.phase === 'requesting' ? '요청 취소' : state.phase === 'listening' ? '녹음 마치기' : state.phase === 'processing' ? '인식 중' : state.phase === 'ready' ? '이어서 녹음' : '녹음 시작'}</span>`;
+  const fallback = !active && (!supported || voiceFallback || state.phase === 'error');
+  $('#voice-fallback').hidden = !fallback;
+  $('#voice-service-note').textContent = supported ? '브라우저에서 제공하는 음성 인식이에요.' : '입력이나 예시로 음성 입력 흐름을 체험할 수 있어요.';
+  updateVoiceInput(); syncComposer();
 }
-function voiceStatus(title, subtitle) { updateVoiceInput(); $('#voice-title').textContent = title; $('#voice-subtitle').textContent = subtitle; $('#voice-panel').classList.toggle('listening', voiceListening); $('#record-button').setAttribute('aria-label', voiceListening ? '녹음 중지' : '녹음 시작'); $('#record-button').innerHTML = icon(voiceListening ? 'stop' : 'mic'); }
-function stopVoice() {
-  ui.voiceText = $('#voice-transcript').value;
-  if (recognition) {
-    const session = recognition; recognition = null;
-    session.onend = session.onerror = session.onresult = null;
-    session.abort();
+function updateVoiceInput() { $('#voice-send').disabled = !$('#voice-transcript').value.trim(); }
+function settleVoice({ edited = false } = {}) {
+  const state = voiceSession.state;
+  if (state.phase === 'ready') {
+    $('#chat-input').value = state.draft; $('#voice-transcript').value = ''; voiceFallbackEdited = false; persistDraft();
+    if (!data.profile.reduced) $('#chat-input').animate([{ opacity: .3, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 220, easing: 'cubic-bezier(.2,.7,.2,1)' });
+  } else if (state.phase === 'error') {
+    $('#voice-transcript').value = state.transcript; voiceFallbackEdited = edited;
   }
-  voiceListening = false;
+  renderVoice();
+}
+function voiceToChat(text = $('#voice-transcript').value) {
+  abortRecognition();
+  voiceFallback = false;
+  voiceSession.accept(text, $('#chat-input').value);
+  settleVoice({ edited: voiceFallbackEdited });
+}
+function stopVoice() {
+  abortRecognition(); voiceSession.reset($('#chat-input').value);
+  voiceExpanded = false; voiceFallback = false; voiceFallbackEdited = false;
+  renderVoice();
+}
+function closeVoice(keyboard = false) {
+  if (keyboard && !$('#voice-fallback').hidden && $('#voice-transcript').value.trim()) {
+    voiceToChat();
+    if (voiceSession.state.phase !== 'ready') { $('#voice-transcript').focus(); return; }
+  }
+  // During recording the editable draft has not changed. A finished recording
+  // already belongs to it, so switching to the keyboard keeps that text too.
+  stopVoice(); persistDraft();
+  (keyboard ? $('#chat-input') : $('#chat-mic')).focus({ preventScroll: true });
 }
 function recordVoice() {
-  if (voiceListening) { recognition?.stop(); voiceListening = false; voiceStatus('이렇게 들었어요', '내용을 확인하고 대화로 이어가세요.'); return; }
+  const phase = voiceSession.state.phase;
+  if (phase === 'requesting') { abortRecognition(); voiceSession.cancel(); return renderVoice(); }
+  if (phase === 'processing') return;
+  if (phase === 'listening') {
+    const id = voiceSession.state.id;
+    voiceSession.processing(id); renderVoice();
+    voiceEndTimer = setTimeout(() => {
+      if (voiceSession.state.id !== id || voiceSession.state.phase !== 'processing') return;
+      abortRecognition(); voiceSession.fail(id, 'network'); settleVoice();
+    }, 10000);
+    try { recognition?.stop(); } catch { abortRecognition(); voiceSession.finish(id); settleVoice(); }
+    return;
+  }
   const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Speech) { voiceStatus('음성 예시로 체험해 보세요', '이 브라우저에서는 음성 인식을 지원하지 않아요.'); return; }
-  const session = new Speech(); recognition = session; session.lang = 'ko-KR'; session.interimResults = true; session.continuous = false;
-  const previousText = $('#voice-transcript').value;
-  session.onresult = event => { if (recognition !== session || !$('#voice-panel').open) return; const text = Array.from(event.results).map(r => r[0].transcript).join(' '); $('#voice-transcript').value = appendTranscript(previousText, text); updateVoiceInput(); };
-  session.onerror = () => { if (recognition !== session) return; session.onend = null; recognition = null; voiceListening = false; voiceStatus('마이크를 사용할 수 없어요', '권한을 확인하거나 아래 음성 예시로 이어가세요.'); };
-  session.onend = () => { if (recognition !== session) return; recognition = null; voiceListening = false; voiceStatus($('#voice-transcript').value.trim() ? '이렇게 들었어요' : '아직 들은 내용이 없어요', '말한 내용을 고치거나 키보드로 이어갈 수 있어요.'); };
-  try { session.start(); voiceListening = true; voiceStatus('듣고 있어요', '마이크를 다시 누르면 녹음을 마쳐요.'); } catch { voiceStatus('음성을 시작하지 못했어요', '음성 예시로도 모든 흐름을 체험할 수 있어요.'); }
+  if (!Speech) { voiceFallback = true; return renderVoice(); }
+  if (voiceFallbackEdited && !$('#voice-fallback').hidden && $('#voice-transcript').value.trim()) {
+    $('#voice-transcript').focus();
+    return toast('수정한 내용을 먼저 입력창에 추가하거나 취소해 주세요.');
+  }
+  abortRecognition(); voiceFallback = false; voiceFallbackEdited = false;
+  const id = voiceSession.begin($('#chat-input').value);
+  renderVoice();
+  try {
+    const session = new Speech(); recognition = session;
+    session.lang = 'ko-KR'; session.interimResults = true; session.continuous = false;
+    const currentSession = () => recognition === session && $('#chat-panel').open && !$('#chat-panel').dataset.closing && voiceSession.state.id === id;
+    session.onstart = () => { if (!currentSession()) return; voiceSession.listening(id); renderVoice(); };
+    session.onresult = event => {
+      if (!currentSession()) return;
+      voiceSession.update(id, Array.from(event.results, result => ({ text: result[0]?.transcript || '', final: result.isFinal })));
+      renderVoice();
+    };
+    session.onerror = event => {
+      if (!currentSession()) return;
+      abortRecognition(); voiceSession.fail(id, event.error); settleVoice();
+    };
+    session.onend = () => {
+      if (!currentSession()) return;
+      clearTimeout(voiceEndTimer); recognition = null; session.onstart = session.onend = session.onerror = session.onresult = null;
+      voiceSession.finish(id); settleVoice();
+    };
+    session.start();
+  } catch {
+    abortRecognition(); voiceSession.fail(id, 'start'); settleVoice();
+  }
 }
 function documentSheet() { openSheet('파일 속 생각도 한곳에', `<div class="form-intro">${mark('file', 'blue')}<h3>원문 그대로, 가볍게 보관.</h3><p>메모와 문서를 같은 보관함에서 꺼내보세요.</p></div><label class="upload-zone">${icon('upload')}<strong>텍스트 파일 불러오기</strong><span>TXT · MD · CSV, 최대 10MB</span><input id="document-upload" type="file" accept=".txt,.md,.csv,text/plain,text/markdown,text/csv"></label><div class="document-benefits"><span>${icon('check')}원문과 줄바꿈 그대로</span><span>${icon('file')}기록 보관함에 저장</span></div>${button('sample-document', '예시 회의 메모로 체험하기 ' + icon('arrow'), 'secondary-button full')}<p class="field-help">파일은 이 기기에 보관해요. Word·Excel·PDF 변환과 AI 요약은 아직 연결 전이에요.</p>`); }
 async function documentDetail(id) {
@@ -617,14 +783,15 @@ document.addEventListener('click', async event => {
   if (a === 'set-clock') { setClock(data, Number(el.dataset.hour), Number(el.dataset.minute)); tickScheduled(data); save(); closeSheet(); go('dashboard'); render(); return toast('체험 시간을 바꿨어요. 지금 필요한 카드를 살펴보세요.'); }
   if (a === 'new-chat') return openChat();
   if (a === 'open-conversation') return openChat(id);
-  if (a === 'close-chat') return presentations.dismiss($('#chat-panel'));
+  if (a === 'close-chat') { stopVoice(); return presentations.dismiss($('#chat-panel')); }
   if (a === 'prompt') return prompt(el.dataset.prompt);
-  if (a === 'chat-example') { if ($('#chat-input').value.trim()) { $('#chat-input').focus(); return toast('작성 중인 메시지를 먼저 보내거나 지워 주세요.'); } $('#chat-input').value = el.dataset.prompt; persistDraft(); syncComposer(); return $('#chat-input').focus(); }
+  if (a === 'chat-example') { if (voiceActive()) return toast('녹음을 마치거나 취소한 뒤 예시를 골라 주세요.'); if ($('#chat-input').value.trim()) { $('#chat-input').focus(); return toast('작성 중인 메시지를 먼저 보내거나 지워 주세요.'); } $('#chat-input').value = el.dataset.prompt; persistDraft(); syncComposer(); return $('#chat-input').focus(); }
   if (a === 'voice') return openVoice();
-  if (a === 'voice-close') { stopVoice(); return presentations.dismiss($('#voice-panel')); }
+  if (a === 'voice-close') return closeVoice();
   if (a === 'record') return recordVoice();
-  if (a === 'voice-example') { stopVoice(); $('#voice-transcript').value = el.dataset.text; return voiceStatus('이렇게 말했어요', '음성 입력 예시예요. 내용을 고쳐도 좋아요.'); }
-  if (a === 'voice-send' || a === 'voice-keyboard') return voiceToChat();
+  if (a === 'voice-example') return voiceToChat(el.dataset.text);
+  if (a === 'voice-send') return voiceToChat();
+  if (a === 'voice-keyboard') return closeVoice(true);
   if (a === 'edit-parking') return parkingForm();
 
   if (a === 'new-note' || a === 'edit-note') return noteForm(id);
@@ -800,22 +967,17 @@ document.addEventListener('keydown', event => {
 document.addEventListener('keydown', event => { if (event.target.id === 'chat-input' && event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('#chat-form').requestSubmit(); } });
 document.addEventListener('input', event => { if (event.target.id === 'chat-input') { persistDraft(); syncComposer(); } if (event.target.closest('#custom-form')) updateCustomPreview(); });
 document.addEventListener('change', event => { if (event.target.closest('#custom-form')) updateCustomPreview(); });
-$('#chat-panel').addEventListener('close', () => { persistDraft(); render(); });
-$('#voice-panel').addEventListener('close', stopVoice);
-$('#voice-transcript').addEventListener('input', () => {
-  // Manual corrections must not be overwritten by a late recognition result.
-  if (recognition) { stopVoice(); voiceStatus('내용을 수정하고 있어요', '마이크를 누르면 이어서 말할 수 있어요.'); }
-  updateVoiceInput();
-});
-$('#sheet').addEventListener('close', () => { formDrafts.capture(draftForm()); if (!$('#sheet').open) ui.detail = null; });
+$('#chat-panel').addEventListener('close', () => { stopVoice(); persistDraft(); render(); });
+$('#voice-transcript').addEventListener('input', () => { voiceFallbackEdited = true; updateVoiceInput(); });
+$('#sheet').addEventListener('close', () => { formDrafts.capture(draftForm()); if (!$('#sheet').open) { ui.detail = null; sheetCardOrigin = null; } });
 for (const dialog of document.querySelectorAll('dialog')) {
   dialog.addEventListener('close', moveToast);
   const dismiss = (dragOffset = 0) => {
     if (dialog.id === 'sheet') return closeSheet(dragOffset);
-    if (dialog.id === 'voice-panel') stopVoice();
+    if (dialog.id === 'chat-panel') stopVoice();
     return presentations.dismiss(dialog, { dragOffset });
   };
-  dialog.addEventListener('cancel', event => { event.preventDefault(); if (dialog.id === 'sheet' && sheetTrail.length) backSheet(); else dismiss(); });
+  dialog.addEventListener('cancel', event => { event.preventDefault(); if (dialog.id === 'chat-panel' && voiceExpanded) return closeVoice(); if (dialog.id === 'sheet' && sheetTrail.length) backSheet(); else dismiss(); });
   dialog.addEventListener('click', event => { if (event.target !== dialog) return; const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dismiss(); });
   presentations.pullToDismiss(dialog, dismiss);
 }
@@ -836,11 +998,21 @@ document.addEventListener('focusout', () => requestAnimationFrame(syncVisibleVie
 window.addEventListener('resize', syncVisibleViewport);
 syncVisibleViewport();
 window.addEventListener('hashchange', route);
-window.addEventListener('resize', () => { if (ui.windowMenu) positionWindowMenu(); motion.render(ui.view); });
+window.addEventListener('resize', () => { if (ui.windowMenu) positionWindowMenu(); if ($('#chat-panel').open) syncComposer(); motion.render(ui.view); });
 let lastMinute = '';
 setInterval(() => {
   if (tickScheduled(data)) { save(); render(); if (ui.detail && $('#sheet').open) openDetail(ui.detail); }
   document.querySelectorAll('[data-countdown]').forEach(el => { const r = data.reminders.find(r => r.id === el.dataset.countdown); if (r) { el.textContent = r.cancelled ? '중지됨' : remaining(r.target); const ring = el.closest('.timer-ring'); if (ring) { const fraction = Math.max(0, Math.min(1, (r.target - current()) / Math.max(1, r.target - r.created))); ring.querySelector('.timer-progress').setAttribute('stroke-dashoffset', String(679 * (1 - fraction))); ring.querySelector('small').textContent = r.cancelled ? '다시 시작할 수 있어요' : current() >= r.target ? '목표 시각이 되었어요' : '남은 시간'; } } });
+  document.querySelectorAll('[data-timer-preview]').forEach(el => {
+    const r = data.reminders.find(r => r.id === el.dataset.timerPreview);
+    if (!r) return;
+    const fraction = r.cancelled ? 0 : Math.max(0, Math.min(1, (r.target - current()) / Math.max(1, r.target - r.created)));
+    if (Number.isFinite(fraction)) el.setAttribute('stroke-dashoffset', String(100 * (1 - fraction)));
+  });
+  document.querySelectorAll('.scene-timer-value[data-countdown]').forEach(el => {
+    el.classList.toggle('is-long', el.textContent.length > 5);
+    el.classList.toggle('is-extra-long', el.textContent.length > 7);
+  });
   data.reminders.filter(r => !r.cancelled && !r.notified && r.target <= current()).forEach(r => { r.notified = true; save(); if (data.profile.notify) toast(`${r.title} · 목표 시각이 되었어요.`); });
   const minute = Math.floor(current() / 60000); if (minute !== lastMinute) { lastMinute = minute; if (ui.view === 'dashboard' && !ui.windowMenu && !document.querySelector('dialog[open]')) render(); }
 }, 1000);

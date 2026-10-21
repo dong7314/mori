@@ -61,7 +61,6 @@ a { color: var(--accent); }
 .brief-copy { display: block; min-width: 0; strong { display: block; font-size: 1.1875rem; font-weight: 640; letter-spacing: -.03em; overflow-wrap: anywhere; span { opacity: .35; font-weight: 400; } } > span { display: block; color: var(--secondary); font-size: .8125rem; margin-top: 5px; line-height: 1.5; } }
 .brief-stamp { display: flex; align-items: center; gap: 5px; color: var(--secondary); font-size: .6875rem; font-weight: 450; .icon { width: 12px; height: 12px; } }
 .brief-card.parking { background: linear-gradient(115deg, var(--surface) 28%, color-mix(in srgb, var(--sage) 80%, var(--surface))); .brief-copy strong { font-size: 1.5rem; letter-spacing: -.045em; } }
-.parking-emblem { position: relative; flex: 0 0 72px; height: 58px; color: #82a28a; transform: rotate(-8deg); > span { display: grid; place-items: center; width: 30px; height: 34px; margin: -5px 0 0 35px; background: linear-gradient(135deg,#a2bfa4,#7b9e83); color: #fff; border: 1px solid #ffffff80; border-radius: 9px; box-shadow: 0 5px 10px #4b725424,inset 0 1px 0 #ffffff60; font-size: 1.25rem; font-weight: 600; } svg { position: absolute; left: 0; bottom: -2px; width: 76px; height: 44px; fill: color-mix(in srgb, var(--surface) 75%, var(--sage)); stroke: #8ba891; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 5px 4px #38634412); } }
 .brief-card .sparkline { width: 75px; height: 44px; flex: 0 0 75px; }
 .sparkline { overflow: visible; .chart-fill { fill: color-mix(in srgb,var(--accent) 8%,transparent); stroke: none; } .chart-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; } }
 .surface,.record-list,.custom-list,.settings-list { padding: 0 18px; background: var(--surface); border: 1px solid color-mix(in srgb,var(--line) 65%,transparent); border-radius: 23px; box-shadow: var(--shadow); overflow: hidden; }
@@ -165,7 +164,7 @@ a { color: var(--accent); }
   .quick-composer { width: 450px; }
   .tab-bar { width: 450px; }
 }
-@media (max-width:359px) { :root { --gutter: 18px; } .home-greeting h1 { font-size: 1.625rem; } .brief-card { padding: 17px; } .brief-card.parking .brief-copy strong { font-size: 1.375rem; } .parking-emblem { flex-basis: 58px; transform: scale(.85) rotate(-8deg); transform-origin: right center; } .quick-actions { gap: 4px; button { font-size: .75rem; } } .license-card { flex-wrap: wrap; } }
+@media (max-width:359px) { :root { --gutter: 18px; } .home-greeting h1 { font-size: 1.625rem; } .brief-card { padding: 17px; } .brief-card.parking .brief-copy strong { font-size: 1.375rem; } .quick-actions { gap: 4px; button { font-size: .75rem; } } .license-card { flex-wrap: wrap; } }
 @media (max-height:500px) and (orientation:landscape) { .quick-composer { display: none; } #main { padding-bottom: 100px; } .app-dock { padding-top: 12px; } }
 @media (prefers-reduced-transparency:reduce) { .quick-composer,.tab-bar,.window-menu { background: var(--surface); backdrop-filter: none; } }
 @media (prefers-contrast:more) { :root { --secondary: #4c5b50; --muted: #59685e; --line: #b6c3b5; --glass: var(--surface); } :root[data-theme=dark] { --secondary: #c7d7cc; --muted: #b4c7bc; } }

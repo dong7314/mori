@@ -1,0 +1,15 @@
+.feature-scene--reminder {
+  .reminder-clock-legs { fill: none; stroke: var(--scene-accent); stroke-opacity: .65; stroke-width: 4; stroke-linecap: round; }
+  .reminder-bell-brackets { fill: none; stroke: var(--scene-accent); stroke-opacity: .5; stroke-width: 2; }
+  .reminder-bell-dome { fill: color-mix(in srgb, var(--scene-accent) 32%, var(--scene-paper)); }
+  .reminder-dial-ground { fill: var(--scene-tint); }
+  .reminder-dial-face { fill: var(--scene-paper); }
+  .scene-timer-track { stroke-width: 2; stroke-opacity: .55; }
+  .scene-timer-progress { stroke-width: 2.5; transition: stroke-dashoffset .7s linear; }
+  .scene-timer-value { font-size: 21px; letter-spacing: -.7px; }
+  .scene-timer-value.is-long { font-size: 16px; letter-spacing: -.4px; }
+  .scene-timer-value.is-extra-long { font-size: 11.5px; letter-spacing: 0; }
+  .scene-timer-caption { font-size: 7px; }
+  .reminder-empty-title { fill: var(--scene-ink); font-size: 15px; font-weight: 600; }
+  .reminder-time-label { fill: var(--scene-muted); font-size: 8.5px; font-weight: 500; }
+}

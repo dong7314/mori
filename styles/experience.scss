@@ -1,4 +1,15 @@
 @use 'mobile';
 @use 'flows';
 @use 'preview';
+@use 'card-visuals';
+@use 'scene-parking';
+@use 'scene-news';
+@use 'scene-planning';
+@use 'scene-reminder';
+@use 'scene-stock';
+@use 'tablet-workspace';
+@use 'inline-voice';
+@use 'card-detail-page';
 @include flows.styles;
+@include inline-voice.styles;
+@include card-detail-page.styles;

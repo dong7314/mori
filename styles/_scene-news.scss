@@ -1,0 +1,7 @@
+// Two quiet editorial columns distinguish the briefing from the bound notebook.
+.feature-scene--news {
+  .news-masthead-rule { stroke: color-mix(in srgb, var(--scene-accent) 32%, var(--scene-paper)); stroke-width: .75; }
+  .news-lead-image { stroke: color-mix(in srgb, var(--scene-accent) 22%, var(--scene-paper)); stroke-width: .7; }
+  .news-body-rule { fill: none; stroke: var(--scene-rule); stroke-width: 2; stroke-linecap: round; }
+  .news-column-divider { fill: none; stroke: var(--scene-edge); stroke-width: .7; }
+}
