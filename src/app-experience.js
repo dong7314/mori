@@ -1,6 +1,8 @@
 import { createPresentations } from './presentation.mjs';
 import { captureControl, resolveControl, isAvailableControl } from './navigation-focus.mjs';
 import { createVoiceSession } from './voice-session.mjs';
+import { createVoicePreview } from './voice-preview.mjs';
+import { installOverlayScrollbars } from './overlay-scrollbars.mjs';
 import { createAccountLoader } from './account-session.mjs';
 import { createFormDrafts } from './form-drafts.mjs';
 import { VERSION, BUILTINS, seed, uid, esc, dateKey, nowOf, setClock, dashboardCards, applyRequest, runCustom, minuteOf, tickScheduled } from './experience.mjs';
@@ -18,6 +20,7 @@ import { cardVisual, featureArt, stockCandlestickChart } from './card-visuals.mj
 const $ = s => document.querySelector(s);
 // Presentations owns modal lifecycles; motion owns main content, tabs and messages.
 const motion = createMotion($('#main'));
+installOverlayScrollbars();
 const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const button = (action, content, cls = '', attrs = '') => `<button type="button" class="${cls}" data-action="${action}" ${attrs}>${content}</button>`;
 const arrow = icon('chevron');
@@ -45,7 +48,11 @@ function applyTheme() {
   document.querySelector('meta[name="theme-color"]').content = dark ? '#171c1b' : '#f5f6f3';
 }
 applyTheme(); systemTheme.addEventListener('change', applyTheme);
-matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event => { data.profile.reduced = event.matches; render(); });
+matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event => {
+  data.profile.reduced = event.matches;
+  if (event.matches) { voiceLayoutAnimation?.cancel(); voiceArrivalAnimation?.cancel(); $('#chat-form').classList.remove('voice-arrived'); }
+  render();
+});
 const ui = { view: 'dashboard', horizon: 0, windowMenu: false, resetRails: false, date: dateKey(nowOf(data)), month: new Date(nowOf(data)), calendar: 'month', filter: 'all', chatId: null, search: '', chart: '1일', detail: null, recordFilter: 'all', recordSearch: '', liveUser: null, liveParking: null, sheetEpoch: 0, accountState: 'checking', settingsRevision: 0, settingsState: 'checking' };
 ui.month.setDate(1);
 installChoices();
@@ -57,7 +64,17 @@ const draftForm = () => $('#sheet-content form:is(#note-form, #event-form, #cust
 const loadAccount = createAccountLoader({ request: api, state: ui, onSettings: prefs => { selectedTheme = prefs.theme; applyTheme(); }, onChange: () => render() });
 let presentationSource = null, detailRequest = null, sheetCurrent = null, sheetTrail = [], returningSheet = false, sheetOrigin = null, sheetCardOrigin = null;
 const voiceSession = createVoiceSession();
-let voiceExpanded = false, voiceFallback = false, voiceFallbackEdited = false, voiceEndTimer;
+let voiceExpanded = false, voiceFallback = false, voiceFallbackEdited = false, voiceEndTimer, voiceLayoutAnimation, voiceArrivalAnimation;
+let voicePreviewing = false;
+const voiceDemo = createVoicePreview({ session: voiceSession, onChange: renderVoice, onFinish: settleVoice, isOpen: () => voiceExpanded && $('#chat-panel').open && !$('#chat-panel').dataset.closing });
+// The parent preview page exposes this as a labelled UI control. Normal app
+// windows and messages from other origins cannot start a rehearsal.
+if (previewId && window.parent !== window) window.addEventListener('message', async event => {
+  if (event.source !== window.parent || event.origin !== location.origin || event.data?.type !== 'mori:preview-voice') return;
+  if ($('#sheet').open) await closeSheet();
+  openChat(); await openVoice();
+  voicePreviewing = true; voiceDemo.start($('#chat-input').value);
+});
 // Capture the control before delegated handlers replace it. Never retain a trigger
 // across async work: background refreshes must not create navigation steps.
 document.addEventListener('click', event => {
@@ -533,9 +550,9 @@ function openChat(id = null, returnSource = null) {
 function renderChat(forceScroll = false) {
   const c = data.conversations.find(c => c.id === ui.chatId), messages = $('#messages');
   const nearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 100, scroll = messages.scrollTop;
-  $('#chat-title').textContent = c?.title || '모리에게 부탁하기';
+  $('#chat-title').textContent = c?.title || '모리';
   $('#chat-options').hidden = !c;
-  messages.innerHTML = !c?.messages.length ? `<div class="chat-welcome"><img src="/assets/mori.svg" alt="모리"><p>내 곁의 작은 비서</p><h2>무엇을 챙겨드릴까요?</h2><span>이야기는 편하게,<br>기억할 일은 모리에게.</span></div><div class="chat-suggestions">${[['car', '주차 위치 기억하기', '지하 3층 B16에 주차했어'], ['note', '떠오른 생각 남기기', '메모해줘: '], ['spark', '내 기능 실행하기', '퇴근 정리 실행해줘']].map(([i, title, t]) => button('chat-example', `${mark(i)}<span>${title}</span>${arrow}`, '', `data-prompt="${esc(t)}"`)).join('')}</div><p class="field-help center">예시를 고른 뒤 내용을 고쳐서 보내세요.</p>` : c.messages.map(m => `<div class="message ${m.role}">${m.role === 'assistant' ? `<span class="assistant-avatar">${icon('spark')}</span>` : ''}<div><p>${esc(m.text)}</p>${m.ref ? button('detail', `${icon('check')}<span><small>부탁한 일의 결과</small><strong>${referenceTitle(m.ref)}</strong></span>${arrow}`, 'message-result', `data-ref="${m.ref}"`) : ''}</div></div>`).join('');
+  messages.innerHTML = !c?.messages.length ? `<div class="chat-welcome"><span class="voice-emblem" aria-hidden="true"><i class="fluid-layer"></i><i class="fluid-layer"></i><i class="fluid-layer"></i></span><p>내 곁의 작은 비서</p><h2>무엇을 챙겨드릴까요?</h2><span>문득 떠오른 생각부터, 잊고 싶지 않은 일까지.<br>편하게 이야기해 주세요.</span></div><div class="chat-suggestions">${[['car', '주차 위치 기억하기', '지하 3층 B16에 주차했어'], ['note', '떠오른 생각 남기기', '메모해줘: '], ['spark', '내 기능 실행하기', '퇴근 정리 실행해줘']].map(([i, title, t]) => button('chat-example', `${mark(i)}<span>${title}</span>${arrow}`, '', `data-prompt="${esc(t)}"`)).join('')}</div><p class="field-help center">예시를 고른 뒤 내용을 고쳐서 보내세요.</p>` : c.messages.map(m => `<div class="message ${m.role}">${m.role === 'assistant' ? `<span class="assistant-avatar">${icon('spark')}</span>` : ''}<div><p>${esc(m.text)}</p>${m.ref ? button('detail', `${icon('check')}<span><small>부탁한 일의 결과</small><strong>${referenceTitle(m.ref)}</strong></span>${arrow}`, 'message-result', `data-ref="${m.ref}"`) : ''}</div></div>`).join('');
   if (busy.has(ui.chatId)) messages.insertAdjacentHTML('beforeend', `<div class="assistant-progress"><span class="typing"><i></i><i></i><i></i></span> 내 기능과 요청을 확인하고 있어요</div>`);
   syncComposer(); messages.scrollTop = forceScroll || nearBottom ? messages.scrollHeight : scroll;
   motion.messages(messages, ui.chatId || 'new');
@@ -587,8 +604,14 @@ async function openVoice() {
 }
 function renderVoice() {
   const state = voiceSession.state, active = voiceActive();
-  const supported = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  const supported = voicePreviewing || Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  const form = $('#chat-form');
+  const changed = form.dataset.voicePhase !== state.phase || form.classList.contains('voice-expanded') !== voiceExpanded;
+  // Animate the composer's height, so its bottom and editable draft stay anchored.
+  const beforeHeight = changed && $('#chat-panel').open ? form.getBoundingClientRect().height : 0;
+  if (changed) voiceLayoutAnimation?.cancel();
   $('#voice-input').hidden = !voiceExpanded;
+  $('.voice-eyebrow').textContent = voicePreviewing ? '음성 UI 체험 · 실제 녹음 아님' : '모리 음성 입력';
   $('#chat-form').classList.toggle('voice-expanded', voiceExpanded);
   $('#chat-form').dataset.voicePhase = state.phase;
   $('#chat-mic').setAttribute('aria-expanded', String(voiceExpanded));
@@ -596,32 +619,46 @@ function renderVoice() {
   $('#chat-input').readOnly = active;
   $('#voice-examples').hidden = active;
   const messages = {
-    idle: supported ? '마이크를 누른 뒤 말해 주세요.' : '이 브라우저는 음성 인식을 지원하지 않아요. 아래에 입력하거나 예시를 골라 보세요.',
+    idle: supported ? '시작 버튼을 누르면 듣기 시작해요.' : '이 브라우저에서는 직접 입력하거나 예시로 체험할 수 있어요.',
     requesting: '마이크 연결을 기다리고 있어요. 브라우저의 권한 요청을 확인해 주세요.',
-    listening: '듣고 있어요. 다 말하면 녹음을 마쳐 주세요.',
+    listening: '떠오르는 대로 이야기해 주세요.',
     processing: '말한 내용을 정리하고 있어요.',
-    ready: '입력창에 담았어요. 내용을 확인한 뒤 보내세요.',
+    ready: '내용을 확인한 뒤 보내 주세요.',
     error: ({ 'not-allowed': '마이크 권한이 꺼져 있어요. 권한을 바꾸거나 아래에 직접 입력하세요.', 'service-not-allowed': '이 브라우저에서 음성 인식을 사용할 수 없어요. 아래에 직접 입력하세요.', 'audio-capture': '마이크를 찾지 못했어요. 연결을 확인하거나 아래에 직접 입력하세요.', 'no-speech': '말소리를 듣지 못했어요. 다시 말하거나 아래에 직접 입력하세요.', network: '음성 인식 연결이 끊겼어요. 다시 시도하거나 아래에서 이어 쓰세요.', limit: '기존 메시지와 합치면 4,000자를 넘어요. 인식한 말을 줄인 뒤 다시 추가하세요.' })[state.error] || '음성 인식을 시작하지 못했어요. 다시 시도하거나 아래에 직접 입력하세요.',
   };
   $('#voice-subtitle').textContent = messages[state.phase];
-  $('#voice-title').textContent = ({ requesting: '마이크 연결 중', listening: '듣고 있어요', processing: '인식 중', ready: '입력 완료', error: '음성 입력 확인' })[state.phase] || '음성으로 입력';
+  $('#voice-title').textContent = ({ requesting: '잠시만 기다려 주세요', listening: '듣고 있어요', processing: '말씀을 담고 있어요', ready: '입력창에 담았어요', error: '다시 이어가 볼까요?' })[state.phase] || '편하게 말해 주세요';
   $('#voice-preview').textContent = state.transcript || (state.phase === 'listening' ? '말한 내용이 여기에 나타나요' : '');
   $('#voice-preview').hidden = !state.transcript && state.phase !== 'listening';
   const record = $('#record-button');
   record.disabled = !supported || state.phase === 'processing';
-  record.setAttribute('aria-label', state.phase === 'requesting' ? '마이크 요청 취소' : state.phase === 'listening' ? '녹음 마치기' : state.phase === 'ready' ? '이어서 녹음' : '녹음 시작');
-  record.innerHTML = icon(['requesting', 'listening', 'processing'].includes(state.phase) ? 'stop' : 'mic') + `<span>${state.phase === 'requesting' ? '요청 취소' : state.phase === 'listening' ? '녹음 마치기' : state.phase === 'processing' ? '인식 중' : state.phase === 'ready' ? '이어서 녹음' : '녹음 시작'}</span>`;
-  const fallback = !active && (!supported || voiceFallback || state.phase === 'error');
+  record.hidden = !supported;
+  record.setAttribute('aria-label', state.phase === 'requesting' ? '마이크 요청 취소' : state.phase === 'listening' ? '녹음 마치기' : state.phase === 'ready' ? '이어서 녹음' : '말하기 시작');
+  record.innerHTML = icon(['requesting', 'listening', 'processing'].includes(state.phase) ? 'stop' : 'mic') + `<span>${state.phase === 'requesting' ? '요청 취소' : state.phase === 'listening' ? '녹음 마치기' : state.phase === 'processing' ? '인식 중' : state.phase === 'ready' ? '이어서 녹음' : '말하기 시작'}</span>`;
+  $('.voice-keyboard span').textContent = state.phase === 'ready' ? '내용 수정' : '키보드로 입력';
+  const fallback = !active && state.phase !== 'ready' && (!supported || voiceFallback || state.phase === 'error');
   $('#voice-fallback').hidden = !fallback;
-  $('#voice-service-note').textContent = supported ? '브라우저에서 제공하는 음성 인식이에요.' : '입력이나 예시로 음성 입력 흐름을 체험할 수 있어요.';
+  $('#voice-service-note').textContent = voicePreviewing ? '예시 문장으로 움직임을 체험하고 있어요. 마이크는 사용하지 않아요.' : supported ? '브라우저에서 제공하는 음성 인식이에요.' : '입력이나 예시로 음성 입력 흐름을 체험할 수 있어요.';
   updateVoiceInput(); syncComposer();
+  if (beforeHeight && changed && !data.profile.reduced) {
+    const afterHeight = form.getBoundingClientRect().height;
+    if (Math.abs(beforeHeight - afterHeight) > 1) {
+      voiceLayoutAnimation = form.animate([{ height: `${beforeHeight}px` }, { height: `${afterHeight}px` }], { duration: 460, easing: 'cubic-bezier(.22,.8,.2,1)' });
+    }
+  }
 }
 function updateVoiceInput() { $('#voice-send').disabled = !$('#voice-transcript').value.trim(); }
 function settleVoice({ edited = false } = {}) {
   const state = voiceSession.state;
   if (state.phase === 'ready') {
     $('#chat-input').value = state.draft; $('#voice-transcript').value = ''; voiceFallbackEdited = false; persistDraft();
-    if (!data.profile.reduced) $('#chat-input').animate([{ opacity: .3, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 220, easing: 'cubic-bezier(.2,.7,.2,1)' });
+    voiceArrivalAnimation?.cancel();
+    if (!data.profile.reduced) {
+      voiceArrivalAnimation = $('#chat-input').animate([{ opacity: .15, filter: 'blur(3px)', transform: 'translateY(-8px)' }, { opacity: 1, filter: 'blur(0)', transform: 'translateY(0)' }], { duration: 540, easing: 'cubic-bezier(.22,.8,.2,1)' });
+      $('#chat-form').classList.remove('voice-arrived');
+      void $('#chat-form').offsetWidth;
+      $('#chat-form').classList.add('voice-arrived');
+    }
   } else if (state.phase === 'error') {
     $('#voice-transcript').value = state.transcript; voiceFallbackEdited = edited;
   }
@@ -634,6 +671,8 @@ function voiceToChat(text = $('#voice-transcript').value) {
   settleVoice({ edited: voiceFallbackEdited });
 }
 function stopVoice() {
+  voiceDemo.cancel(); voicePreviewing = false;
+  voiceArrivalAnimation?.cancel(); $('#chat-form').classList.remove('voice-arrived');
   abortRecognition(); voiceSession.reset($('#chat-input').value);
   voiceExpanded = false; voiceFallback = false; voiceFallbackEdited = false;
   renderVoice();
@@ -649,6 +688,8 @@ function closeVoice(keyboard = false) {
   (keyboard ? $('#chat-input') : $('#chat-mic')).focus({ preventScroll: true });
 }
 function recordVoice() {
+  if (voiceDemo.active) return voiceDemo.finish();
+  voicePreviewing = false;
   const phase = voiceSession.state.phase;
   if (phase === 'requesting') { abortRecognition(); voiceSession.cancel(); return renderVoice(); }
   if (phase === 'processing') return;

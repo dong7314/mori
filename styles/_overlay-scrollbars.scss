@@ -1,0 +1,26 @@
+@mixin styles {
+  // Never reserve a gutter, even on Windows with classic system scrollbars.
+  :where(html, body, main, dialog, [role='dialog'], textarea), .overlay-scroll-target {
+    scrollbar-width: none !important;
+    scrollbar-gutter: auto;
+    &::-webkit-scrollbar { display: none; width: 0; height: 0; }
+  }
+  .overlay-scrollbar {
+    position: absolute; z-index: 16; width: 12px; margin: 0; padding: 0;
+    opacity: 0; transition: opacity 160ms ease;
+    touch-action: none; user-select: none; -webkit-user-select: none;
+    &.is-active, &:hover, &.is-dragging { opacity: 1; }
+    &[hidden] { display: none !important; }
+    > .overlay-scrollbar-thumb {
+      display: block; position: absolute; top: 0; right: 4px; width: 3px;
+      border-radius: 3px; background: color-mix(in srgb, var(--ink) 38%, transparent);
+    }
+    &:hover > .overlay-scrollbar-thumb, &.is-dragging > .overlay-scrollbar-thumb {
+      right: 3px; width: 5px; background: color-mix(in srgb, var(--ink) 60%, transparent);
+    }
+  }
+  @media (pointer: coarse) { .overlay-scrollbar { pointer-events: none; } }
+  @media (prefers-reduced-motion: reduce) { .overlay-scrollbar { transition: none; } }
+  .reduce-motion .overlay-scrollbar { transition: none; }
+  @media (forced-colors: active) { .overlay-scrollbar > .overlay-scrollbar-thumb { background: CanvasText; forced-color-adjust: none; } }
+}

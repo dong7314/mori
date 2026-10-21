@@ -1,78 +1,79 @@
-// Voice is a composer mode, rather than another modal above the conversation.
+// Voice stays in the same composer as the editable draft, with one scroll region.
 @mixin styles {
   .chat-panel .chat-composer {
     display: flex; flex-direction: column; align-items: stretch; gap: 0;
-    max-height: min(35rem, 72dvh); overflow: hidden;
+    max-height: min(42rem, 72dvh); overflow: hidden;
     > .composer-editor {
-      display: flex; align-items: flex-end; gap: .375rem;
+      position: relative; display: flex; align-items: flex-end; gap: .375rem;
       flex: 0 0 auto; min-width: 0; width: 100%;
     }
-    .composer-controls { display: flex; align-items: center; gap: .125rem; flex: 0 0 auto; }
+    .composer-controls { display: flex; align-items: center; gap: .375rem; flex: 0 0 auto; }
     #chat-input { width: 100%; min-width: 0; }
     #chat-input[readonly] { color: var(--secondary); cursor: default; }
-    #chat-mic[aria-expanded=true] { background: var(--accent-soft); color: var(--accent); }
-    &.voice-expanded { border-color: color-mix(in srgb, var(--accent) 32%, var(--line)); }
-    &[data-voice-phase=listening] { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+    &.voice-expanded > .composer-editor { border-top: 1px solid var(--chat-line); padding-top: .5rem; }
   }
   .inline-voice {
-    flex: 1 1 auto; min-height: 0; margin-top: .5rem; padding: .375rem .625rem .5rem;
-    border-top: 1px solid var(--line); overflow-y: auto; overscroll-behavior: contain;
-    animation: inline-voice-enter 200ms cubic-bezier(.2,.7,.2,1);
-    > header { display: flex; align-items: center; justify-content: space-between; gap: .75rem; min-height: 2.75rem; }
-    h3 { min-width: 0; font-size: .9375rem; line-height: 1.5; font-weight: 600; letter-spacing: -.025em; overflow-wrap: anywhere; }
-    > header .small-icon { width: 2.75rem; height: 2.75rem; flex-basis: 2.75rem; margin-right: -.25rem; }
-    .voice-status { color: var(--secondary); font-size: .8125rem; line-height: 1.65; text-wrap: pretty; }
-    .voice-capture { display: flex; align-items: center; gap: 1rem; min-height: 3.75rem; padding-block: .75rem; }
-    #voice-preview { flex: 1; min-width: 0; max-height: 5rem; overflow-y: auto; overflow-wrap: anywhere; font-size: .9375rem; line-height: 1.65; white-space: pre-wrap; }
-    .voice-wave { display: flex; align-items: center; justify-content: center; gap: 4px; flex: 0 0 5.75rem; height: 2rem; color: var(--accent); }
-    .voice-wave i { width: 4px; height: 6px; border-radius: 3px; background: currentColor; opacity: .55; transform-origin: center; }
-    .voice-wave i:nth-child(3n) { height: 14px; }
-    .voice-wave i:nth-child(3n+1) { height: 22px; }
-    .voice-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; padding-bottom: .5rem; }
-    .inline-record, .voice-keyboard { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: 2.75rem; max-width: 100%; border-radius: 1.5rem; font-size: .875rem; font-weight: 550; white-space: normal; overflow-wrap: anywhere; }
-    .inline-record { padding: .625rem 1rem; background: var(--accent); color: var(--surface); }
-    .voice-keyboard { padding: .625rem .75rem; color: var(--secondary); }
-    .inline-record .icon, .voice-keyboard .icon { width: 1.125rem; height: 1.125rem; }
-    .voice-service-note { margin-top: .25rem; color: var(--secondary); font-size: .75rem; line-height: 1.6; }
+    order: -1; flex: 1 1 auto; min-height: 0; padding: 0 .625rem .375rem;
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+    animation: voice-unfold 420ms cubic-bezier(.2,.8,.2,1);
+    > header { display: flex; align-items: center; justify-content: space-between; min-height: 2.75rem; gap: .5rem; }
+    .voice-eyebrow { color: var(--chat-secondary); font-size: .6875rem; font-weight: 550; letter-spacing: .06em; }
+    > header .small-icon { width: var(--chat-control); height: var(--chat-control); flex-basis: var(--chat-control); margin-right: -.375rem; color: var(--chat-secondary); border: 1px solid var(--chat-line); border-radius: 50%; background: var(--chat-tint); }
+    > header .icon { width: 1.125rem; height: 1.125rem; }
+    .voice-stage { padding: .25rem .5rem 1rem; text-align: center; }
+    .voice-emblem { --orb-size: 6rem; margin: .25rem auto 1.375rem; }
+    h3 { color: var(--chat-ink); font-size: 1.25rem; line-height: 1.5; font-weight: 580; letter-spacing: -.04em; overflow-wrap: anywhere; }
+    .voice-status { margin: .5rem auto 0; max-width: 24rem; color: var(--chat-secondary); font-size: .8125rem; line-height: 1.65; text-wrap: pretty; }
+    .voice-complete { display: none; }
+    .voice-capture:has(#voice-preview[hidden]) { display: none; }
+    .voice-capture { margin: 0 .25rem 1rem; }
+    #voice-preview { max-height: 6.5rem; overflow-y: auto; padding: .75rem 1rem; border-radius: 1.125rem; background: var(--chat-tint); color: var(--chat-ink); font-size: 1rem; line-height: 1.7; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .voice-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; width: 100%; max-width: 20rem; margin-inline: auto; padding-bottom: .625rem; }
+    .voice-actions:has(.inline-record[hidden]) { grid-template-columns: 1fr; }
+    .inline-record, .voice-keyboard { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: var(--chat-control); min-width: 0; width: 100%; padding: .625rem .75rem; border: 1px solid var(--chat-line); border-radius: 1.5rem; font-size: .8125rem; line-height: 1.5; font-weight: 550; white-space: normal; overflow-wrap: anywhere; }
+    .inline-record { border-color: transparent; background: var(--voice-accent); color: var(--voice-on-accent); box-shadow: 0 3px 6px #52775e16, 0 7px 16px #52775e15, inset 0 1px 0 #ffffff24; }
+    .voice-keyboard { background: var(--chat-tint); color: var(--chat-secondary); box-shadow: 0 2px 5px #34405e06, inset 0 1px 0 #ffffff38; }
+    .inline-record .icon, .voice-keyboard .icon { width: 1.125rem; height: 1.125rem; flex-shrink: 0; }
+    .voice-service-note { margin: .375rem .5rem .125rem; color: var(--chat-secondary); font-size: .6875rem; line-height: 1.6; text-align: center; }
   }
-  .chat-composer[data-voice-phase=listening] .voice-wave i,
-  .chat-composer[data-voice-phase=processing] .voice-wave i,
-  .chat-composer[data-voice-phase=requesting] .voice-wave i {
-    animation: inline-voice-wave 900ms ease-in-out infinite alternate;
-    &:nth-child(2n) { animation-delay: -250ms; }
-    &:nth-child(3n) { animation-delay: -600ms; }
-    &:nth-child(4n) { animation-delay: -100ms; }
+  .chat-composer[data-voice-phase=requesting] .voice-emblem .fluid-layer { animation-duration: 8s, 5s; }
+  .chat-composer[data-voice-phase=listening] {
+    .voice-emblem .fluid-layer { animation-duration: 3s, 2.8s; }
   }
-  .chat-composer[data-voice-phase=processing] .voice-wave i,
-  .chat-composer[data-voice-phase=requesting] .voice-wave i { animation-duration: 1400ms; }
-  .chat-composer[data-voice-phase=ready] .voice-capture { display: none; }
-  .chat-composer[data-voice-phase=listening] .inline-record { background: var(--danger); color: var(--surface); }
+  .chat-composer[data-voice-phase=processing] .voice-emblem .fluid-layer { animation-duration: 5s, 4s; }
+  .chat-composer[data-voice-phase=error] .voice-emblem { filter: saturate(.65); }
+  .chat-panel .chat-composer[data-voice-phase=ready] {
+    .inline-voice { padding-bottom: .125rem; }
+    .inline-voice > header { display: none; }
+    .voice-stage { display: flex; align-items: center; gap: .75rem; padding: .875rem .5rem .375rem; text-align: left; }
+    .voice-emblem, .voice-capture, .inline-voice-examples, .voice-service-note { display: none; }
+    .voice-complete { display: grid; place-items: center; flex: 0 0 2rem; width: 2rem; height: 2rem; border-radius: 50%; color: var(--voice-accent); background: var(--voice-soft); .icon { width: 1rem; height: 1rem; } }
+    h3 { font-size: .875rem; letter-spacing: -.025em; }
+    .voice-status { margin-top: .125rem; font-size: .75rem; }
+    .voice-actions { gap: .5rem; padding-block: .5rem .375rem; }
+    .inline-record { border-color: var(--chat-line); background: var(--chat-tint); color: var(--chat-secondary); box-shadow: none; }
+  }
   .chat-panel .voice-fallback {
-    display: grid; gap: .5rem; padding-top: .5rem;
-    label { font-size: .8125rem; font-weight: 550; line-height: 1.6; }
-    textarea { flex: none; width: 100%; min-height: 5rem; max-height: 8rem; padding: .75rem; border: 1px solid var(--line); border-radius: .875rem; background: var(--surface); font-size: 1rem; line-height: 1.6; }
-    .text-button { justify-self: end; display: inline-flex; align-items: center; gap: .5rem; min-height: 2.75rem; max-width: 100%; padding: .5rem .25rem; color: var(--accent); font-size: .875rem; font-weight: 550; }
+    display: grid; gap: .5rem; padding: .5rem .25rem;
+    label { color: var(--chat-secondary); font-size: .75rem; font-weight: 550; line-height: 1.6; }
+    textarea { flex: none; width: 100%; min-height: 4.5rem; max-height: 8rem; padding: .75rem; border: 1px solid var(--chat-line); border-radius: 1rem; background: var(--chat-tint); font-size: 1rem; line-height: 1.6; }
+    .text-button { justify-self: end; display: inline-flex; align-items: center; gap: .5rem; min-height: 2.75rem; padding: .5rem .25rem; color: var(--chat-ink); font-size: .8125rem; font-weight: 550; }
     .text-button .icon { width: 1rem; height: 1rem; }
   }
   .inline-voice-examples {
-    padding-top: .125rem;
-    summary { display: flex; align-items: center; min-height: 2.75rem; color: var(--secondary); font-size: .8125rem; cursor: pointer; }
-    summary::after { content: '+'; flex: 0 0 auto; margin-left: auto; padding-inline: .25rem; font-size: 1.125rem; }
+    margin-inline: .25rem;
+    summary { display: flex; align-items: center; min-height: 2.75rem; color: var(--chat-secondary); font-size: .75rem; cursor: pointer; }
+    summary::after { content: '+'; margin-left: auto; padding-inline: .25rem; font-size: 1rem; }
     &[open] summary::after { content: '−'; }
     > div { display: flex; flex-wrap: wrap; gap: .5rem; }
-    button { min-height: 2.75rem; padding: .625rem .875rem; border-radius: .75rem; background: var(--surface); border: 1px solid var(--line); color: var(--ink); font-size: .8125rem; line-height: 1.5; text-align: left; }
-    p { margin-top: .5rem; color: var(--secondary); font-size: .75rem; line-height: 1.6; }
+    button { flex: 1 1 8rem; min-height: 2.75rem; padding: .625rem .75rem; border-radius: .875rem; background: var(--chat-tint); border: 1px solid var(--chat-line); color: var(--chat-ink); font-size: .75rem; line-height: 1.5; text-align: left; }
+    p { margin-top: .5rem; color: var(--chat-secondary); font-size: .6875rem; line-height: 1.6; }
   }
-  @keyframes inline-voice-enter { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes inline-voice-wave { from { transform: scaleY(.45); opacity: .55; } to { transform: scaleY(1.15); opacity: 1; } }
-  @media (max-width: 360px) {
-    .inline-voice { padding-inline: .375rem; }
-    .inline-voice .voice-capture { gap: .625rem; }
-    .inline-voice .voice-wave { flex-basis: 4rem; gap: 3px; }
-    .inline-voice .voice-wave i { width: 3px; }
+  @keyframes voice-unfold { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
+  @media (max-height: 42rem) {
+    .inline-voice .voice-emblem { --orb-size: 4rem; margin-bottom: .75rem; }
+    .inline-voice .voice-stage { padding-bottom: .625rem; }
   }
-  @media (prefers-reduced-motion: reduce) {
-    .inline-voice, .chat-composer .voice-wave i { animation: none !important; }
-  }
-  .reduce-motion .inline-voice, .reduce-motion .chat-composer .voice-wave i { animation: none !important; }
+  @media (prefers-reduced-motion: reduce) { .inline-voice { animation: none !important; } }
+  .reduce-motion .inline-voice { animation: none !important; }
 }

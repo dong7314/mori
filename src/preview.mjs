@@ -1,3 +1,5 @@
+import { installOverlayScrollbars } from './overlay-scrollbars.mjs';
+installOverlayScrollbars({ includeViewport: true });
 // Scale the frames, keeping each embedded app's real responsive viewport intact.
 const host = document.querySelector('.device-preview');
 const stage = document.querySelector('.preview-stage');
@@ -23,6 +25,12 @@ actual.addEventListener('click', () => {
   actual.setAttribute('aria-pressed', String(actualSize));
   actual.textContent = actualSize ? '화면에 맞추기' : '100% 크기';
   fit();
+});
+document.querySelector('#preview-voice').addEventListener('click', () => {
+  for (const frame of document.querySelectorAll('iframe')) {
+    if (mode !== 'both' && !frame.closest(`.preview-${mode}`)) continue;
+    frame.contentWindow.postMessage({ type: 'mori:preview-voice' }, location.origin);
+  }
 });
 new ResizeObserver(fit).observe(stage);
 addEventListener('resize', fit);
