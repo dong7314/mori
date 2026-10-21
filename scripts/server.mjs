@@ -170,7 +170,7 @@ export function createServer({ root = resolve(import.meta.dirname, '..'), origin
       }
       if (path.startsWith('/api/') || !['GET', 'HEAD'].includes(req.method)) throw error(404, 'NOT_FOUND', '요청한 화면을 찾을 수 없어요.');
       const pathname = decodeURIComponent(path);
-      const allowed = pathname === '/' || pathname === '/index.html' || pathname === '/preview.html' || /^(\/src\/[^/]+\.(js|mjs)|\/styles\/main.css|\/assets\/(mori.svg|fonts\/PretendardVariable.woff2))$/.test(pathname);
+      const allowed = pathname === '/' || pathname === '/index.html' || pathname === '/preview.html' || /^(\/src\/[^/]+\.(js|mjs)|\/styles\/main.css|\/assets\/(mori\.svg|fonts\/PretendardVariable\.woff2))$/.test(pathname);
       const file = resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
       if (!allowed || !file.startsWith(root + sep) || !(await stat(file).catch(() => null))?.isFile()) throw error(404, 'NOT_FOUND', '요청한 화면을 찾을 수 없어요.');
       res.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });

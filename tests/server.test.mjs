@@ -115,7 +115,7 @@ test('cross-origin mutation, unexpected host, arbitrary proxy and local source p
   assert.equal((await f.request('/api/auth/start', { method: 'POST', data: { provider: 'naver' }, headers: { Origin: 'https://attacker.example' } })).status, 403);
   assert.equal((await f.request('/api/session', { headers: { Host: 'attacker.example' } })).status, 400);
   assert.equal((await f.request('/api/proxy?url=https://attacker.example')).status, 404);
-  for (const path of ['/.env', '/src/missing.mjs', '/scripts/server.mjs', '/package.json', '/tests/server.test.mjs']) assert.equal((await f.request(path)).status, 404);
+  for (const path of ['/.env', '/src/missing.mjs', '/scripts/server.mjs', '/package.json', '/tests/server.test.mjs', '/assets/feature-art/parking-v1.webp']) assert.equal((await f.request(path)).status, 404);
   assert.equal((await f.request('/api/auth/start', { method: 'POST', data: { provider: 'google' } })).status, 400);
   assert.equal(f.calls.length, 0);
 });
