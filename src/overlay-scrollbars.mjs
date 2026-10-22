@@ -5,7 +5,7 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 export function discoverScrollAreas(doc) {
   return [...doc.querySelectorAll('body *')].filter(element =>
     element.namespaceURI === 'http://www.w3.org/1999/xhtml' &&
-    !element.closest('[data-overlay-scrollbar]') &&
+    !element.closest('[data-overlay-scrollbar], .sheet-replacement-snapshot, .card-transition-origin') &&
     /^(auto|scroll|overlay)$/.test(doc.defaultView.getComputedStyle(element).overflowY));
 }
 

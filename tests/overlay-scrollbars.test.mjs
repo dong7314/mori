@@ -24,6 +24,16 @@ test('short content and a closed panel never expose an unusable scrollbar', () =
   assert.equal(scrollbarGeometry(0, 140, 0, 0).visible, false);
 });
 
+test('frozen transition copies never acquire their own scrollbar controls', () => {
+  const live = { namespaceURI: 'http://www.w3.org/1999/xhtml', overflowY: 'auto', closest: () => null };
+  const frozen = className => ({ ...live, closest: selector => selector.includes(className) ? {} : null });
+  const doc = {
+    querySelectorAll: () => [live, frozen('.sheet-replacement-snapshot'), frozen('.card-transition-origin')],
+    defaultView: { getComputedStyle: element => element },
+  };
+  assert.deepEqual(discoverScrollAreas(doc), [live]);
+});
+
 test('a thumb reaches both ends and overscroll never moves it beyond the track', () => {
   const middle = scrollbarGeometry(100, 400, 150, 100);
   assert.equal(middle.length, 25);
