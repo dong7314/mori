@@ -225,12 +225,7 @@
   }
 
   dialog {
-    .guide-intro { padding: .5rem 0 1.75rem; img { display: none; } h2 { font-size: 1.625rem; line-height: 1.5; margin-bottom: .5rem; } p { color: var(--secondary); font-size: .875rem; line-height: 1.7; } }
-    .scenario-list { margin-bottom: 1.5rem; }
-    .scenario-row { display: flex; align-items: center; gap: .875rem; width: 100%; min-height: 5rem; padding: 1rem 0; border-bottom: 1px solid var(--line); text-align: left; > span:nth-child(2) { flex: 1; } small { display: block; color: var(--muted); font-size: .75rem; margin-bottom: .25rem; } strong { font-size: 1rem; font-weight: 550; line-height: 1.6; } > .icon { width: 1rem; height: 1rem; color: var(--muted); } }
-    .day-choices { display: grid; gap: .75rem; button { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) auto; align-items: center; gap: .375rem .875rem; padding: 1.25rem; border-radius: 1rem; background: var(--soft); text-align: left; } .icon { grid-row: span 2; color: var(--secondary); width: 1.5rem; height: 1.5rem; } strong { font-size: 1rem; font-weight: 600; } button > span { color: var(--secondary); font-size: .875rem; font-variant-numeric: tabular-nums; } small { grid-column: 2 / 4; color: var(--secondary); font-size: .75rem; line-height: 1.6; } }
     .upload-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; min-height: 12rem; gap: .75rem; padding: 1.75rem 1rem; border: 1px dashed var(--muted); border-radius: 1rem; background: var(--soft); text-align: center; cursor: pointer; > .icon { width: 1.75rem; height: 1.75rem; color: var(--accent); } strong { font-size: 1rem; font-weight: 600; } > span { font-size: .875rem; color: var(--secondary); } input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; } &:focus-within { outline: 3px solid var(--accent); outline-offset: 3px; } }
-    .document-benefits { display: grid; gap: .75rem; padding: 1.25rem 0; span { display: flex; align-items: center; gap: .625rem; color: var(--secondary); font-size: .875rem; } .icon { width: 1rem; height: 1rem; color: var(--accent); } }
     .document-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: 0 0 1.5rem; color: var(--secondary); font-size: .75rem; }
     .document-source { max-height: 24rem; overflow: auto; margin: .75rem 0 0; font-family: inherit; font-size: .875rem; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; overscroll-behavior: contain; }
     .document-summary { padding-left: 1.25rem; font-size: 1rem; line-height: 1.8; li { padding-left: .25rem; margin: .75rem 0; overflow-wrap: anywhere; } }
@@ -279,7 +274,6 @@
     > div { display: flex; align-items: center; gap: .125rem; flex-shrink: 0; }
   }
   .send-button { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 50%; background: var(--accent); color: #fff; flex-shrink: 0; .icon { width: 1.25rem; height: 1.25rem; transform: rotate(-90deg); } }
-  .chat-footnote { flex-shrink: 0; padding: .75rem 1rem 1rem; text-align: center; color: var(--secondary); font-size: .75rem; line-height: 1.6; }
 
   .voice-panel {
     width: 100%; max-width: 34rem; max-height: 100dvh; height: 100dvh; margin: auto auto 0;
@@ -339,7 +333,6 @@
     dialog .detail-actions { flex-wrap: wrap; > button { flex-basis: 8rem; } }
     .sheet-header { padding-inline: 1.25rem; }
     #sheet-content { padding-inline: 1.25rem; }
-    .chat-header p { font-size: .75rem; }
   }
   @media (max-width: 22rem) {
     dialog .field-pair { grid-template-columns: minmax(0, 1fr); gap: 0; }
@@ -381,7 +374,7 @@
     #main { height: var(--visible-height); padding-bottom: 28px; }
     .sheet[open], .chat-panel[open], .voice-panel[open] { top: var(--visible-top); bottom: auto; margin-top: 0; margin-bottom: 0; max-height: var(--visible-height); border-radius: 0; }
     .chat-panel[open] { height: var(--visible-height); padding-bottom: 0; }
-    .sheet-handle,.chat-footnote { display: none; }
+    .sheet-handle { display: none; }
     .chat-header { padding-block: 6px; }
   }
   .voice-orb {

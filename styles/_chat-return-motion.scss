@@ -1,0 +1,14 @@
+@mixin styles {
+  // The native backdrop stays mounted until the returning chat has left. Fade
+  // its opacity with the panel, rather than removing the dim in a single frame.
+  .chat-panel[open]::backdrop { animation: chat-backdrop-in 420ms ease-out both; }
+  .chat-panel[data-closing]::backdrop { animation: chat-backdrop-out 320ms ease-in both; }
+  @keyframes chat-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes chat-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+  @media (min-width: 48rem) {
+    .chat-panel[open]::backdrop { animation-duration: 300ms; }
+    .chat-panel[data-closing]::backdrop { animation-duration: 220ms; }
+  }
+  @media (prefers-reduced-motion: reduce) { .chat-panel::backdrop { animation: none !important; } }
+  .reduce-motion .chat-panel::backdrop { animation: none !important; }
+}

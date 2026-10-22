@@ -89,7 +89,7 @@ export function applyRequest(state, raw, now = nowOf(state)) {
     const existing = state.customs.find(f => f.title === title);
     if (existing) return { text: `이미 ‘${title}’ 기능이 있어요. 기존 기능에서 내용을 수정하거나 바로 실행할 수 있어요.`, ref: `custom:${existing.id}` };
     const f = { id: uid(), title, description: '내가 부탁한 일을 모리가 기억해요', work: text, time: /\d+\s*시/.test(text) ? parseTime(text) : '', repeat: /평일/.test(text) ? '평일' : /매일/.test(text) ? '매일' : '한 번', active: true, icon: 'spark', version: 1, runs: 0, result: null };
-    state.customs.push(f); return { text: `‘${title}’ 기능을 이 기기에 저장했어요.${f.time ? ` ${f.repeat} ${f.time} 실행과 대시보드 표시를 체험할 수 있어요.` : '필요할 때 기능 탭에서 실행할 수 있어요.'}`, ref: `custom:${f.id}` };
+    state.customs.push(f); return { text: `‘${title}’ 기능을 저장했어요.${f.time ? ` 실행 시간은 ${f.repeat} ${f.time}이에요. 앱을 사용 중일 때 실행돼요.` : ' 필요할 때 기능 탭에서 실행할 수 있어요.'}`, ref: `custom:${f.id}` };
   }
   if (/주차/.test(text)) {
     if (/어디|위치.*(알려|찾)|조회/.test(text) && !/지하|B\d/i.test(text)) return { text: state.parking ? `마지막 주차 위치는 ${state.parking.floor} ${state.parking.spot}이에요.` : '아직 주차 기록이 없어요. 어디에 주차하셨나요?', ref: state.parking ? 'parking' : null };
@@ -108,14 +108,14 @@ export function applyRequest(state, raw, now = nowOf(state)) {
     else if (/\d+\s*시/.test(text)) { const d = new Date(now), [h, m] = parseTime(text).split(':').map(Number); d.setHours(h, m, 0, 0); if (d.getTime() <= now) d.setDate(d.getDate() + 1); target = d.getTime(); }
     else return { text: '언제 알려드릴까요? “30분 뒤에 알림 줘”라고 말해보세요.', followup: 'reminder' };
     const r = { id: uid(), title: /물/.test(text) ? '물 한 잔 마시기' : /휴식|쉬/.test(text) ? '잠깐 쉬어가기' : relative ? `${Number(relative[1])}분 알림` : `${parseTime(text)} 알림`, target, created: now, cancelled: false };
-    state.reminders.push(r); return { text: '알림을 이 기기에 저장했어요. 남은 시간을 상세 화면에서 확인하고 변경할 수 있어요.', ref: `reminder:${r.id}` };
+    state.reminders.push(r); return { text: '알림을 설정했어요. 남은 시간은 상세 화면에서 확인하고 변경할 수 있어요. 푸시 알림은 전송되지 않아요.', ref: `reminder:${r.id}` };
   }
   if (/뉴스/.test(text)) {
     state.news.topic = /경제/.test(text) ? '경제' : /AI|인공지능/.test(text) ? 'AI' : state.news.topic;
-    if (/매일|평일|\d+\s*시/.test(text)) { state.news.time = parseTime(text, state.news.time); state.news.active = true; return { text: `${state.news.time}에 ${state.news.topic} 뉴스를 모으도록 설정했어요. 뉴스 상세에서 수집 중·완료·실패 화면을 체험할 수 있어요.`, ref: 'news' }; }
-    state.news.status = 'ready'; state.news.at = now; return { text: `${state.news.topic} 브리핑 예시를 준비했어요. 기사 요약과 출처가 어떻게 표시되는지 살펴보세요.`, ref: 'news' };
+    if (/매일|평일|\d+\s*시/.test(text)) { state.news.time = parseTime(text, state.news.time); state.news.active = true; return { text: `${state.news.topic} 브리핑 시간을 ${state.news.time}로 설정했어요. 현재는 샘플 브리핑이 표시돼요.`, ref: 'news' }; }
+    state.news.status = 'ready'; state.news.at = now; return { text: `${state.news.topic} 샘플 브리핑을 준비했어요.`, ref: 'news' };
   }
-  if (/주가|주식|코스피|삼성전자/.test(text)) { state.stock.symbol = /코스피/.test(text) ? '코스피' : /애플/.test(text) ? '애플' : '삼성전자'; if (/\d+\s*시/.test(text)) state.stock.time = parseTime(text, state.stock.time); state.stock.at = now; return { text: `${state.stock.symbol}를 관심 주가에 담았어요. 기준 시각과 등락이 표시되는 예시 화면을 준비했어요.`, ref: 'stock' }; }
+  if (/주가|주식|코스피|삼성전자/.test(text)) { state.stock.symbol = /코스피/.test(text) ? '코스피' : /애플/.test(text) ? '애플' : '삼성전자'; if (/\d+\s*시/.test(text)) state.stock.time = parseTime(text, state.stock.time); state.stock.at = now; return { text: `관심 주가를 ${state.stock.symbol}로 설정했어요. 표시된 시세는 샘플 데이터예요.`, ref: 'stock' }; }
   if (/일정|미팅|약속|회의|산책/.test(text) && /추가|잡아|등록|내일|오늘/.test(text)) {
     const eventTime = parseTime(text, null);
     if (!eventTime) return { text: '몇 시에 잡아드릴까요? “내일 오후 2시 디자인 미팅 일정 추가해줘”처럼 시간을 함께 알려주세요.' };
@@ -131,5 +131,5 @@ export function applyRequest(state, raw, now = nowOf(state)) {
   }
   const f = state.customs.find(f => text.includes(f.title));
   if (f) { if (!f.active) return { text: `‘${f.title}’ 기능은 중지되어 있어요. 상세 화면에서 다시 사용할 수 있어요.`, ref: `custom:${f.id}` }; runCustom(state, f.id, now); return { text: `‘${f.title}’ 기능으로 저장된 메모를 정리했어요. 결과에서 할 일을 체크해보세요.`, ref: `custom:${f.id}` }; }
-  return { text: /안녕|고마워/.test(text) ? '안녕하세요. 주차 위치를 저장하거나 메모와 일정을 추가할 수 있어요.' : '이 체험에서는 주차 위치 저장, 메모, 일정, 알림을 사용할 수 있어요. 예를 들어 “내일 오후 2시 회의 추가해줘”라고 입력하세요.' };
+  return { text: /안녕|고마워/.test(text) ? '안녕하세요. 주차 위치를 저장하거나 메모와 일정을 추가할 수 있어요.' : '주차 위치, 메모, 일정, 알림을 도와드릴 수 있어요. “내일 오후 2시 회의 추가해줘”처럼 말씀해 주세요.' };
 }

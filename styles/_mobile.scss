@@ -22,9 +22,8 @@
 html, body { margin: 0; height: 100%; }
 body { overflow: hidden; color: var(--ink); background: var(--canvas); font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', Pretendard, sans-serif; font-size: 1rem; line-height: 1.5; letter-spacing: -.022em; -webkit-font-smoothing: antialiased; }
 button, input, textarea, select { font: inherit; color: inherit; letter-spacing: inherit; }
-button { border: 0; background: none; cursor: pointer; touch-action: manipulation; padding: 0; transition: transform .22s cubic-bezier(.2,.8,.2,1), background .2s, box-shadow .2s; }
+button { border: 0; background: none; cursor: pointer; touch-action: manipulation; padding: 0; }
 button:disabled { opacity: .4; cursor: default; }
-button:not(:disabled):active { transform: scale(.97); }
 button, a, input, textarea, select { &:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; } }
 button[hidden], [hidden] { display: none !important; }
 h1,h2,h3,h4,p { margin: 0; } h1,h2,h3,h4 { line-height: 1.3; }

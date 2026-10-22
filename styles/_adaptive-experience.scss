@@ -293,8 +293,6 @@
     .preview-content p { font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
     .preview-label, .preview-time { font-size: 12px; color: var(--text-secondary); }
     .icon-picker { gap: 8px; legend { font-size: 14px; color: var(--ink); } label > span { background: var(--soft-surface); color: var(--text-secondary); } input:checked + span { transform: none; background: var(--nav-active); color: var(--accent); border-color: var(--accent); } }
-    .guide-intro { text-align: left; padding-bottom: 20px; img { width: 96px; height: 76px; object-fit: contain; margin-left: -18px; } h2 { font-size: 24px; font-weight: 650; line-height: 1.35; letter-spacing: -.4px; } p { color: var(--text-secondary); font-size: 14px; line-height: 1.6; } }
-    .scenario-row { min-height: 72px; border-color: var(--line); strong { font-size: 16px; line-height: 1.5; font-weight: 600; } small { font-size: 12px; color: var(--text-secondary); } > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; } }
     .document-source { font-size: var(--text-reading); line-height: 1.75; max-width: 65ch; }
     .document-summary { font-size: var(--text-reading); line-height: 1.75; padding-left: 20px; }
     .library-heading { padding: 0 0 20px; margin: 0; > span { font-size: 12px; color: var(--text-secondary); } > p { font-size: 14px; line-height: 1.6; color: var(--text-secondary); margin-top: 8px; } }

@@ -1,34 +1,47 @@
 // Voice stays in the same composer as the editable draft, with one scroll region.
 @mixin styles {
   .chat-panel .chat-composer {
-    display: flex; flex-direction: column; align-items: stretch; gap: 0;
-    max-height: min(42rem, 72dvh); overflow: hidden;
+    display: flex; flex-direction: column; align-items: stretch; gap: 0; flex-shrink: 1;
+    min-height: 0; max-height: min(42rem, 72dvh); overflow: hidden;
+    // Idle, examples and fallback fit their content. Reserve a stable viewport
+    // only while recognition is running, when changing transcripts must not
+    // repeatedly resize the conversation beside it.
+    &.voice-expanded:is([data-voice-phase=requesting], [data-voice-phase=listening], [data-voice-phase=processing]) { height: min(36rem, 72dvh); }
     > .composer-editor {
-      position: relative; display: flex; align-items: flex-end; gap: .375rem;
-      flex: 0 0 auto; min-width: 0; width: 100%;
+      position: relative; display: flex; flex-wrap: wrap; align-items: flex-end; gap: .375rem;
+      flex: 0 0 auto; min-width: 0; width: 100%; padding: 0; border: 0;
     }
-    .composer-controls { display: flex; align-items: center; gap: .375rem; flex: 0 0 auto; }
-    #chat-input { width: 100%; min-width: 0; }
+    // The text field and its controls are one unchanged bottom rail. A divider
+    // belongs to the voice surface above it, never to the editor's box model.
+    > .composer-editor::before {
+      content: ''; position: absolute; inset: -.5rem 0 auto; height: 1px;
+      background: var(--chat-line); opacity: 0; pointer-events: none;
+    }
+    &.voice-expanded > .composer-editor::before { opacity: 1; }
+    .composer-controls { display: flex; align-items: center; align-self: flex-end; gap: .375rem; flex: 0 0 auto; margin-inline-start: auto; }
+    // Keep a useful line of text at larger text sizes. If both controls no
+    // longer fit beside it, the editor spans the first row and controls wrap
+    // below, with the same layout in text and voice modes.
+    #chat-input { flex: 1 1 min(100%, 10rem); width: 100%; min-width: 0; }
     #chat-input[readonly] { color: var(--secondary); cursor: default; }
-    &.voice-expanded > .composer-editor { border-top: 1px solid var(--chat-line); padding-top: .5rem; }
   }
   .inline-voice {
-    order: -1; flex: 1 1 auto; min-height: 0; padding: 0 .625rem .375rem;
-    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
-    animation: voice-unfold 420ms cubic-bezier(.2,.8,.2,1);
+    order: -1; flex: 1 1 auto; min-height: 0; padding: 0 .625rem .875rem;
+    overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+    overflow-anchor: none;
     > header { display: flex; align-items: center; justify-content: space-between; min-height: 2.75rem; gap: .5rem; }
     .voice-eyebrow { color: var(--chat-secondary); font-size: .6875rem; font-weight: 550; letter-spacing: .06em; }
     > header .small-icon { width: var(--chat-control); height: var(--chat-control); flex-basis: var(--chat-control); margin-right: -.375rem; color: var(--chat-secondary); border: 1px solid var(--chat-line); border-radius: 50%; background: var(--chat-tint); }
     > header .icon { width: 1.125rem; height: 1.125rem; }
-    .voice-stage { padding: .25rem .5rem 1rem; text-align: center; }
+    .voice-stage { padding: .25rem .5rem .5rem; text-align: center; }
     .voice-emblem { --orb-size: 6rem; margin: .25rem auto 1.375rem; }
     h3 { color: var(--chat-ink); font-size: 1.25rem; line-height: 1.5; font-weight: 580; letter-spacing: -.04em; overflow-wrap: anywhere; }
     .voice-status { margin: .5rem auto 0; max-width: 24rem; color: var(--chat-secondary); font-size: .8125rem; line-height: 1.65; text-wrap: pretty; }
     .voice-complete { display: none; }
     .voice-capture:has(#voice-preview[hidden]) { display: none; }
     .voice-capture { margin: 0 .25rem 1rem; }
-    #voice-preview { max-height: 6.5rem; overflow-y: auto; padding: .75rem 1rem; border-radius: 1.125rem; background: var(--chat-tint); color: var(--chat-ink); font-size: 1rem; line-height: 1.7; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; }
-    .voice-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; width: 100%; max-width: 20rem; margin-inline: auto; padding-bottom: .625rem; }
+    #voice-preview { min-height: 4.5rem; padding: .75rem 1rem; border-radius: 1.125rem; background: var(--chat-tint); color: var(--chat-ink); font-size: 1rem; line-height: 1.7; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .voice-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: .5rem; width: 100%; max-width: 20rem; margin-inline: auto; padding-bottom: .625rem; }
     .voice-actions:has(.inline-record[hidden]) { grid-template-columns: 1fr; }
     .inline-record, .voice-keyboard { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: var(--chat-control); min-width: 0; width: 100%; padding: .625rem .75rem; border: 1px solid var(--chat-line); border-radius: 1.5rem; font-size: .8125rem; line-height: 1.5; font-weight: 550; white-space: normal; overflow-wrap: anywhere; }
     .inline-record { border-color: transparent; background: var(--voice-accent); color: var(--voice-on-accent); box-shadow: 0 3px 6px #52775e16, 0 7px 16px #52775e15, inset 0 1px 0 #ffffff24; }
@@ -36,6 +49,7 @@
     .inline-record .icon, .voice-keyboard .icon { width: 1.125rem; height: 1.125rem; flex-shrink: 0; }
     .voice-service-note { margin: .375rem .5rem .125rem; color: var(--chat-secondary); font-size: .6875rem; line-height: 1.6; text-align: center; }
   }
+  .chat-composer:is([data-voice-phase=requesting], [data-voice-phase=listening], [data-voice-phase=processing]) .voice-status { min-height: 3.3em; }
   .chat-composer[data-voice-phase=requesting] .voice-emblem .fluid-layer { animation-duration: 8s, 5s; }
   .chat-composer[data-voice-phase=listening] {
     .voice-emblem .fluid-layer { animation-duration: 3s, 2.8s; }
@@ -43,13 +57,13 @@
   .chat-composer[data-voice-phase=processing] .voice-emblem .fluid-layer { animation-duration: 5s, 4s; }
   .chat-composer[data-voice-phase=error] .voice-emblem { filter: saturate(.65); }
   .chat-panel .chat-composer[data-voice-phase=ready] {
-    .inline-voice { padding-bottom: .125rem; }
+    .inline-voice { padding-bottom: .75rem; }
     .inline-voice > header { display: none; }
     .voice-stage { display: flex; align-items: center; gap: .75rem; padding: .875rem .5rem .375rem; text-align: left; }
     .voice-emblem, .voice-capture, .inline-voice-examples, .voice-service-note { display: none; }
     .voice-complete { display: grid; place-items: center; flex: 0 0 2rem; width: 2rem; height: 2rem; border-radius: 50%; color: var(--voice-accent); background: var(--voice-soft); .icon { width: 1rem; height: 1rem; } }
     h3 { font-size: .875rem; letter-spacing: -.025em; }
-    .voice-status { margin-top: .125rem; font-size: .75rem; }
+    .voice-status { min-height: 0; margin-top: .125rem; font-size: .75rem; }
     .voice-actions { gap: .5rem; padding-block: .5rem .375rem; }
     .inline-record { border-color: var(--chat-line); background: var(--chat-tint); color: var(--chat-secondary); box-shadow: none; }
   }
@@ -69,10 +83,9 @@
     button { flex: 1 1 8rem; min-height: 2.75rem; padding: .625rem .75rem; border-radius: .875rem; background: var(--chat-tint); border: 1px solid var(--chat-line); color: var(--chat-ink); font-size: .75rem; line-height: 1.5; text-align: left; }
     p { margin-top: .5rem; color: var(--chat-secondary); font-size: .6875rem; line-height: 1.6; }
   }
-  @keyframes voice-unfold { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
   @media (max-height: 42rem) {
     .inline-voice .voice-emblem { --orb-size: 4rem; margin-bottom: .75rem; }
-    .inline-voice .voice-stage { padding-bottom: .625rem; }
+    .inline-voice .voice-stage { padding-bottom: .375rem; }
   }
   @media (prefers-reduced-motion: reduce) { .inline-voice { animation: none !important; } }
   .reduce-motion .inline-voice { animation: none !important; }

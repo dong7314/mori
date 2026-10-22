@@ -1,0 +1,82 @@
+// Reading and editing are destinations in the app, not floating windows.
+@mixin styles {
+  #sheet[data-sheet-surface="sheet"][data-sheet-presentation="page"] {
+    --sheet-gutter: clamp(20px, 5vw, 32px);
+    --page-reading-width: 760px;
+    position: fixed; inset: 0; width: 100%; max-width: none;
+    height: 100dvh; max-height: 100dvh; margin: 0; padding: 0;
+    border: 0; border-radius: 0; box-shadow: none; background: var(--canvas);
+    &::backdrop { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+    > .sheet-header {
+      grid-template-columns: var(--nav-action-width, 52px) minmax(0, 1fr) var(--nav-action-width, 52px);
+      min-height: calc(60px + env(safe-area-inset-top));
+      padding: calc(8px + env(safe-area-inset-top)) max(var(--sheet-gutter), calc((100% - var(--page-reading-width)) / 2)) 8px;
+      border: 0; background: var(--canvas);
+      box-shadow: none;
+      > h2 { font-size: 1rem; font-weight: 600; }
+      > h2:focus { outline: none; }
+      #sheet-back {
+        justify-content: flex-start; border: 0; border-radius: 0;
+        color: var(--accent); background: transparent; box-shadow: none;
+        > .icon { width: 23px; height: 23px; stroke-width: 1.9; }
+      }
+      > .close-button { display: none; }
+    }
+    &[data-scrolled="true"] > .sheet-header { box-shadow: 0 1px 0 color-mix(in srgb, var(--line) 72%, transparent); }
+    #sheet-header-actions {
+      grid-column: 3; grid-row: 1; display: flex; align-items: center; justify-content: flex-end;
+      gap: 0; min-width: 0;
+      > button {
+        display: inline-flex; align-items: center; justify-content: flex-end;
+        min-width: 44px; min-height: 44px; width: auto; margin: 0; padding: 0 0 0 8px;
+        border: 0; border-radius: 8px; background: transparent; box-shadow: none;
+        color: var(--accent); font-size: .9375rem; font-weight: 600; line-height: 1.5;
+        white-space: nowrap;
+        > .icon { width: 21px; height: 21px; }
+        &:disabled { opacity: .35; }
+      }
+    }
+    > #sheet-content {
+      padding: 16px max(var(--sheet-gutter), calc((100% - var(--page-reading-width)) / 2)) calc(40px + env(safe-area-inset-bottom));
+      background: var(--canvas);
+    }
+    > #sheet-actions { display: none; }
+    .library-actions { display: none; }
+    .document-storage-note, .guide-footnote { text-align: left; margin-inline: 2px; }
+    .document-sample-row { border: 0; }
+    .upload-zone { min-height: 170px; border: 0; }
+    .detail-title > .feature-icon { display: none; }
+    .detail-title h2 { font-size: clamp(1.5rem, 4vw, 1.875rem); font-weight: 650; letter-spacing: -.035em; }
+
+    // Notes are a writing surface rather than two stacked form cards.
+    &:has(#note-form) {
+      background: var(--surface);
+      > .sheet-header, > #sheet-content { background: var(--surface); }
+      #note-form .field { margin-bottom: 16px; }
+      #note-form .field > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+      #note-form input, #note-form textarea {
+        border: 0; border-radius: 0; padding: 8px 0; background: transparent;
+        &:focus { box-shadow: none; }
+      }
+      #note-form input { font-size: 1.625rem; font-weight: 650; min-height: 56px; }
+      #note-form input::placeholder { font-size: 1.625rem; font-weight: 550; }
+      #note-form textarea { min-height: 45dvh; line-height: 1.85; resize: none; }
+      #note-form textarea::placeholder { font-size: 1rem; }
+    }
+    .custom-preview { border: 0; background: var(--surface); }
+    .custom-preview-disclosure { margin-block: 24px; summary { color: var(--secondary); } }
+  }
+  #sheet[data-sheet-presentation="sheet"] #sheet-header-actions,
+  #sheet[data-sheet-presentation="card"] #sheet-header-actions { display: none; }
+  :root #sheet[data-sheet-surface="sheet"][data-sheet-presentation="page"]::backdrop { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  :root.keyboard-open #sheet[data-sheet-surface="sheet"][data-sheet-presentation="page"][open] {
+    top: var(--visible-top, 0); bottom: auto;
+    height: var(--visible-height, 100dvh); max-height: var(--visible-height, 100dvh); border-radius: 0;
+  }
+  @media (min-width: 700px) {
+    #sheet[data-sheet-surface="sheet"][data-sheet-presentation="page"] > #sheet-content { padding-top: 24px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #sheet[data-sheet-surface="sheet"][data-sheet-presentation="page"] #sheet-header-actions > button { transition: none; }
+  }
+}

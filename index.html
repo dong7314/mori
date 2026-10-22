@@ -63,10 +63,10 @@
       <nav id="tabs" class="tab-bar" aria-label="주요 메뉴"></nav>
     </div>
   </div>
-  <dialog id="sheet" class="sheet" aria-labelledby="sheet-title"><div class="sheet-handle" aria-hidden="true"></div><header class="sheet-header"><button id="sheet-back" class="small-icon" data-action="sheet-back" aria-label="이전 화면" hidden><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg></button><h2 id="sheet-title" tabindex="-1" autofocus></h2><button class="close-button" data-action="close" aria-label="닫기"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></header><div id="sheet-content"></div></dialog>
+  <dialog id="sheet" class="sheet" aria-labelledby="sheet-title"><div class="sheet-handle" aria-hidden="true"></div><header class="sheet-header"><button id="sheet-back" class="small-icon" data-action="sheet-back" aria-label="이전 화면" hidden><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg></button><h2 id="sheet-title" tabindex="-1" autofocus></h2><div id="sheet-header-actions"></div><button class="close-button" data-action="close" aria-label="닫기"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></header><div id="sheet-content"></div><footer id="sheet-actions" aria-label="화면 동작" hidden></footer></dialog>
   <dialog id="chat-panel" class="chat-panel" aria-labelledby="chat-title">
     <div class="sheet-handle" aria-hidden="true"></div>
-    <header class="chat-header"><button class="small-icon" data-action="close-chat" aria-label="대화 접기"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg></button><div><h2 id="chat-title">모리와 대화</h2><p><span></span> 이 기기에 저장</p></div><button id="chat-options" class="small-icon" data-action="chat-options" aria-label="대화 정리" hidden><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg></button><button class="small-icon" data-action="new-chat" aria-label="새 대화"><svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg></button></header>
+    <header class="chat-header"><button class="small-icon" data-action="close-chat" aria-label="대화 접기"><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg></button><div><h2 id="chat-title">모리와 대화</h2></div><button id="chat-options" class="small-icon" data-action="chat-options" aria-label="대화 정리" hidden><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg></button><button class="small-icon" data-action="new-chat" aria-label="새 대화"><svg class="icon" aria-hidden="true"><use href="#i-compose"/></svg></button></header>
     <div id="messages" class="messages" role="region" aria-label="대화 내용"></div>
     <p id="chat-announcement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></p>
     <form id="chat-form" class="chat-composer">
@@ -81,11 +81,10 @@
         <div class="voice-capture"><p id="voice-preview"></p></div>
         <div class="voice-actions"><button id="record-button" type="button" class="inline-record" data-action="record"><svg class="icon" aria-hidden="true"><use href="#i-mic"/></svg><span>말하기 시작</span></button><button type="button" class="voice-keyboard" data-action="voice-keyboard"><svg class="icon" aria-hidden="true"><use href="#i-keyboard"/></svg><span>키보드로 입력</span></button></div>
         <div id="voice-fallback" class="voice-fallback" hidden><label for="voice-transcript">말하려던 내용</label><textarea id="voice-transcript" rows="2" maxlength="4000" placeholder="말하려던 내용을 적어 보세요"></textarea><button id="voice-send" type="button" class="text-button" data-action="voice-send" disabled>입력창에 담기 <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
-        <details id="voice-examples" class="inline-voice-examples"><summary>음성 입력 예시</summary><div><button type="button" data-action="voice-example" data-text="지하 3층 B16에 주차했어. 내일 출근할 때 알려줘">주차 위치 기억하기</button><button type="button" data-action="voice-example" data-text="30분 뒤에 잠깐 쉬라고 알림 줘">30분 뒤 알림</button></div><p>예시는 입력창에 담겨요. 확인한 뒤 직접 보내세요.</p></details>
-        <p id="voice-service-note" class="voice-service-note">브라우저에서 제공하는 음성 인식이에요.</p>
+        <details id="voice-examples" class="inline-voice-examples"><summary>이렇게 말해 보세요</summary><div><button type="button" data-action="voice-example" data-text="지하 3층 B16에 주차했어. 내일 출근할 때 알려줘">주차 위치 기억하기</button><button type="button" data-action="voice-example" data-text="30분 뒤에 잠깐 쉬라고 알림 줘">30분 뒤 알림</button></div></details>
+        <p id="voice-service-note" class="voice-service-note" hidden></p>
       </section>
     </form>
-    <p class="chat-footnote">예시 응답 · 이 기기에 저장됩니다</p>
   </dialog>
   <div id="toast" role="status" aria-live="polite"></div>
   <noscript>모리를 이용하려면 브라우저의 JavaScript를 켜 주세요.</noscript>
