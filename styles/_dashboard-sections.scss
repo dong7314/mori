@@ -1,0 +1,62 @@
+// Dashboard collections preview records; creation stays in each destination.
+@mixin styles {
+  #main[data-page=dashboard] .home-lower {
+    .dashboard-section-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: .125rem .75rem;
+      min-width: 0;
+      margin-bottom: .5rem;
+
+      > h2 {
+        min-width: 0;
+        word-break: keep-all;
+        overflow-wrap: anywhere;
+      }
+
+      .section-view-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        gap: .25rem;
+        min-height: 2.75rem;
+        margin-left: auto;
+        padding: .5rem 0 .5rem .25rem;
+        border: 0;
+        border-radius: .5rem;
+        background: none;
+        color: var(--secondary);
+        box-shadow: none;
+        font-size: .8125rem;
+        font-weight: 500;
+        line-height: 1.5;
+        letter-spacing: -.02em;
+        white-space: nowrap;
+
+        > .icon {
+          width: .875rem;
+          height: .875rem;
+          stroke-width: 1.8;
+        }
+        &:active { transform: none; opacity: .65; }
+        &:focus-visible { outline-offset: 3px; }
+      }
+    }
+
+    .collection-surface > .empty-state {
+      padding-block: 1.5rem;
+      > .feature-icon {
+        width: 2rem;
+        height: 2rem;
+        margin-bottom: .75rem;
+        border-radius: .75rem;
+        .icon { width: 1.125rem; height: 1.125rem; }
+      }
+      > h3 { color: var(--secondary); font-size: .875rem; font-weight: 500; }
+      > p:empty { display: none; }
+    }
+  }
+}

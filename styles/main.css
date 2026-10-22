@@ -271,34 +271,6 @@ a {
   margin-top: 9px;
 }
 
-.quick-actions {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 -5px 27px;
-}
-.quick-actions button {
-  display: flex;
-  align-items: center;
-  flex-direction: column;
-  gap: 9px;
-  min-width: 0;
-  padding: 0 0 5px;
-  font-size: 0.8125rem;
-  font-weight: 550;
-}
-.quick-actions .feature-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 19px;
-  box-shadow: var(--button-shadow);
-  border: 1px solid var(--glass-edge);
-}
-.quick-actions .feature-icon .icon {
-  width: 25px;
-  height: 25px;
-}
-
 .feature-icon {
   width: 40px;
   height: 40px;
@@ -1791,11 +1763,6 @@ a {
   .home-greeting h1 {
     font-size: 2rem;
   }
-  .quick-actions {
-    max-width: 450px;
-    gap: 22px;
-    margin: 0 0 28px -12px;
-  }
   .brief-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
@@ -1863,12 +1830,6 @@ a {
   }
   .brief-card.parking .brief-copy strong {
     font-size: 1.375rem;
-  }
-  .quick-actions {
-    gap: 4px;
-  }
-  .quick-actions button {
-    font-size: 0.75rem;
   }
   .license-card {
     flex-wrap: wrap;
@@ -3044,11 +3005,8 @@ a {
     margin-bottom: 24px;
   }
   #main[data-page=dashboard] > .home-greeting {
+    grid-column: 1/-1;
     margin-bottom: 28px;
-  }
-  #main[data-page=dashboard] > .dashboard-shortcuts {
-    align-self: center;
-    padding-top: 12px;
   }
   #main[data-page=dashboard] > .now-section, #main[data-page=dashboard] > .home-lower {
     grid-column: 1/-1;
@@ -3060,21 +3018,6 @@ a {
   }
   #main[data-page=dashboard] .greeting-caption {
     font-size: 0.875rem;
-  }
-  #main[data-page=dashboard] .quick-actions {
-    max-width: none;
-    gap: 12px;
-    margin: 0;
-  }
-  #main[data-page=dashboard] .quick-actions button {
-    gap: 10px;
-    min-height: 88px;
-    padding-bottom: 0;
-  }
-  #main[data-page=dashboard] .quick-actions .feature-icon {
-    width: 54px;
-    height: 54px;
-    border-radius: 19px;
   }
   #main[data-page=dashboard] .now-heading {
     margin: 0 0 14px;
@@ -3400,13 +3343,6 @@ a {
   }
   #main[data-page=dashboard] > .home-greeting {
     margin-bottom: 30px;
-  }
-  #main[data-page=dashboard] > .dashboard-shortcuts {
-    justify-self: end;
-    width: min(100%, 440px);
-  }
-  #main[data-page=dashboard] .quick-actions {
-    gap: 22px;
   }
   .brief-grid {
     gap: 16px;
@@ -7044,4 +6980,71 @@ dialog .stock-options .setting-row[aria-pressed=true] {
     background: CanvasText;
     forced-color-adjust: none;
   }
+}
+#main[data-page=dashboard] .home-lower .dashboard-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.125rem 0.75rem;
+  min-width: 0;
+  margin-bottom: 0.5rem;
+}
+#main[data-page=dashboard] .home-lower .dashboard-section-heading > h2 {
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+#main[data-page=dashboard] .home-lower .dashboard-section-heading .section-view-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  min-height: 2.75rem;
+  margin-left: auto;
+  padding: 0.5rem 0 0.5rem 0.25rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: none;
+  color: var(--secondary);
+  box-shadow: none;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+#main[data-page=dashboard] .home-lower .dashboard-section-heading .section-view-button > .icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  stroke-width: 1.8;
+}
+#main[data-page=dashboard] .home-lower .dashboard-section-heading .section-view-button:active {
+  transform: none;
+  opacity: 0.65;
+}
+#main[data-page=dashboard] .home-lower .dashboard-section-heading .section-view-button:focus-visible {
+  outline-offset: 3px;
+}
+#main[data-page=dashboard] .home-lower .collection-surface > .empty-state {
+  padding-block: 1.5rem;
+}
+#main[data-page=dashboard] .home-lower .collection-surface > .empty-state > .feature-icon {
+  width: 2rem;
+  height: 2rem;
+  margin-bottom: 0.75rem;
+  border-radius: 0.75rem;
+}
+#main[data-page=dashboard] .home-lower .collection-surface > .empty-state > .feature-icon .icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+#main[data-page=dashboard] .home-lower .collection-surface > .empty-state > h3 {
+  color: var(--secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+#main[data-page=dashboard] .home-lower .collection-surface > .empty-state > p:empty {
+  display: none;
 }

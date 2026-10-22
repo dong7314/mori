@@ -116,7 +116,7 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
       // Independent sections: never animate both a card and its parent.
       reveal(main.querySelectorAll([
         '[data-motion="reveal"]', '.home-top', '.home-greeting',
-        '.dashboard-shortcuts', '.dashboard-section',
+        '.dashboard-section',
         '.now-section > .section-heading', '.brief-card', '.forecast-summary', '.forecast-shelf',
         '.home-lower > section', '.page-heading', '.search-box', '.conversation-start',
         '.conversation-groups > section', '.conversation-groups > .empty-state',

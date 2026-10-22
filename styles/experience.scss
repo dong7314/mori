@@ -12,8 +12,10 @@
 @use 'card-detail-page';
 @use 'luminous-chat';
 @use 'overlay-scrollbars';
+@use 'dashboard-sections';
 @include flows.styles;
 @include inline-voice.styles;
 @include card-detail-page.styles;
 @include luminous-chat.styles;
 @include overlay-scrollbars.styles;
+@include dashboard-sections.styles;
