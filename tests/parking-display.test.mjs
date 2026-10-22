@@ -6,14 +6,15 @@ import { dashboardTimeline } from '../src/dashboard-timeline.mjs';
 import { seed } from '../src/experience.mjs';
 
 const at = date => Date.parse(date);
-test('always parking has one stable card across midnight and forecast windows', () => {
+test('always parking retains its stored availability without becoming a timed forecast', () => {
   const saved = at('2026-10-01T09:00:00+09:00'), p = { at: saved, spot: 'C36', ...parkingOptions({}) };
   const first = parkingWindows(p, {}, saved), later = parkingWindows(p, {}, saved + 86400000);
   assert.equal(first.length, 1); assert.equal(first[0].end, null);
   assert.equal(first[0].key, later[0].key);
   assert.equal(parkingWindows(p, {}, saved - 1).length, 0);
   const state = seed(saved); state.parking = p;
-  assert.equal(dashboardTimeline(state, 24, saved).groups.flatMap(g => g.items).filter(i => i.ref === 'parking').length, 1);
+  assert.equal(dashboardTimeline(state, 24, saved).groups.flatMap(g => g.items).filter(i => i.ref === 'parking').length, 0);
+  assert.equal(state.parking, p);
 });
 test('scheduled parking respects timezone, weekday, midnight, saved time and exclusive end', () => {
   const p = { at: at('2026-10-01T12:00:00+09:00'), ...parkingOptions({ display_mode: 'scheduled', time: '23:30', days: [3], duration_minutes: 120 }) };

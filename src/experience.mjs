@@ -1,4 +1,4 @@
-import { parkingWindows, parkingDescription } from './parking-display.mjs';
+import { parkingConfig, parkingWindows, parkingDescription } from './parking-display.mjs';
 export const VERSION = 6;
 export const uid = () => globalThis.crypto.randomUUID();
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -35,16 +35,18 @@ export function visibleCards(state, now = nowOf(state)) {
   state.customs.filter(f => f.active && f.time && (f.repeat !== '평일' || ![0, 6].includes(d.getDay())) && Math.abs(minute - minuteOf(f.time)) < 90).forEach(f => cards.push(`custom:${f.id}`));
   return cards;
 }
-// Keep scheduled items first while leaving every built-in feature accessible.
-// Reminder occurrences already represent the reminder feature; do not add a
-// second, generic reminder card beside them.
+const hasTime = value => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value || '');
+// This section represents time-bound work, not a directory of every feature.
+// Untimed records stay available in the library and Features tab.
 export function dashboardCards(state, now = nowOf(state)) {
-  const cards = [...new Set(visibleCards(state, now))];
-  const present = new Set(cards.map(ref => ref.split(':')[0]));
-  for (const { id } of BUILTINS) {
-    if (!present.has(id)) cards.push(id);
-  }
-  return cards;
+  const timed = {
+    ...state,
+    parking: state.parking && parkingConfig(state.parking, state.profile).display_mode === 'scheduled' ? state.parking : null,
+    news: { ...state.news, active: state.news.active && hasTime(state.news.time) },
+    stock: { ...state.stock, active: state.stock.active && hasTime(state.stock.time) },
+    customs: state.customs.filter(f => hasTime(f.time) && f.work?.trim() && !(f.repeat === '한 번' && f.occurrence)),
+  };
+  return [...new Set(visibleCards(timed, now))];
 }
 export function parseTime(text, fallback = '09:00') {
   const m = text.match(/(오전|오후|저녁|아침)?\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분)?/);
@@ -98,7 +100,7 @@ export function applyRequest(state, raw, now = nowOf(state)) {
     state.parking = { floor: floor ? `지하 ${floor[1] || floor[2]}층` : '', spot: spot?.[1]?.toUpperCase() || '', at: now,
       purpose: /출근/.test(text) ? 'commute' : 'external', display_mode: scheduled ? 'scheduled' : 'always',
       display_schedule: scheduled ? { time: parseTime(text, `${String(Math.floor(showMinute / 60)).padStart(2, '0')}:${String(showMinute % 60).padStart(2, '0')}`), timezone: 'Asia/Seoul', days: /매일/.test(text) ? [0, 1, 2, 3, 4, 5, 6] : [0, 1, 2, 3, 4], duration_minutes: 90 } : null };
-    return { text: `${state.parking.floor} ${state.parking.spot}, 잘 기억해 뒀어요. ${scheduled ? parkingDescription(state.parking) + '해요.' : '새 위치를 기억할 때까지 대시보드에 계속 보여드릴게요.'} 기기 알림은 예약하지 않았어요.`, ref: 'parking' };
+    return { text: `${state.parking.floor} ${state.parking.spot}, 잘 기억해 뒀어요. ${scheduled ? parkingDescription(state.parking) + '해요.' : '기능 탭의 주차 기록에서 언제든 확인할 수 있어요.'} 기기 알림은 예약하지 않았어요.`, ref: 'parking' };
   }
   if (/알림|타이머/.test(text)) {
     const relative = text.match(/(\d+)\s*분\s*(뒤|후)/); let target;

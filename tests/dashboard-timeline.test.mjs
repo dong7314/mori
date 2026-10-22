@@ -70,3 +70,18 @@ test('previous-day repeating cards and empty or invalid ranges are safe', () => 
   assert.deepEqual(dashboardTimeline(state, 0).groups, []);
   assert.deepEqual(dashboardTimeline(state, 1000).groups, []);
 });
+
+test('untimed records stay out of every forecast range without altering their saved data', () => {
+  const state = seed(at(30, 8, 40));
+  state.parking = { ...state.parking, display_mode: 'always', display_schedule: null };
+  state.news.time = '';
+  state.stock.time = '';
+  state.customs = [{ id: 'manual', title: '메모 정리', work: '메모를 모아 정리', active: true, time: '' }];
+  state.events = [];
+  state.reminders = [];
+  const before = structuredClone(state);
+
+  for (const hours of [3, 5, 24]) assert.equal(dashboardTimeline(state, hours, at(30, 8, 40)).count, 0);
+  assert.deepEqual(state, before);
+  assert.ok(state.notes.length > 0);
+});

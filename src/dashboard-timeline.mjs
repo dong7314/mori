@@ -1,9 +1,9 @@
 import { dateKey, minuteOf, nowOf } from './experience.mjs';
 import { eventDuration } from './calendar-model.mjs';
-import { parkingWindows, parkingPurpose } from './parking-display.mjs';
+import { parkingConfig, parkingWindows, parkingPurpose } from './parking-display.mjs';
 
 export const DASHBOARD_WINDOWS = [
-  { hours: 0, label: '지금', description: '기본 기능과 지금 필요한 정보' },
+  { hours: 0, label: '지금', description: '이 시간의 일정과 예약 작업' },
   { hours: 3, label: '3시간', description: '지금부터 3시간 이내' },
   { hours: 5, label: '5시간', description: '지금부터 5시간 이내' },
   { hours: 24, label: '하루', description: '지금부터 24시간 이내' },
@@ -13,28 +13,30 @@ const atTime = (day, time) => {
   const date = new Date(day); date.setHours(0, minuteOf(time), 0, 0); return date.getTime();
 };
 const clock = value => new Date(value).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+const hasTime = value => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value || '');
 
 // Forecast stored definitions only. Never advance the clock, run tools or mutate occurrences.
 export function dashboardTimeline(state, hours, now = nowOf(state)) {
   if (![3, 5, 24].includes(hours)) return { from: now, until: now, groups: [], count: 0 };
   const until = now + hours * 3600000, entries = [];
-  for (const occurrence of parkingWindows(state.parking, state.profile, now, until)) entries.push({ ...occurrence, ref: 'parking', kind: 'parking', title: `${parkingPurpose(state.parking)} 위치`, description: [state.parking.floor, state.parking.spot].filter(Boolean).join(' · '), icon: 'car', color: 'green', action: occurrence.end === null ? '항상 표시' : '카드 표시', detail: '최신 주차 기록 보기' });
+  const parking = state.parking && parkingConfig(state.parking, state.profile).display_mode === 'scheduled' ? parkingWindows(state.parking, state.profile, now, until) : [];
+  for (const occurrence of parking) entries.push({ ...occurrence, ref: 'parking', kind: 'parking', title: `${parkingPurpose(state.parking)} 위치`, description: [state.parking.floor, state.parking.spot].filter(Boolean).join(' · '), icon: 'car', color: 'green', action: '카드 표시', detail: '최신 주차 기록 보기' });
   const add = (ref, at, end, details) => {
     if (!Number.isFinite(at) || at >= until || (at < now && end <= now)) return;
     entries.push({ ...details, ref, at, end, current: at <= now, key: `${ref}@${at}` });
   };
   const day = new Date(now); day.setHours(0, 0, 0, 0); day.setDate(day.getDate() - 1);
   while (day.getTime() <= until) {
-    if (state.news.active) {
+    if (state.news.active && hasTime(state.news.time)) {
       const at = atTime(day, state.news.time);
       add('news', at, at + 180 * 60000, { kind: 'news', title: '뉴스 브리핑', description: state.news.topic, icon: 'news', color: 'blue', action: '수집 시작', detail: '브리핑과 설정 보기' });
     }
-    if (state.stock.active) {
+    if (state.stock.active && hasTime(state.stock.time)) {
       const at = atTime(day, state.stock.time);
       add('stock', at, atTime(day, '16:00'), { kind: 'stock', title: state.stock.symbol, description: '관심 주가', icon: 'chart', color: 'rose', action: '카드 표시', detail: '관심 종목 보기' });
     }
     for (const f of state.customs) {
-      if (!f.active || !f.work || !f.time || (f.repeat === '평일' && [0, 6].includes(day.getDay()))) continue;
+      if (!f.active || !f.work?.trim() || !hasTime(f.time) || (f.repeat === '평일' && [0, 6].includes(day.getDay()))) continue;
       if (f.repeat === '한 번' && f.occurrence) continue;
       const at = atTime(day, f.time);
       // A one-off with no stored date belongs to the next occurrence, not every day.
