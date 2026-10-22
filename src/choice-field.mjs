@@ -25,9 +25,9 @@ export function setChoice(field, value) {
   field.querySelectorAll('[role=option]').forEach(item => item.setAttribute('aria-selected', String(item === option)));
 }
 
-export function installChoices(root = document) {
+export function installChoices(root = document, { disclose = (element, expanded) => { element.hidden = !expanded; } } = {}) {
   const close = (field, focus = false) => {
-    field.querySelector('[role=listbox]').hidden = true;
+    disclose(field.querySelector('[role=listbox]'), false);
     const trigger = field.querySelector('.choice-trigger');
     trigger.setAttribute('aria-expanded', 'false');
     if (focus) trigger.focus();
@@ -35,7 +35,7 @@ export function installChoices(root = document) {
   const closeOthers = current => root.querySelectorAll('[data-choice]').forEach(field => { if (field !== current) close(field); });
   const open = field => {
     closeOthers(field);
-    field.querySelector('[role=listbox]').hidden = false;
+    disclose(field.querySelector('[role=listbox]'), true);
     field.querySelector('.choice-trigger').setAttribute('aria-expanded', 'true');
     field.querySelector('[aria-selected=true]').focus({ preventScroll: true });
   };

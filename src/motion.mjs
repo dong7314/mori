@@ -5,7 +5,7 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
   const doc = main.ownerDocument, view = doc.defaultView;
   const preference = view.matchMedia('(prefers-reduced-motion: reduce)');
   const active = new Set(), animations = new WeakMap(), messageStates = new WeakMap();
-  const opened = new WeakSet(), closing = new Map(), dialogListeners = new Map();
+  const opened = new WeakSet(), closing = new Map(), dialogListeners = new Map(), disclosures = new Map();
   const ease = 'cubic-bezier(.22, 1, .36, 1)', spring = 'cubic-bezier(.22, .9, .28, 1)';
   let observer, previous, navPosition, disposed = false;
   const reduced = element => disposed || preference.matches || doc.hidden ||
@@ -39,6 +39,60 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
     active.clear();
     main.querySelectorAll('.motion-pending').forEach(element => element.classList.remove('motion-pending'));
     for (const operation of [...closing.values()]) operation.finish();
+    for (const operation of [...disclosures.values()]) operation.finish();
+  }
+
+  // Small menus keep their DOM and focus targets throughout the transition.
+  // A superseded operation can settle its promise, but cannot hide a reopened menu.
+  function disclosure(element, expanded) {
+    if (!element) return Promise.resolve();
+    expanded = Boolean(expanded);
+    const before = disclosures.get(element), wasHidden = element.hidden;
+    if (before?.expanded === expanded) return before.promise;
+    if (!before && wasHidden === !expanded) {
+      element.inert = !expanded;
+      return Promise.resolve();
+    }
+    let current;
+    if (before && !wasHidden) {
+      try { current = view.getComputedStyle?.(element); } catch { /* Optional visual continuity only. */ }
+    }
+    const start = current ? { opacity: current.opacity, translate: current.translate === 'none' ? '0 0' : current.translate } : undefined;
+    let resolveCompletion, finished = false;
+    const promise = new Promise(resolve => { resolveCompletion = resolve; });
+    const operation = { expanded, promise, finish: () => {
+      if (finished) return;
+      finished = true;
+      if (disclosures.get(element) === operation) {
+        disclosures.delete(element);
+        element.hidden = !expanded;
+        element.inert = !expanded;
+      }
+      operation.animation?.cancel();
+      resolveCompletion();
+    } };
+    disclosures.set(element, operation);
+    before?.finish();
+    element.hidden = false;
+    element.inert = !expanded;
+    const animation = play(element, expanded ? [
+      start || { opacity: 0, translate: '0 -4px' },
+      { opacity: 1, translate: '0 0' },
+    ] : [
+      start || { opacity: 1, translate: '0 0' },
+      { opacity: 0, translate: '0 -3px' },
+    ], { duration: expanded ? 160 : 120, easing: expanded ? ease : 'cubic-bezier(.4, 0, 1, 1)', fill: expanded ? 'backwards' : 'forwards' });
+    operation.animation = animation;
+    if (!animation) operation.finish();
+    else {
+      animation.addEventListener('finish', operation.finish, { once: true });
+      animation.addEventListener('cancel', operation.finish, { once: true });
+    }
+    return promise;
+  }
+
+  function result(container) {
+    return enter(container, 0, { distance: 3, duration: 160 });
   }
 
   function visible(element) {
@@ -95,10 +149,11 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
         width: target.width, height: target.height,
       };
       indicator.style.width = `${next.width}px`; indicator.style.height = `${next.height}px`;
+      indicator.style.transformOrigin = '0 0';
       indicator.style.transform = `translate3d(${next.x}px, ${next.y}px, 0)`;
-      if (changed && navPosition) play(indicator, [
-        { transform: `translate3d(${navPosition.x}px, ${navPosition.y}px, 0)`, width: `${navPosition.width}px`, height: `${navPosition.height}px` },
-        { transform: `translate3d(${next.x}px, ${next.y}px, 0)`, width: `${next.width}px`, height: `${next.height}px` },
+      if (changed && navPosition && next.width > 0 && next.height > 0) play(indicator, [
+        { transform: `translate3d(${navPosition.x}px, ${navPosition.y}px, 0) scale(${navPosition.width / next.width}, ${navPosition.height / next.height})` },
+        { transform: `translate3d(${next.x}px, ${next.y}px, 0) scale(1, 1)` },
       ], { duration: 430, easing: spring });
       navPosition = next;
     }
@@ -214,7 +269,10 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
 
   const focus = event => {
     for (let element = event.target; element && element !== main; element = element.parentElement) {
-      observer?.unobserve(element); element.classList?.remove('motion-pending'); animations.get(element)?.cancel();
+      observer?.unobserve(element); element.classList?.remove('motion-pending');
+      // Opening disclosures deliberately expose focus targets immediately. Their
+      // autofocus must not cancel the entrance it was just allowed to enter.
+      if (!disclosures.get(element)?.expanded) animations.get(element)?.cancel();
     }
   };
   const visibility = () => { if (doc.hidden) reset(); };
@@ -234,5 +292,5 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
     dialogListeners.clear();
   }
 
-  return { render, enter, messages, openDialog, closeDialog, reset, destroy };
+  return { render, enter, result, disclosure, messages, openDialog, closeDialog, reset, destroy };
 }
