@@ -69,7 +69,7 @@ const draftForm = () => $('#sheet-content form:is(#note-form, #event-form, #cust
 const loadAccount = createAccountLoader({ request: api, state: ui, onSettings: prefs => { selectedTheme = prefs.theme; applyTheme(); }, onChange: () => render() });
 let presentationSource = null, detailRequest = null, sheetCurrent = null, sheetTrail = [], returningSheet = false, sheetOrigin = null, sheetCardOrigin = null;
 const voiceSession = createVoiceSession();
-let voiceExpanded = false, voiceFallback = false, voiceFallbackEdited = false, voiceEndTimer, voiceLayoutAnimation;
+let voiceExpanded = false, voiceFallbackEdited = false, voiceEndTimer, voiceLayoutAnimation;
 let voicePreviewing = false;
 const voiceDemo = createVoicePreview({ session: voiceSession, onChange: renderVoice, onFinish: settleVoice, isOpen: () => voiceExpanded && $('#chat-panel').open && !$('#chat-panel').dataset.closing });
 // The parent preview page exposes this as a labelled UI control. Normal app
@@ -291,13 +291,13 @@ function schedule() {
   return `<div class="schedule-topbar">${heading('일정', '내 하루의 흐름을 한눈에', button('new-event', icon('plus'), 'header-button', 'aria-label="일정 추가"'))}
     <div class="schedule-summary"><div><span>${scopeLabel}의 약속</span><strong>${scope.length}<small>개</small></strong></div><p>${next ? `다음은 <b>${esc(next.title)}</b><span>오늘 ${next.time} · ${esc(next.place || '장소 미정')}</span>` : '지금은 여유로운 시간이에요.<span>다가올 약속을 천천히 챙겨보세요.</span>'}</p></div></div>
     <div class="segmented calendar-modes" aria-label="달력 보기 방식">${[['month', '월'], ['week', '주'], ['day', '일']].map(([id, title]) => button('calendar-mode', title, ui.calendar === id ? 'selected' : '', `data-value="${id}" aria-pressed="${ui.calendar === id}"`)).join('')}</div>
-    <div class="schedule-layout ${ui.calendar}"><section class="calendar-surface" aria-label="날짜 선택">
-      <div class="month-header">${button('calendar-jump', `${year}년 ${month + 1}월 ${arrow}`, 'month-title', 'aria-label="연도와 월 선택"')}<div>${button('calendar-today', '오늘', 'today-button')}${button('month-prev', icon('back'), 'small-icon', 'aria-label="이전 기간"')}${button('month-next', arrow, 'small-icon', 'aria-label="다음 기간"')}</div></div>
+    <div class="schedule-layout ${ui.calendar}"><section class="calendar-surface" data-month="${year}-${String(month + 1).padStart(2, '0')}" aria-label="날짜 선택">
+      <div class="month-header">${button('calendar-jump', `<span class="calendar-title-copy"><small>${year}년</small><strong>${month + 1}월</strong></span>${arrow}`, 'month-title', `aria-label="${year}년 ${month + 1}월, 연도와 월 선택"`)}<div class="calendar-navigation">${button('calendar-today', '오늘', 'today-button')}<span class="calendar-period-nav" role="group" aria-label="달력 기간 이동">${button('month-prev', icon('back'), 'small-icon', 'aria-label="이전 기간"')}${button('month-next', arrow, 'small-icon', 'aria-label="다음 기간"')}</span></div></div>
       <div class="weekdays">${['일', '월', '화', '수', '목', '금', '토'].map(day => `<span>${day}</span>`).join('')}</div>
-      <div class="calendar-grid ${ui.calendar !== 'month' ? 'week-strip' : ''}">${dates.map(cell).join('')}</div>
+      <div class="calendar-grid ${ui.calendar !== 'month' ? 'week-strip' : ''}" data-period="${dates[0]}/${dates.at(-1)}">${dates.map(cell).join('')}</div>
       <div class="calendar-legend">${EVENT_KINDS.map(kind => `<span><i class="${kind.value}"></i>${kind.label}</span>`).join('')}</div>
     </section><section class="agenda-panel" aria-label="일정 목록">
-      <div class="agenda-heading"><div><p>${ui.calendar === 'week' ? '한 주의 흐름' : ui.date === today ? 'TODAY' : selected.toLocaleDateString('ko-KR', { weekday: 'long' })}</p><h2>${ui.calendar === 'week' ? weekLabel : `${selected.getMonth() + 1}월 ${selected.getDate()}일`}</h2></div><span>${ui.calendar === 'week' ? scope.length : events.length}개의 약속</span></div>
+      <div class="agenda-heading"><div><p>${ui.calendar === 'week' ? '한 주의 흐름' : `${ui.date === today ? '오늘 · ' : ''}${selected.toLocaleDateString('ko-KR', { weekday: 'long' })}`}</p><h2>${ui.calendar === 'week' ? weekLabel : `${selected.getMonth() + 1}월 ${selected.getDate()}일`}</h2></div><span>${ui.calendar === 'week' ? scope.length : events.length}개의 약속</span></div>
       <div class="agenda-body">${agenda}</div>${events.length && ui.calendar === 'month' ? button('new-event', icon('plus') + ' 이 날에 일정 추가', 'agenda-add') : ''}
     </section></div><div class="quiet-card">${icon('spark')}<div><strong>음성으로 일정 입력</strong><p>말한 내용을 확인한 뒤 보내세요.</p></div>${button('voice', icon('mic'), 'small-icon', 'aria-label="음성으로 일정 입력"')}</div>`;
 }
@@ -335,7 +335,14 @@ function render({ scrollTop } = {}) {
   main.classList.toggle('has-composer', ui.view === 'dashboard');
   main.dataset.page = ui.view;
   main.scrollTo({ top: previousScroll, behavior: 'instant' });
-  $('#tabs').innerHTML = '<span class="nav-indicator" aria-hidden="true"></span>' + [['dashboard', 'home', '오늘'], ['schedule', 'calendar', '일정'], ['conversations', 'chat', '대화'], ['features', 'grid', '기능'], ['my', 'user', '마이']].map(([v, i, label]) => `<button type="button" data-view="${v}" ${v === ui.view ? 'aria-current="page"' : ''}>${icon(i)}<span>${label}</span></button>`).join('');
+  // Keep the live glass indicator and buttons mounted. Replacing them loses
+  // their in-flight position, pressed state and keyboard focus on every render.
+  const tabs = $('#tabs');
+  if (!tabs.querySelector('.nav-indicator')) tabs.innerHTML = '<span class="nav-indicator" aria-hidden="true"></span>' + [['dashboard', 'home', '오늘'], ['schedule', 'calendar', '일정'], ['conversations', 'chat', '대화'], ['features', 'grid', '기능'], ['my', 'user', '마이']].map(([v, i, label]) => `<button type="button" data-view="${v}">${icon(i)}<span>${label}</span></button>`).join('');
+  for (const tab of tabs.querySelectorAll('[data-view]')) {
+    if (tab.dataset.view === ui.view) tab.setAttribute('aria-current', 'page');
+    else tab.removeAttribute('aria-current');
+  }
   resolveControl($('#tabs'), tabFocus, { visible: true })?.focus({ preventScroll: true });
   $('#quick-composer').hidden = false; document.documentElement.classList.toggle('reduce-motion', data.profile.reduced);
   const syncRail = rail => {
@@ -446,6 +453,7 @@ function openSheet(title, content, cls = '', { ref = detailRequest, restore = nu
   const existing = ref ? sheetTrail.findIndex(entry => entry.ref === ref) : -1;
   if (existing >= 0) sheetTrail = sheetTrail.slice(0, existing);
   const previousView = wasOpen && !refreshing ? presentations.captureReplacement(scroller) : null;
+  const previousTitle = previousView ? $('#sheet-title').textContent : '';
   ++ui.sheetEpoch; ui.detail = null;
   const detail = Boolean(sheetCardOrigin) || Boolean(ref && !['schedule', 'note'].includes(ref)) || Boolean(ref?.includes(':')) || (wasOpen && sheetTrail.some(entry => entry.detail)) || (wasOpen && previousRef?.startsWith('document:'));
   const cardHero = sheetCardOrigin && (ref === sheetCardOrigin.ref || !ref && !sheetTrail.length) ? cardDetailHero() : '';
@@ -493,7 +501,10 @@ function openSheet(title, content, cls = '', { ref = detailRequest, restore = nu
   $('#sheet-back').setAttribute('aria-label', sheetTrail.length ? `${sheetTrail.at(-1).title} 화면으로 돌아가기` : '이전 화면으로 돌아가기');
   scroller.scrollTop = refreshing ? previousScroll : 0;
   presentations.show(dialog, { source: source || document.activeElement, kind: layout.surface === 'card' || layout.size === 'page' ? 'detail' : 'sheet' }); moveToast();
-  if (previousView) presentations.replace(scroller, { back: returningSheet, level: !returningSheet && !nested.includes(action), previous: previousView });
+  if (previousView) {
+    presentations.replace(scroller, { back: returningSheet, level: !returningSheet && !nested.includes(action), previous: previousView });
+    motion.swapTitle($('#sheet-title'), previousTitle, { back: returningSheet });
+  }
   if (refreshing) resolveControl(scroller, focusedControl, { visible: true })?.focus({ preventScroll: true });
   else if (wasOpen && source && !source.isConnected) $('#sheet-title').focus({ preventScroll: true });
 }
@@ -627,9 +638,15 @@ function dayPreview() {
 function persistDraft() { const key = ui.chatId || 'new', value = $('#chat-input').value; if (value) data.drafts[key] = value; else delete data.drafts[key]; save(); }
 function syncComposer() {
   const input = $('#chat-input');
+  const messages = $('#messages');
+  const nearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 100;
   input.rows = 1;
   input.style.height = 'auto';
   if (input.scrollHeight) input.style.height = `${Math.min(input.scrollHeight, parseFloat(getComputedStyle(input).maxHeight) || 160)}px`;
+  // Reserve only the editable rail in the conversation. Voice expands above
+  // it without resizing or removing the messages behind the glass.
+  $('#chat-panel').style.setProperty('--composer-rail-height', `${$('.composer-editor').offsetHeight || 44}px`);
+  if (nearBottom) messages.scrollTop = messages.scrollHeight;
   $('#chat-send').disabled = !input.value.trim() || input.value.length > 4000 || busy.has(ui.chatId) || voiceActive();
 }
 function openChat(id = null, returnSource = null) {
@@ -693,7 +710,7 @@ async function openVoice() {
   if (!$('#chat-panel').open) openChat(ui.chatId, source);
   if (voiceExpanded) return closeVoice();
   voiceSession.reset($('#chat-input').value);
-  voiceExpanded = true; voiceFallback = false; voiceFallbackEdited = false; $('#voice-transcript').value = '';
+  voiceExpanded = true; voiceFallbackEdited = false; $('#voice-transcript').value = '';
   renderVoice(); $('#record-button').focus({ preventScroll: true });
 }
 function renderVoice({ animate = true } = {}) {
@@ -717,9 +734,10 @@ function renderVoice({ animate = true } = {}) {
   $('#chat-mic').setAttribute('aria-expanded', String(voiceExpanded));
   $('#chat-mic').setAttribute('aria-label', voiceExpanded ? '음성 입력 접기' : '음성 입력 열기');
   $('#chat-input').readOnly = active;
+  $('#chat-input').placeholder = active ? '녹음을 마치면 이어 쓸 수 있어요' : '무엇이든 편하게 말해 주세요';
   $('#voice-examples').hidden = active;
   const messages = {
-    idle: supported ? '시작 버튼을 누르면 듣기 시작해요.' : '음성 입력을 사용할 수 없어요. 아래에 직접 입력해 주세요.',
+    idle: supported ? '시작 버튼을 누르면 듣기 시작해요.' : '이 브라우저는 음성 입력을 지원하지 않아요. 메시지 입력창에 직접 써 주세요.',
     requesting: '마이크 연결을 기다리고 있어요. 브라우저의 권한 요청을 확인해 주세요.',
     listening: '떠오르는 대로 이야기해 주세요.',
     processing: '말한 내용을 정리하고 있어요.',
@@ -733,10 +751,16 @@ function renderVoice({ animate = true } = {}) {
   const record = $('#record-button');
   record.disabled = !supported || state.phase === 'processing';
   record.hidden = !supported;
-  record.setAttribute('aria-label', state.phase === 'requesting' ? '마이크 요청 취소' : state.phase === 'listening' ? '녹음 마치기' : state.phase === 'ready' ? '이어서 녹음' : '말하기 시작');
-  record.innerHTML = icon(['requesting', 'listening', 'processing'].includes(state.phase) ? 'stop' : 'mic') + `<span>${state.phase === 'requesting' ? '요청 취소' : state.phase === 'listening' ? '녹음 마치기' : state.phase === 'processing' ? '인식 중' : state.phase === 'ready' ? '이어서 녹음' : '말하기 시작'}</span>`;
-  $('.voice-keyboard span').textContent = state.phase === 'ready' ? '내용 수정' : '키보드로 입력';
-  const fallback = !active && state.phase !== 'ready' && (!supported || voiceFallback || state.phase === 'error');
+  const recordLabel = ({ requesting: '요청 취소', listening: '녹음 마치기', processing: '인식 중', ready: '이어서 녹음' })[state.phase] || '말하기 시작';
+  record.setAttribute('aria-label', state.phase === 'requesting' ? '마이크 요청 취소' : recordLabel);
+  record.setAttribute('aria-busy', String(state.phase === 'processing'));
+  // Keep the control mounted while interim transcripts arrive. Only its glyph
+  // and label change, so the symbol's surface and focus feedback stay intact.
+  record.querySelector('use').setAttribute('href', ['requesting', 'listening'].includes(state.phase) ? '#i-stop' : '#i-mic');
+  if (record.querySelector('.record-label').textContent !== recordLabel) record.querySelector('.record-label').textContent = recordLabel;
+  // A second editor is only recovery for an unfinished recognition result.
+  // Ordinary typing always belongs to the existing message input.
+  const fallback = !active && state.phase === 'error' && Boolean(state.transcript.trim());
   $('#voice-fallback').hidden = !fallback;
   $('#voice-service-note').hidden = !voicePreviewing;
   $('#voice-service-note').textContent = voicePreviewing ? '마이크를 사용하지 않는 음성 입력 미리보기예요.' : '';
@@ -766,7 +790,6 @@ function settleVoice({ edited = false } = {}) {
 }
 function voiceToChat(text = $('#voice-transcript').value) {
   abortRecognition();
-  voiceFallback = false;
   voiceSession.accept(text, $('#chat-input').value);
   settleVoice({ edited: voiceFallbackEdited });
 }
@@ -778,7 +801,7 @@ function suspendVoice() {
 function stopVoice({ animate = false } = {}) {
   voiceDemo.cancel(); voicePreviewing = false;
   abortRecognition(); voiceSession.reset($('#chat-input').value);
-  voiceExpanded = false; voiceFallback = false; voiceFallbackEdited = false;
+  voiceExpanded = false; voiceFallbackEdited = false;
   renderVoice({ animate });
 }
 function closeVoice(keyboard = false) {
@@ -808,12 +831,12 @@ function recordVoice() {
     return;
   }
   const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Speech) { voiceFallback = true; return renderVoice(); }
+  if (!Speech) return renderVoice();
   if (voiceFallbackEdited && !$('#voice-fallback').hidden && $('#voice-transcript').value.trim()) {
     $('#voice-transcript').focus();
     return toast('수정한 내용을 먼저 입력창에 추가하거나 취소해 주세요.');
   }
-  abortRecognition(); voiceFallback = false; voiceFallbackEdited = false;
+  abortRecognition(); voiceFallbackEdited = false;
   const id = voiceSession.begin($('#chat-input').value);
   renderVoice();
   try {
@@ -938,7 +961,6 @@ document.addEventListener('click', async event => {
   if (a === 'record') return recordVoice();
   if (a === 'voice-example') return voiceToChat(el.dataset.text);
   if (a === 'voice-send') return voiceToChat();
-  if (a === 'voice-keyboard') return closeVoice(true);
   if (a === 'edit-parking') return parkingForm();
 
   if (a === 'new-note' || a === 'edit-note') return noteForm(id);
@@ -948,7 +970,7 @@ document.addEventListener('click', async event => {
   if (a === 'undo-event') { if (!deletedEvent) return; data.events.push(deletedEvent); deletedEvent = null; save(); render(); return toast('약속을 다시 가져왔어요.'); }
   if (a === 'select-date') { ui.date = el.dataset.date; ui.month = dayDate(ui.date); render(); document.querySelector(`[data-date="${ui.date}"][aria-pressed]`)?.focus({ preventScroll: true }); return; }
   if (a === 'calendar-mode') { ui.calendar = el.dataset.value; render(); document.querySelector(`[data-action=calendar-mode][data-value=${ui.calendar}]`)?.focus({ preventScroll: true }); return; }
-  if (a === 'calendar-today') { ui.date = dateKey(current()); ui.month = new Date(current()); ui.month.setDate(1); return render(); }
+  if (a === 'calendar-today') { ui.date = dateKey(current()); ui.month = new Date(current()); ui.month.setDate(1); render(); document.querySelector('[data-action=calendar-today]')?.focus({ preventScroll: true }); return; }
   if (a === 'month-prev' || a === 'month-next') { ui.date = moveDate(ui.date, a === 'month-prev' ? -1 : 1, ui.calendar); ui.month = dayDate(ui.date); render(); document.querySelector(`[data-action=${a}]`)?.focus({ preventScroll: true }); return; }
   if (a === 'calendar-jump') return calendarJump();
   if (a === 'jump-year') return calendarJump(ui.jumpYear + Number(el.dataset.delta));
@@ -1120,18 +1142,20 @@ document.addEventListener('keydown', event => {
   ui.month = dayDate(ui.date); render(); document.querySelector('.calendar-grid [aria-pressed=true]')?.focus({ preventScroll: true });
 });
 document.addEventListener('keydown', event => { if (event.target.id === 'chat-input' && event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('#chat-form').requestSubmit(); } });
-document.addEventListener('input', event => { if (event.target.id === 'chat-input') { persistDraft(); syncComposer(); } if (event.target.closest('#custom-form')) updateCustomPreview(); });
+$('#chat-input').addEventListener('focus', () => { if (voiceExpanded && !voiceActive()) closeVoice(true); });
+document.addEventListener('input', event => { if (event.target.id === 'chat-input') { if (voiceExpanded && !voiceActive()) closeVoice(true); persistDraft(); syncComposer(); } if (event.target.closest('#custom-form')) updateCustomPreview(); });
 document.addEventListener('change', event => { if (event.target.closest('#custom-form')) updateCustomPreview(); });
 $('#chat-panel').addEventListener('close', () => {
   if ($('#chat-panel').open) return;
   stopVoice(); persistDraft(); render();
 });
 $('#voice-transcript').addEventListener('input', () => { voiceFallbackEdited = true; updateVoiceInput(); });
-$('#voice-examples > summary').addEventListener('click', event => {
-  event.preventDefault();
-  const form = $('#chat-form'), previous = presentations.captureReplacement(form, { settle: true, anchor: '.composer-editor' });
-  $('#voice-examples').open = !$('#voice-examples').open;
-  presentations.replace(form, { previous, vertical: true, back: !$('#voice-examples').open });
+$('#voice-examples-toggle').addEventListener('click', () => {
+  const toggle = $('#voice-examples-toggle'), expanded = toggle.getAttribute('aria-expanded') !== 'true';
+  toggle.setAttribute('aria-expanded', String(expanded));
+  // Examples belong to this panel. Grow only their occupied space; never
+  // clone or re-present the composer, its emblem or its live input controls.
+  motion.disclosure($('#voice-example-list'), expanded, { inFlow: true });
 });
 $('#sheet-content').addEventListener('scroll', () => { $('#sheet').dataset.scrolled = String($('#sheet-content').scrollTop > 8); }, { passive: true });
 $('#sheet').addEventListener('close', () => { formDrafts.capture(draftForm()); if (!$('#sheet').open) { ui.detail = null; sheetCardOrigin = null; } });

@@ -232,8 +232,8 @@ a {
 .home-profile {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--glass-edge);
   border-radius: 50%;
   background: linear-gradient(145deg, var(--surface), var(--sage));
@@ -759,14 +759,14 @@ a {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
   flex: 1;
   min-width: 0;
   min-height: 53px;
   z-index: 1;
   border-radius: 27px;
-  font-size: 0.625rem;
-  font-weight: 550;
+  font-size: 0.6875rem;
+  font-weight: 500;
   color: var(--secondary);
 }
 .tab-bar button .icon {
@@ -775,10 +775,10 @@ a {
 }
 .tab-bar button[aria-current] {
   color: var(--accent);
-  font-weight: 700;
+  font-weight: 650;
 }
 .tab-bar button[aria-current] .icon {
-  stroke-width: 2;
+  stroke-width: 1.9;
 }
 
 .nav-indicator {
@@ -786,8 +786,9 @@ a {
   top: 0;
   left: 0;
   border-radius: 28px;
-  background: color-mix(in srgb, var(--sage) 65%, transparent);
-  box-shadow: inset 0 1px 0 var(--glass-edge), 0 1px 3px rgba(49, 69, 53, 0.0235294118);
+  border: 1px solid color-mix(in srgb, var(--glass-edge) 80%, transparent);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--surface) 75%, var(--sage)), color-mix(in srgb, var(--sage) 72%, transparent));
+  box-shadow: inset 0 1px 0 var(--glass-edge), 0 2px 5px rgba(49, 69, 53, 0.0392156863);
   pointer-events: none;
 }
 
@@ -1891,11 +1892,6 @@ a {
 .month-header .small-icon {
   width: 44px;
   flex-basis: 44px;
-}
-
-.home-profile {
-  width: 44px;
-  height: 44px;
 }
 
 .home-greeting h1, .profile-summary h2 {
@@ -5768,48 +5764,79 @@ dialog .stock-options .setting-row[aria-pressed=true] {
 }
 .inline-voice .voice-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
-  gap: 0.5rem;
   width: 100%;
-  max-width: 20rem;
-  margin-inline: auto;
-  padding-bottom: 0.625rem;
+  max-width: 12.75rem;
+  margin: 0.375rem auto 0;
+  padding-bottom: 0.875rem;
 }
 .inline-voice .voice-actions:has(.inline-record[hidden]) {
-  grid-template-columns: 1fr;
+  display: none;
 }
-.inline-voice .inline-record, .inline-voice .voice-keyboard {
+.inline-voice .inline-record {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-height: var(--chat-control);
+  gap: 0.625rem;
+  min-height: 3.25rem;
   min-width: 0;
   width: 100%;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--chat-line);
-  border-radius: 1.5rem;
-  font-size: 0.8125rem;
+  padding: 0.3125rem 1.125rem 0.3125rem 0.3125rem;
+  border: 1px solid color-mix(in srgb, var(--voice-accent) 15%, transparent);
+  border-radius: 2rem;
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.7019607843), rgba(255, 255, 255, 0.0392156863)), var(--voice-soft);
+  color: var(--voice-accent);
+  font-size: 0.875rem;
   line-height: 1.5;
-  font-weight: 550;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  box-shadow: 0 2px 4px rgba(49, 75, 56, 0.062745098), 0 8px 20px rgba(82, 119, 94, 0.0705882353), inset 0 1px 0 rgba(255, 255, 255, 0.7019607843);
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.inline-voice .inline-record {
-  border-color: transparent;
-  background: var(--voice-accent);
+.inline-voice .record-label {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+.inline-voice .record-symbol {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 2.5rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
   color: var(--voice-on-accent);
-  box-shadow: 0 3px 6px rgba(82, 119, 94, 0.0862745098), 0 7px 16px rgba(82, 119, 94, 0.0823529412), inset 0 1px 0 rgba(255, 255, 255, 0.1411764706);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--voice-accent) 85%, #fff), var(--voice-accent));
+  box-shadow: 0 2px 5px rgba(49, 75, 56, 0.1215686275), inset 0 1px 0 rgba(255, 255, 255, 0.2509803922);
+  transition: box-shadow 180ms ease;
 }
-.inline-voice .voice-keyboard {
-  background: var(--chat-tint);
-  color: var(--chat-secondary);
-  box-shadow: 0 2px 5px rgba(52, 64, 94, 0.0235294118), inset 0 1px 0 rgba(255, 255, 255, 0.2196078431);
-}
-.inline-voice .inline-record .icon, .inline-voice .voice-keyboard .icon {
+.inline-voice .record-symbol .icon {
   width: 1.125rem;
   height: 1.125rem;
-  flex-shrink: 0;
+}
+.inline-voice .record-symbol::after {
+  content: "";
+  position: absolute;
+  inset: 0.625rem;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0;
+}
+.inline-voice #record-button:not(:disabled):active {
+  opacity: 1;
+  background-color: color-mix(in srgb, var(--voice-soft) 86%, var(--voice-accent));
+  box-shadow: 0 1px 3px rgba(49, 75, 56, 0.0784313725), inset 0 1px 2px rgba(82, 119, 94, 0.0509803922);
+}
+.inline-voice #record-button[aria-busy=true] {
+  opacity: 0.85;
+}
+.inline-voice #record-button[aria-busy=true] .record-symbol .icon {
+  opacity: 0;
+}
+.inline-voice #record-button[aria-busy=true] .record-symbol::after {
+  opacity: 1;
+  animation: record-processing 1s linear infinite;
 }
 .inline-voice .voice-service-note {
   margin: 0.375rem 0.5rem 0.125rem;
@@ -5819,6 +5846,18 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   text-align: center;
 }
 
+@keyframes record-processing {
+  to {
+    rotate: 360deg;
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .inline-voice #record-button:not(:disabled):hover:not(:active) {
+    opacity: 1;
+    background-color: color-mix(in srgb, var(--voice-soft) 93%, var(--voice-accent));
+    box-shadow: 0 3px 6px rgba(49, 75, 56, 0.062745098), 0 10px 22px rgba(82, 119, 94, 0.0980392157), inset 0 1px 0 rgba(255, 255, 255, 0.7019607843);
+  }
+}
 .chat-composer:is([data-voice-phase=requesting], [data-voice-phase=listening], [data-voice-phase=processing]) .voice-status {
   min-height: 3.3em;
 }
@@ -5883,10 +5922,19 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   padding-block: 0.5rem 0.375rem;
 }
 .chat-panel .chat-composer[data-voice-phase=ready] .inline-record {
+  min-height: 2.75rem;
   border-color: var(--chat-line);
-  background: var(--chat-tint);
-  color: var(--chat-secondary);
-  box-shadow: none;
+  font-size: 0.8125rem;
+  box-shadow: 0 2px 6px rgba(82, 119, 94, 0.0392156863), inset 0 1px 0 rgba(255, 255, 255, 0.2509803922);
+}
+.chat-panel .chat-composer[data-voice-phase=ready] .record-symbol {
+  flex-basis: 2rem;
+  width: 2rem;
+  height: 2rem;
+}
+.chat-panel .chat-composer[data-voice-phase=ready] .record-symbol .icon {
+  width: 1rem;
+  height: 1rem;
 }
 
 .chat-panel .voice-fallback {
@@ -5931,30 +5979,56 @@ dialog .stock-options .setting-row[aria-pressed=true] {
 .inline-voice-examples {
   margin-inline: 0.25rem;
 }
-.inline-voice-examples summary {
+.inline-voice-examples .voice-examples-toggle {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
   min-height: 2.75rem;
+  padding: 0.25rem 0.375rem;
+  border-radius: 0.75rem;
+  background: transparent;
   color: var(--chat-secondary);
   font-size: 0.75rem;
-  cursor: pointer;
+  text-align: left;
 }
-.inline-voice-examples summary::after {
-  content: "+";
-  margin-left: auto;
-  padding-inline: 0.25rem;
-  font-size: 1rem;
+.inline-voice-examples .voice-examples-indicator {
+  position: relative;
+  flex: 0 0 1.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--voice-soft);
+  color: var(--voice-accent);
 }
-.inline-voice-examples[open] summary::after {
-  content: "−";
+.inline-voice-examples .voice-examples-indicator::before, .inline-voice-examples .voice-examples-indicator::after {
+  content: "";
+  position: absolute;
+  inset: calc(50% - 0.75px) 0.4375rem auto;
+  height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
 }
-.inline-voice-examples > div {
+.inline-voice-examples .voice-examples-indicator::after {
+  rotate: 90deg;
+  transition: rotate 180ms ease, opacity 180ms ease;
+}
+.inline-voice-examples [aria-expanded=true] .voice-examples-indicator::after {
+  rotate: 0deg;
+  opacity: 0;
+}
+.inline-voice-examples .voice-example-list {
   display: flex;
   flex-wrap: wrap;
+  align-items: stretch;
   gap: 0.5rem;
+  min-height: 0;
+  overflow: hidden;
 }
-.inline-voice-examples button {
-  flex: 1 1 8rem;
+.inline-voice-examples .voice-example-list > button {
+  flex: 1 1 8.5rem;
+  min-width: 0;
   min-height: 2.75rem;
   padding: 0.625rem 0.75rem;
   border-radius: 0.875rem;
@@ -5975,19 +6049,38 @@ dialog .stock-options .setting-row[aria-pressed=true] {
 @media (max-height: 42rem) {
   .inline-voice .voice-emblem {
     --orb-size: 4rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
   }
   .inline-voice .voice-stage {
     padding-bottom: 0.375rem;
   }
-}
-@media (prefers-reduced-motion: reduce) {
-  .inline-voice {
-    animation: none !important;
+  .inline-voice .voice-status {
+    margin-top: 0.375rem;
+  }
+  .inline-voice .voice-actions {
+    margin-top: 0.125rem;
+    padding-bottom: 0.5rem;
   }
 }
-.reduce-motion .inline-voice {
+[data-theme=dark] .inline-voice .inline-record {
+  background-image: linear-gradient(155deg, rgba(255, 255, 255, 0.0392156863), transparent);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.0823529412), 0 8px 20px rgba(0, 0, 0, 0.1019607843), inset 0 1px 0 rgba(255, 255, 255, 0.0784313725);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inline-voice, .inline-voice .record-symbol::after {
+    animation: none !important;
+  }
+  .voice-examples-indicator::after {
+    transition: none !important;
+  }
+}
+.reduce-motion :is(.inline-voice, .inline-voice .record-symbol::after) {
   animation: none !important;
+}
+
+.reduce-motion .voice-examples-indicator::after {
+  transition: none !important;
 }
 
 #sheet.card-page {
@@ -6537,6 +6630,8 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   position: relative;
   padding-top: 1.25rem;
   overflow-anchor: none;
+  padding-bottom: calc(var(--composer-rail-height, 2.75rem) + 2.875rem + env(safe-area-inset-bottom));
+  scroll-padding-bottom: calc(var(--composer-rail-height, 2.75rem) + 2.875rem);
 }
 .chat-panel .messages:has(.chat-welcome) {
   display: flex;
@@ -6549,6 +6644,7 @@ dialog .stock-options .setting-row[aria-pressed=true] {
 .chat-panel .chat-welcome .voice-emblem {
   --orb-size: 5.5rem;
   margin: 0.5rem auto 1.75rem;
+  transition: opacity 180ms ease;
 }
 .chat-panel .chat-welcome > p {
   color: var(--chat-secondary);
@@ -6616,14 +6712,16 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   height: 1rem;
 }
 .chat-panel .chat-composer {
-  position: relative;
-  margin: auto 0.875rem 0.875rem;
+  position: absolute;
+  inset: auto 0 env(safe-area-inset-bottom);
+  z-index: 1;
+  margin: 0 0.875rem 0.875rem;
   padding: 0.5rem;
   border-radius: 1.875rem;
   border: 1px solid rgba(255, 255, 255, 0.9294117647);
-  background: rgba(255, 255, 255, 0.8784313725);
+  background: rgba(255, 255, 255, 0.968627451);
   box-shadow: 0 0 0 1px rgba(174, 182, 204, 0.1607843137), 0 3px 6px rgba(52, 64, 94, 0.0274509804), 0 12px 30px rgba(52, 64, 94, 0.0470588235), inset 0 1px 0 #fff;
-  backdrop-filter: blur(28px) saturate(140%);
+  backdrop-filter: none;
   transition: box-shadow 400ms ease, border-radius 400ms ease;
 }
 .chat-panel .chat-composer:focus-within {
@@ -6691,24 +6789,8 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   width: 1.125rem;
   height: 1.125rem;
 }
-.chat-panel:has(> #chat-form.voice-expanded) .chat-welcome {
-  padding: 0.5rem 0 1rem;
-  margin: auto 0;
-}
-.chat-panel:has(> #chat-form.voice-expanded) .chat-welcome .voice-emblem, .chat-panel:has(> #chat-form.voice-expanded) .chat-suggestions, .chat-panel:has(> #chat-form.voice-expanded) .messages > .field-help {
-  display: none;
-}
-.chat-panel:has(> #chat-form.voice-expanded) .chat-welcome > span {
-  display: none;
-}
-.chat-panel:has(> #chat-form.voice-expanded) .chat-welcome h2 {
-  font-size: 1.375rem;
-}
-.chat-panel:has(> #chat-form.voice-expanded:not([data-voice-phase=ready])) .messages {
-  padding-block: 0.5rem;
-}
-.chat-panel:has(> #chat-form.voice-expanded:not([data-voice-phase=ready])) .messages:has(.chat-welcome) {
-  display: none;
+.chat-panel:has(> #chat-form.voice-expanded) .chat-welcome .voice-emblem {
+  opacity: 0;
 }
 
 .quick-composer .quick-mic {
@@ -6836,7 +6918,7 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.0196078431), 0 4px 8px rgba(0, 0, 0, 0.031372549);
 }
 [data-theme=dark] .chat-panel .chat-composer {
-  background: rgba(41, 46, 57, 0.9098039216);
+  background: rgba(41, 46, 57, 0.9803921569);
   border-color: rgba(255, 255, 255, 0.0862745098);
   box-shadow: 0 0 0 1px rgba(174, 182, 204, 0.0705882353), 0 12px 32px rgba(0, 0, 0, 0.1019607843), inset 0 1px 0 rgba(255, 255, 255, 0.031372549);
 }
@@ -6891,7 +6973,7 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   .voice-emblem .fluid-layer, .chat-panel::after {
     animation: none !important;
   }
-  .chat-panel::before, .chat-panel::after {
+  .chat-panel::before, .chat-panel::after, .chat-welcome .voice-emblem {
     transition: none;
   }
 }
@@ -6901,6 +6983,10 @@ dialog .stock-options .setting-row[aria-pressed=true] {
 
 .reduce-motion .chat-panel::before, .reduce-motion .chat-panel::after {
   animation: none !important;
+  transition: none;
+}
+
+.reduce-motion .chat-welcome .voice-emblem {
   transition: none;
 }
 
@@ -8125,6 +8211,15 @@ dialog .stock-options .setting-row[aria-pressed=true] {
     transition: none;
   }
 }
+.navigation-title-outgoing {
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 #sheet[data-sheet-surface=sheet][data-sheet-presentation=page] {
   --sheet-gutter: clamp(20px, 5vw, 32px);
   --page-reading-width: 760px;
@@ -8157,14 +8252,19 @@ dialog .stock-options .setting-row[aria-pressed=true] {
 #sheet[data-sheet-surface=sheet][data-sheet-presentation=page] > .sheet-header > h2 {
   font-size: 1rem;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 #sheet[data-sheet-surface=sheet][data-sheet-presentation=page] > .sheet-header > h2:focus {
   outline: none;
 }
 #sheet[data-sheet-surface=sheet][data-sheet-presentation=page] > .sheet-header #sheet-back {
-  justify-content: flex-start;
+  justify-content: center;
+  width: 44px;
+  margin-inline-start: -10px;
   border: 0;
-  border-radius: 0;
+  border-radius: 50%;
   color: var(--accent);
   background: transparent;
   box-shadow: none;
@@ -8192,7 +8292,7 @@ dialog .stock-options .setting-row[aria-pressed=true] {
 #sheet[data-sheet-surface=sheet][data-sheet-presentation=page] #sheet-header-actions > button {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   min-width: 44px;
   min-height: 44px;
   width: auto;
@@ -8211,6 +8311,11 @@ dialog .stock-options .setting-row[aria-pressed=true] {
 #sheet[data-sheet-surface=sheet][data-sheet-presentation=page] #sheet-header-actions > button > .icon {
   width: 21px;
   height: 21px;
+}
+#sheet[data-sheet-surface=sheet][data-sheet-presentation=page] #sheet-header-actions > button:has(> .icon) {
+  width: 44px;
+  padding: 0;
+  border-radius: 50%;
 }
 #sheet[data-sheet-surface=sheet][data-sheet-presentation=page] #sheet-header-actions > button:disabled {
   opacity: 0.35;
@@ -8373,7 +8478,7 @@ button:is(.brief-card, .forecast-card, .feature-tile):not(:disabled):active {
   border-radius: 24px;
 }
 
-button:is(.header-button, .small-icon, .close-button, .text-button, .section-view-button, .preview-pill, .month-title, .today-button, .voice-keyboard, .secondary-button, .create-feature):not(:disabled):active,
+button:is(.header-button, .small-icon, .close-button, .text-button, .section-view-button, .preview-pill, .month-title, .today-button, .secondary-button, .create-feature):not(:disabled):active,
 .quick-composer > button:first-child:not(:disabled):active,
 .inline-voice-examples button:not(:disabled):active,
 #sheet[data-sheet-surface=sheet] .sheet-header > button:not(:disabled):active,
@@ -8383,7 +8488,7 @@ button:is(.header-button, .small-icon, .close-button, .text-button, .section-vie
   background-color: var(--control-pressed);
 }
 
-button:is(.primary-button, .inline-record, .social-login, .send-button, .quick-mic):not(:disabled):active,
+button:is(.primary-button, .social-login, .send-button, .quick-mic):not(:disabled):active,
 #sheet[data-sheet-surface=sheet] .primary-button:not(:disabled):active {
   transform: none;
   opacity: 0.83;
@@ -8423,8 +8528,8 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   transition: background-color var(--motion-release) var(--motion-control-ease), border-color var(--motion-release) var(--motion-control-ease), color var(--motion-release) var(--motion-control-ease), box-shadow var(--motion-release) var(--motion-control-ease);
 }
 
-.calendar-grid > button:not(:disabled):active {
-  background-color: var(--control-pressed);
+:is(time, [data-countdown], .calendar-date-number, .agenda-clock, .home-date) {
+  font-variant-numeric: tabular-nums;
 }
 
 :is(.support-details, .custom-preview-disclosure)[open] > :not(summary) {
@@ -8451,14 +8556,14 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
     filter: none;
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
   }
-  button:is(.header-button, .small-icon, .close-button, .text-button, .section-view-button, .preview-pill, .month-title, .today-button, .voice-keyboard, .secondary-button, .create-feature):not(:disabled):hover:not(:active),
+  button:is(.header-button, .small-icon, .close-button, .text-button, .section-view-button, .preview-pill, .month-title, .today-button, .secondary-button, .create-feature):not(:disabled):hover:not(:active),
   .quick-composer > button:first-child:not(:disabled):hover:not(:active),
   .inline-voice-examples button:not(:disabled):hover:not(:active),
   #sheet[data-sheet-surface=sheet] .sheet-header > button:not(:disabled):hover:not(:active),
   #sheet[data-sheet-presentation=page] #sheet-header-actions > button:not(:disabled):hover:not(:active) {
     background-color: var(--control-hover);
   }
-  button:is(.primary-button, .inline-record, .social-login, .send-button, .quick-mic):not(:disabled):hover:not(:active),
+  button:is(.primary-button, .social-login, .send-button, .quick-mic):not(:disabled):hover:not(:active),
   #sheet[data-sheet-surface=sheet] .primary-button:not(:disabled):hover:not(:active) {
     opacity: 0.9;
   }
@@ -8472,7 +8577,6 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   #sheet[data-sheet-surface=sheet] .choice-trigger:not(:disabled):hover:not(:active) {
     border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
   }
-  .calendar-grid > button:not([aria-pressed=true]):not(:disabled):hover:not(:active),
   .theme-option:hover {
     background-color: var(--control-hover);
   }
@@ -8521,35 +8625,57 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   background-color: var(--control-pressed);
 }
 
+:is(.surface, .record-list, .custom-list, .settings-list):has(> :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row)),
+#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list):has(> :is(.record-row, .setting-row, .event-row)),
+#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) {
+  padding-inline: 0;
+}
+
 @media (hover: hover) and (pointer: fine) {
   #sheet[data-sheet-surface=sheet] .theme-options > .theme-option:not(:has(input:disabled)):hover:not(:active) {
     background-color: var(--control-hover);
   }
 }
 :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row),
+#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row),
 #sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) {
   position: relative;
-  isolation: isolate;
+  padding-inline: var(--list-surface-inset);
+  border-block-start: 0;
 }
 :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row)::before,
+#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row)::before,
 #sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option)::before {
+  content: none;
+}
+:is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row) + :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .guide-option, .time-choice, .theme-option)::after,
+#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row) + :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .guide-option, .time-choice, .theme-option)::after,
+#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) + :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .guide-option, .time-choice, .theme-option)::after {
   content: "";
   position: absolute;
-  inset-block: 0;
-  inset-inline: calc(-1 * var(--list-surface-inset));
-  z-index: -1;
-  border-radius: 0;
-  background-color: inherit;
-  pointer-events: auto;
+  inset: 0 var(--list-surface-inset) auto;
+  height: 1px;
+  background: var(--line);
+  pointer-events: none;
+}
+:is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row) > .feature-icon,
+#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row) > .feature-icon,
+#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) > .feature-icon {
+  display: inline-grid;
+  place-items: center;
+  align-self: center;
+}
+:is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row) > .feature-icon > .icon,
+#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row) > .feature-icon > .icon,
+#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) > .feature-icon > .icon {
+  margin: 0;
+  flex: none;
 }
 :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row):focus-visible, :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row):has(input:focus-visible),
+#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row):focus-visible,
+#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row):has(input:focus-visible),
 #sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option):focus-visible,
 #sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option):has(input:focus-visible) {
-  outline: none;
-}
-:is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row):focus-visible::before, :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row):has(input:focus-visible)::before,
-#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option):focus-visible::before,
-#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option):has(input:focus-visible)::before {
   outline: 2px solid var(--control-focus, var(--accent));
   outline-offset: -3px;
 }
@@ -8593,4 +8719,426 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
 }
 .reduce-motion .chat-panel::backdrop {
   animation: none !important;
+}
+
+#main[data-page=schedule] {
+  --calendar-date-size: 36px;
+  --calendar-cell-height: 48px;
+  --calendar-date-font: .90625rem;
+}
+
+.schedule-topbar > .page-heading {
+  margin-bottom: 18px;
+}
+
+.schedule-summary {
+  min-height: 72px;
+  margin: 0 0 20px;
+  padding: 12px 16px;
+  gap: 14px;
+  border-radius: 20px;
+}
+.schedule-summary > div {
+  min-width: 58px;
+  padding-right: 14px;
+}
+.schedule-summary > div strong {
+  font-size: 1.375rem;
+  line-height: 1.45;
+}
+.schedule-summary > p {
+  min-width: 0;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.schedule-summary > p span {
+  margin-top: 2px;
+  line-height: 1.55;
+}
+
+.calendar-modes {
+  padding: 4px;
+  margin-bottom: 18px;
+  border-radius: 16px;
+}
+
+.calendar-modes > button {
+  border-radius: 12px;
+  font-size: 0.8125rem;
+  font-weight: 550;
+}
+
+.calendar-surface {
+  padding: 12px 10px 12px;
+  user-select: none;
+}
+
+.month-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  min-height: 64px;
+  padding: 0 2px 8px;
+  align-items: center;
+}
+.month-header .month-title {
+  justify-self: start;
+  min-width: 0;
+  min-height: 56px;
+  padding: 3px 8px;
+  gap: 8px;
+  border-radius: 14px;
+  text-align: left;
+}
+.month-header .month-title > .icon {
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+.month-header .calendar-title-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.month-header .calendar-title-copy small {
+  color: var(--secondary);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.month-header .calendar-title-copy strong {
+  font-size: 1.375rem;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.35;
+}
+.month-header .calendar-navigation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.month-header .today-button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 11px;
+  border-radius: 22px;
+  background: var(--accent-soft);
+  font-size: 0.75rem;
+  font-weight: 550;
+}
+.month-header .calendar-period-nav {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--soft) 65%, transparent);
+}
+.month-header .calendar-period-nav .small-icon {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
+  padding: 0;
+  border-radius: 50%;
+}
+.month-header .calendar-period-nav .small-icon .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.weekdays {
+  margin-bottom: 4px;
+}
+.weekdays > span {
+  padding: 5px 0;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.weekdays > span:first-child {
+  color: #b87886;
+}
+
+.weekdays > span:last-child {
+  color: #7a92b1;
+}
+
+.calendar-grid {
+  gap: 4px 0;
+}
+.calendar-grid > button {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  min-width: 0;
+  min-height: var(--calendar-cell-height);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  opacity: 1;
+}
+.calendar-grid > button.outside {
+  opacity: 1;
+}
+.calendar-grid > button.outside .calendar-date-number {
+  color: var(--muted);
+  opacity: 0.48;
+}
+.calendar-grid > button.sunday {
+  color: #b87886;
+}
+.calendar-grid > button.saturday {
+  color: #7a92b1;
+}
+.calendar-grid > button.today .calendar-date-number {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: none;
+}
+.calendar-grid > button.selected .calendar-date-number {
+  background: var(--accent);
+  color: var(--canvas);
+  border-color: transparent;
+  opacity: 1;
+  font-weight: 600;
+  box-shadow: 0 2px 5px rgba(73, 110, 84, 0.1254901961);
+}
+.calendar-grid > button:focus-visible {
+  outline: none;
+}
+.calendar-grid > button:focus-visible .calendar-date-number {
+  outline: 2px solid var(--control-focus);
+  outline-offset: 2px;
+  opacity: 1;
+}
+.calendar-grid > button:not(:disabled):active {
+  background: transparent;
+  transform: none;
+}
+.calendar-grid > button:not(.selected):not(:disabled):active .calendar-date-number {
+  background: var(--control-pressed);
+  opacity: 1;
+}
+.calendar-grid > button.selected:not(:disabled):active .calendar-date-number {
+  box-shadow: inset 0 1px 3px rgba(23, 46, 39, 0.1411764706);
+}
+
+.calendar-date-number {
+  display: grid;
+  place-items: center;
+  width: min(var(--calendar-date-size), 100% - 4px);
+  height: auto;
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  font-size: var(--calendar-date-font);
+  font-weight: 500;
+  line-height: 1;
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+}
+
+.calendar-markers {
+  position: absolute;
+  bottom: 2px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  pointer-events: none;
+  gap: 3px;
+}
+
+.calendar-legend {
+  margin: 10px 4px 0;
+  padding-top: 10px;
+  gap: 14px;
+}
+
+.calendar-legend span {
+  font-size: 0.625rem;
+}
+
+.calendar-legend i {
+  width: 4px;
+  height: 4px;
+}
+
+.agenda-heading {
+  min-height: 48px;
+  align-items: center;
+  gap: 10px;
+  margin: 0 2px 12px;
+}
+.agenda-heading > div {
+  min-width: 0;
+}
+.agenda-heading > div p {
+  font-size: 0.6875rem;
+  letter-spacing: 0;
+  margin-bottom: 3px;
+}
+.agenda-heading h2 {
+  font-size: 1.3125rem;
+  letter-spacing: -0.035em;
+}
+.agenda-heading > span {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 14px;
+  color: var(--secondary);
+  background: var(--soft);
+  font-size: 0.6875rem;
+}
+
+.calendar-empty {
+  padding: 24px 16px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 22px;
+}
+
+.calendar-empty > .feature-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+.calendar-empty > .feature-icon .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.calendar-empty h3 {
+  font-size: 0.9375rem;
+  font-weight: 580;
+}
+
+.calendar-empty p {
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+
+.calendar-empty .secondary-button {
+  min-height: 44px;
+  margin-top: 18px;
+  padding: 9px 16px;
+  border-radius: 22px;
+  font-size: 0.8125rem;
+}
+
+.agenda-event {
+  border-radius: 18px;
+}
+
+.agenda-event:not(:disabled):active, .empty-hour:not(:disabled):active {
+  background-color: var(--control-pressed);
+}
+
+.week-day-group {
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.week-day-group.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--surface));
+}
+
+.week-day-heading {
+  margin-top: 0;
+  gap: 8px;
+}
+.week-day-heading > button:first-child {
+  min-height: 44px;
+}
+.week-day-heading > .small-icon {
+  border-radius: 50%;
+  background: var(--soft);
+}
+
+.week-empty {
+  padding: 6px 0 4px;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+.empty-hour {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+}
+
+.timeline-slot.is-current > .hour-label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.hour-label i {
+  margin-top: 3px;
+  font-size: 0.625rem;
+  font-weight: 500;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .calendar-grid > button:not(.selected):not(:disabled):hover:not(:active) .calendar-date-number {
+    background: var(--control-hover);
+    opacity: 1;
+  }
+  .calendar-grid > button.selected:not(:disabled):hover .calendar-date-number {
+    box-shadow: 0 2px 7px rgba(73, 110, 84, 0.2);
+  }
+  .empty-hour:hover {
+    color: var(--accent);
+    background: var(--control-hover);
+  }
+  .agenda-event:not(:disabled):hover:not(:active) {
+    background-color: var(--control-hover);
+  }
+}
+@media (min-width: 700px) {
+  #main[data-page=schedule] {
+    --calendar-cell-height: 56px;
+    --calendar-date-font: 1rem;
+  }
+  .schedule-topbar > .page-heading {
+    margin-bottom: 0;
+  }
+  .schedule-topbar .schedule-summary {
+    min-height: 88px;
+    padding: 16px 18px;
+  }
+  .calendar-surface {
+    padding: 14px 12px 14px;
+  }
+  .calendar-legend span {
+    font-size: 0.6875rem;
+  }
+  .schedule-layout.week .week-day-group {
+    padding: 12px 16px;
+    border-top: 1px solid var(--glass-edge);
+  }
+  .schedule-layout.week .week-day-group:has(> .week-empty) {
+    padding: 8px 16px;
+  }
+}
+@media (min-width: 1024px) {
+  #main[data-page=schedule] {
+    --calendar-cell-height: 60px;
+    --calendar-date-size: 38px;
+  }
+}
+[data-theme=dark] .weekdays > span:first-child, [data-theme=dark] .calendar-grid > button.sunday {
+  color: #d8a4af;
+}
+[data-theme=dark] .weekdays > span:last-child, [data-theme=dark] .calendar-grid > button.saturday {
+  color: #a9bdd7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-date-number {
+    transition: none;
+  }
+}
+.reduce-motion .calendar-date-number {
+  transition: none;
 }

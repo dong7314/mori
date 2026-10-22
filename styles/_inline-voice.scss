@@ -41,13 +41,35 @@
     .voice-capture:has(#voice-preview[hidden]) { display: none; }
     .voice-capture { margin: 0 .25rem 1rem; }
     #voice-preview { min-height: 4.5rem; padding: .75rem 1rem; border-radius: 1.125rem; background: var(--chat-tint); color: var(--chat-ink); font-size: 1rem; line-height: 1.7; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; }
-    .voice-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: .5rem; width: 100%; max-width: 20rem; margin-inline: auto; padding-bottom: .625rem; }
-    .voice-actions:has(.inline-record[hidden]) { grid-template-columns: 1fr; }
-    .inline-record, .voice-keyboard { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; min-height: var(--chat-control); min-width: 0; width: 100%; padding: .625rem .75rem; border: 1px solid var(--chat-line); border-radius: 1.5rem; font-size: .8125rem; line-height: 1.5; font-weight: 550; white-space: normal; overflow-wrap: anywhere; }
-    .inline-record { border-color: transparent; background: var(--voice-accent); color: var(--voice-on-accent); box-shadow: 0 3px 6px #52775e16, 0 7px 16px #52775e15, inset 0 1px 0 #ffffff24; }
-    .voice-keyboard { background: var(--chat-tint); color: var(--chat-secondary); box-shadow: 0 2px 5px #34405e06, inset 0 1px 0 #ffffff38; }
-    .inline-record .icon, .voice-keyboard .icon { width: 1.125rem; height: 1.125rem; flex-shrink: 0; }
+    .voice-actions { display: grid; width: 100%; max-width: 12.75rem; margin: .375rem auto 0; padding-bottom: .875rem; }
+    .voice-actions:has(.inline-record[hidden]) { display: none; }
+    .inline-record {
+      display: inline-flex; align-items: center; gap: .625rem;
+      min-height: 3.25rem; min-width: 0; width: 100%; padding: .3125rem 1.125rem .3125rem .3125rem;
+      border: 1px solid color-mix(in srgb, var(--voice-accent) 15%, transparent); border-radius: 2rem;
+      background: linear-gradient(155deg, #ffffffb3, #ffffff0a), var(--voice-soft);
+      color: var(--voice-accent); font-size: .875rem; line-height: 1.5; font-weight: 600; letter-spacing: -.02em;
+      box-shadow: 0 2px 4px #314b3810, 0 8px 20px #52775e12, inset 0 1px 0 #ffffffb3;
+      white-space: normal; overflow-wrap: anywhere;
+    }
+    .record-label { flex: 1; min-width: 0; text-align: center; }
+    .record-symbol {
+      position: relative; display: inline-grid; place-items: center;
+      flex: 0 0 2.5rem; width: 2.5rem; height: 2.5rem; border-radius: 50%;
+      color: var(--voice-on-accent);
+      background: linear-gradient(145deg, color-mix(in srgb, var(--voice-accent) 85%, #fff), var(--voice-accent));
+      box-shadow: 0 2px 5px #314b381f, inset 0 1px 0 #ffffff40;
+      transition: box-shadow 180ms ease;
+      .icon { width: 1.125rem; height: 1.125rem; }
+      &::after { content: ''; position: absolute; inset: .625rem; border: 1.5px solid currentColor; border-right-color: transparent; border-radius: 50%; opacity: 0; }
+    }
+    #record-button:not(:disabled):active { opacity: 1; background-color: color-mix(in srgb, var(--voice-soft) 86%, var(--voice-accent)); box-shadow: 0 1px 3px #314b3814, inset 0 1px 2px #52775e0d; }
+    #record-button[aria-busy=true] { opacity: .85; .record-symbol .icon { opacity: 0; } .record-symbol::after { opacity: 1; animation: record-processing 1s linear infinite; } }
     .voice-service-note { margin: .375rem .5rem .125rem; color: var(--chat-secondary); font-size: .6875rem; line-height: 1.6; text-align: center; }
+  }
+  @keyframes record-processing { to { rotate: 360deg; } }
+  @media (hover: hover) and (pointer: fine) {
+    .inline-voice #record-button:not(:disabled):hover:not(:active) { opacity: 1; background-color: color-mix(in srgb, var(--voice-soft) 93%, var(--voice-accent)); box-shadow: 0 3px 6px #314b3810, 0 10px 22px #52775e19, inset 0 1px 0 #ffffffb3; }
   }
   .chat-composer:is([data-voice-phase=requesting], [data-voice-phase=listening], [data-voice-phase=processing]) .voice-status { min-height: 3.3em; }
   .chat-composer[data-voice-phase=requesting] .voice-emblem .fluid-layer { animation-duration: 8s, 5s; }
@@ -65,7 +87,8 @@
     h3 { font-size: .875rem; letter-spacing: -.025em; }
     .voice-status { min-height: 0; margin-top: .125rem; font-size: .75rem; }
     .voice-actions { gap: .5rem; padding-block: .5rem .375rem; }
-    .inline-record { border-color: var(--chat-line); background: var(--chat-tint); color: var(--chat-secondary); box-shadow: none; }
+    .inline-record { min-height: 2.75rem; border-color: var(--chat-line); font-size: .8125rem; box-shadow: 0 2px 6px #52775e0a, inset 0 1px 0 #ffffff40; }
+    .record-symbol { flex-basis: 2rem; width: 2rem; height: 2rem; .icon { width: 1rem; height: 1rem; } }
   }
   .chat-panel .voice-fallback {
     display: grid; gap: .5rem; padding: .5rem .25rem;
@@ -76,17 +99,25 @@
   }
   .inline-voice-examples {
     margin-inline: .25rem;
-    summary { display: flex; align-items: center; min-height: 2.75rem; color: var(--chat-secondary); font-size: .75rem; cursor: pointer; }
-    summary::after { content: '+'; margin-left: auto; padding-inline: .25rem; font-size: 1rem; }
-    &[open] summary::after { content: '−'; }
-    > div { display: flex; flex-wrap: wrap; gap: .5rem; }
-    button { flex: 1 1 8rem; min-height: 2.75rem; padding: .625rem .75rem; border-radius: .875rem; background: var(--chat-tint); border: 1px solid var(--chat-line); color: var(--chat-ink); font-size: .75rem; line-height: 1.5; text-align: left; }
+    .voice-examples-toggle { display: flex; align-items: center; justify-content: space-between; gap: .75rem; width: 100%; min-height: 2.75rem; padding: .25rem .375rem; border-radius: .75rem; background: transparent; color: var(--chat-secondary); font-size: .75rem; text-align: left; }
+    .voice-examples-indicator {
+      position: relative; flex: 0 0 1.5rem; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--voice-soft); color: var(--voice-accent);
+      &::before, &::after { content: ''; position: absolute; inset: calc(50% - .75px) .4375rem auto; height: 1.5px; border-radius: 1px; background: currentColor; }
+      &::after { rotate: 90deg; transition: rotate 180ms ease, opacity 180ms ease; }
+    }
+    [aria-expanded=true] .voice-examples-indicator::after { rotate: 0deg; opacity: 0; }
+    .voice-example-list { display: flex; flex-wrap: wrap; align-items: stretch; gap: .5rem; min-height: 0; overflow: hidden; }
+    .voice-example-list > button { flex: 1 1 8.5rem; min-width: 0; min-height: 2.75rem; padding: .625rem .75rem; border-radius: .875rem; background: var(--chat-tint); border: 1px solid var(--chat-line); color: var(--chat-ink); font-size: .75rem; line-height: 1.5; text-align: left; }
     p { margin-top: .5rem; color: var(--chat-secondary); font-size: .6875rem; line-height: 1.6; }
   }
   @media (max-height: 42rem) {
-    .inline-voice .voice-emblem { --orb-size: 4rem; margin-bottom: .75rem; }
+    .inline-voice .voice-emblem { --orb-size: 4rem; margin-bottom: .5rem; }
     .inline-voice .voice-stage { padding-bottom: .375rem; }
+    .inline-voice .voice-status { margin-top: .375rem; }
+    .inline-voice .voice-actions { margin-top: .125rem; padding-bottom: .5rem; }
   }
-  @media (prefers-reduced-motion: reduce) { .inline-voice { animation: none !important; } }
-  .reduce-motion .inline-voice { animation: none !important; }
+  [data-theme=dark] .inline-voice .inline-record { background-image: linear-gradient(155deg, #ffffff0a, transparent); box-shadow: 0 2px 4px #00000015, 0 8px 20px #0000001a, inset 0 1px 0 #ffffff14; }
+  @media (prefers-reduced-motion: reduce) { .inline-voice, .inline-voice .record-symbol::after { animation: none !important; } .voice-examples-indicator::after { transition: none !important; } }
+  .reduce-motion :is(.inline-voice, .inline-voice .record-symbol::after) { animation: none !important; }
+  .reduce-motion .voice-examples-indicator::after { transition: none !important; }
 }

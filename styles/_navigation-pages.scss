@@ -1,5 +1,9 @@
 // Reading and editing are destinations in the app, not floating windows.
 @mixin styles {
+  .navigation-title-outgoing {
+    pointer-events: none; user-select: none; z-index: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   #sheet[data-sheet-surface="sheet"][data-sheet-presentation="page"] {
     --sheet-gutter: clamp(20px, 5vw, 32px);
     --page-reading-width: 760px;
@@ -13,10 +17,11 @@
       padding: calc(8px + env(safe-area-inset-top)) max(var(--sheet-gutter), calc((100% - var(--page-reading-width)) / 2)) 8px;
       border: 0; background: var(--canvas);
       box-shadow: none;
-      > h2 { font-size: 1rem; font-weight: 600; }
+      > h2 { font-size: 1rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       > h2:focus { outline: none; }
       #sheet-back {
-        justify-content: flex-start; border: 0; border-radius: 0;
+        justify-content: center; width: 44px; margin-inline-start: -10px;
+        border: 0; border-radius: 50%;
         color: var(--accent); background: transparent; box-shadow: none;
         > .icon { width: 23px; height: 23px; stroke-width: 1.9; }
       }
@@ -27,12 +32,13 @@
       grid-column: 3; grid-row: 1; display: flex; align-items: center; justify-content: flex-end;
       gap: 0; min-width: 0;
       > button {
-        display: inline-flex; align-items: center; justify-content: flex-end;
+        display: inline-flex; align-items: center; justify-content: center;
         min-width: 44px; min-height: 44px; width: auto; margin: 0; padding: 0 0 0 8px;
         border: 0; border-radius: 8px; background: transparent; box-shadow: none;
         color: var(--accent); font-size: .9375rem; font-weight: 600; line-height: 1.5;
         white-space: nowrap;
         > .icon { width: 21px; height: 21px; }
+        &:has(> .icon) { width: 44px; padding: 0; border-radius: 50%; }
         &:disabled { opacity: .35; }
       }
     }

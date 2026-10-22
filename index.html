@@ -79,9 +79,9 @@
           <div><h3 id="voice-title">편하게 말해 주세요</h3><p id="voice-subtitle" class="voice-status" role="status" aria-live="polite" aria-atomic="true">시작 버튼을 누르면 듣기 시작해요.</p></div>
         </div>
         <div class="voice-capture"><p id="voice-preview"></p></div>
-        <div class="voice-actions"><button id="record-button" type="button" class="inline-record" data-action="record"><svg class="icon" aria-hidden="true"><use href="#i-mic"/></svg><span>말하기 시작</span></button><button type="button" class="voice-keyboard" data-action="voice-keyboard"><svg class="icon" aria-hidden="true"><use href="#i-keyboard"/></svg><span>키보드로 입력</span></button></div>
+        <div class="voice-actions"><button id="record-button" type="button" class="inline-record" data-action="record"><span class="record-symbol" aria-hidden="true"><svg class="icon"><use href="#i-mic"/></svg></span><span class="record-label">말하기 시작</span></button></div>
         <div id="voice-fallback" class="voice-fallback" hidden><label for="voice-transcript">말하려던 내용</label><textarea id="voice-transcript" rows="2" maxlength="4000" placeholder="말하려던 내용을 적어 보세요"></textarea><button id="voice-send" type="button" class="text-button" data-action="voice-send" disabled>입력창에 담기 <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
-        <details id="voice-examples" class="inline-voice-examples"><summary>이렇게 말해 보세요</summary><div><button type="button" data-action="voice-example" data-text="지하 3층 B16에 주차했어. 내일 출근할 때 알려줘">주차 위치 기억하기</button><button type="button" data-action="voice-example" data-text="30분 뒤에 잠깐 쉬라고 알림 줘">30분 뒤 알림</button></div></details>
+        <div id="voice-examples" class="inline-voice-examples"><button id="voice-examples-toggle" class="voice-examples-toggle" type="button" aria-expanded="false" aria-controls="voice-example-list"><span>이렇게 말해 보세요</span><span class="voice-examples-indicator" aria-hidden="true"></span></button><div id="voice-example-list" class="voice-example-list" hidden><button type="button" data-action="voice-example" data-text="지하 3층 B16에 주차했어. 내일 출근할 때 알려줘">주차 위치 기억하기</button><button type="button" data-action="voice-example" data-text="30분 뒤에 잠깐 쉬라고 알림 줘">30분 뒤 알림</button></div></div>
         <p id="voice-service-note" class="voice-service-note" hidden></p>
       </section>
     </form>

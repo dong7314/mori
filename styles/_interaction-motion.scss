@@ -41,7 +41,7 @@
 
   // Icon buttons and secondary actions use one quiet, local surface state.
   .quick-composer > button:first-child { border-radius: 24px; }
-  button:is(.header-button, .small-icon, .close-button, .text-button, .section-view-button, .preview-pill, .month-title, .today-button, .voice-keyboard, .secondary-button, .create-feature):not(:disabled):active,
+  button:is(.header-button, .small-icon, .close-button, .text-button, .section-view-button, .preview-pill, .month-title, .today-button, .secondary-button, .create-feature):not(:disabled):active,
   .quick-composer > button:first-child:not(:disabled):active,
   .inline-voice-examples button:not(:disabled):active,
   #sheet[data-sheet-surface="sheet"] .sheet-header > button:not(:disabled):active,
@@ -50,7 +50,7 @@
     opacity: 1;
     background-color: var(--control-pressed);
   }
-  button:is(.primary-button, .inline-record, .social-login, .send-button, .quick-mic):not(:disabled):active,
+  button:is(.primary-button, .social-login, .send-button, .quick-mic):not(:disabled):active,
   #sheet[data-sheet-surface="sheet"] .primary-button:not(:disabled):active {
     transform: none;
     opacity: .83;
@@ -84,7 +84,7 @@
       color var(--motion-release) var(--motion-control-ease),
       box-shadow var(--motion-release) var(--motion-control-ease);
   }
-  .calendar-grid > button:not(:disabled):active { background-color: var(--control-pressed); }
+  :is(time, [data-countdown], .calendar-date-number, .agenda-clock, .home-date) { font-variant-numeric: tabular-nums; }
   :is(.support-details, .custom-preview-disclosure)[open] > :not(summary) {
     animation: control-content-reveal 160ms var(--motion-control-ease);
   }
@@ -104,14 +104,14 @@
       filter: none;
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
     }
-    button:is(.header-button, .small-icon, .close-button, .text-button, .section-view-button, .preview-pill, .month-title, .today-button, .voice-keyboard, .secondary-button, .create-feature):not(:disabled):hover:not(:active),
+    button:is(.header-button, .small-icon, .close-button, .text-button, .section-view-button, .preview-pill, .month-title, .today-button, .secondary-button, .create-feature):not(:disabled):hover:not(:active),
     .quick-composer > button:first-child:not(:disabled):hover:not(:active),
     .inline-voice-examples button:not(:disabled):hover:not(:active),
     #sheet[data-sheet-surface="sheet"] .sheet-header > button:not(:disabled):hover:not(:active),
     #sheet[data-sheet-presentation="page"] #sheet-header-actions > button:not(:disabled):hover:not(:active) {
       background-color: var(--control-hover);
     }
-    button:is(.primary-button, .inline-record, .social-login, .send-button, .quick-mic):not(:disabled):hover:not(:active),
+    button:is(.primary-button, .social-login, .send-button, .quick-mic):not(:disabled):hover:not(:active),
     #sheet[data-sheet-surface="sheet"] .primary-button:not(:disabled):hover:not(:active) { opacity: .9; }
     :is(.segmented, .filter-chips, .state-picker) > button:not(.selected):not(:disabled):hover:not(:active),
     .tab-bar > button:not([aria-current]):not(:disabled):hover:not(:active),
@@ -119,7 +119,6 @@
     .window-menu > button:not([aria-pressed="true"]):not(:disabled):hover:not(:active) { background-color: var(--control-hover); }
     .choice-trigger:not(:disabled):hover:not(:active),
     #sheet[data-sheet-surface="sheet"] .choice-trigger:not(:disabled):hover:not(:active) { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
-    .calendar-grid > button:not([aria-pressed="true"]):not(:disabled):hover:not(:active),
     .theme-option:hover { background-color: var(--control-hover); }
     button:is(.danger-button, .logout-button):not(:disabled):hover:not(:active) {
       background-color: color-mix(in srgb, var(--danger) 6%, transparent);

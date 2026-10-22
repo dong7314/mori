@@ -58,8 +58,51 @@ test('clock refresh and replaced dashboard nodes do not replay route entrance', 
   motion.render('dashboard', { clock: '09:01' });
   assert.equal(replacement.animationCount, 0);
   motion.render('features');
-  assert.equal(replacement.animationCount, 1);
+  assert.equal(replacement.animationCount, 0, 'root tabs do not stagger the new cards');
+  assert.equal(main.animationCount, 1, 'one coordinated scene transition replaces card-by-card entrances');
+  assert.equal(main.options.duration, 260);
   assert.equal(replacement.classList.contains('motion-pending'), false);
+});
+
+test('calendar period changes keep the paper and toolbar still while the date grid follows direction', t => {
+  const { motion, main } = fixture(t);
+  const paper = new ElementStub(), grid = new ElementStub(), agenda = new ElementStub(), number = new ElementStub();
+  main.items = [paper, agenda]; grid.parentElement = paper;
+  main.querySelector = selector => ({ '.calendar-grid': grid, '.agenda-body': agenda,
+    '.agenda-body, .calendar-layout > section:last-child': agenda,
+    '.calendar-grid [aria-pressed="true"] .calendar-date-number': number })[selector] || null;
+  motion.render('schedule', { month: '2026-09', period: '2026-08-30/2026-10-03', date: '2026-09-30', calendar: 'month' });
+  const initialPaperAnimations = paper.animationCount;
+  motion.render('schedule', { month: '2026-10', period: '2026-09-27/2026-10-31', date: '2026-10-30', calendar: 'month' });
+  assert.equal(paper.animationCount, initialPaperAnimations, 'the calendar surface never moves behind hover targets');
+  assert.equal(grid.animationCount, 1);
+  assert.equal(grid.frames[0].translate, '8px 0');
+  assert.equal(grid.options.duration, 240);
+  assert.equal(number.animationCount, 0, 'the selected date never changes its circle size');
+  motion.render('schedule', { month: '2026-09', period: '2026-08-30/2026-10-03', date: '2026-09-30', calendar: 'month' });
+  assert.equal(grid.frames[0].translate, '-8px 0');
+});
+
+test('crossing a week within one month updates the grid, while choosing a day only updates the agenda', t => {
+  const { motion, main, preference } = fixture(t);
+  const grid = new ElementStub(), agenda = new ElementStub(), number = new ElementStub();
+  main.items = [];
+  main.querySelector = selector => ({ '.calendar-grid': grid, '.agenda-body': agenda,
+    '.agenda-body, .calendar-layout > section:last-child': agenda,
+    '.calendar-grid [aria-pressed="true"] .calendar-date-number': number })[selector] || null;
+  const state = { month: '2026-10', calendar: 'week', date: '2026-10-24', period: '2026-10-18/2026-10-24' };
+  motion.render('schedule', state);
+  motion.render('schedule', { ...state, date: '2026-10-25', period: '2026-10-25/2026-10-31' });
+  assert.equal(grid.animationCount, 1);
+  const agendaAnimations = agenda.animationCount;
+  motion.render('schedule', { ...state, date: '2026-10-26', period: '2026-10-25/2026-10-31' });
+  assert.equal(grid.animationCount, 1);
+  assert.equal(agenda.animationCount, agendaAnimations + 1);
+  assert.equal(agenda.options.duration, 220);
+  assert.equal(number.animationCount, 0);
+  preference.matches = true;
+  motion.render('schedule', { ...state, date: '2026-10-19' });
+  assert.equal(grid.animationCount, 1, 'reduced motion changes the period immediately');
 });
 
 for (const source of ['system', 'application']) {
@@ -147,6 +190,102 @@ test('navigation indicator adopts final geometry and animates transforms only', 
   assert.equal(indicator.frames[1].transform, 'translate3d(120px, 0px, 0) scale(1, 1)');
 });
 
+test('rapid tab changes and a clock refresh continue from the painted indicator', t => {
+  const nav = Object.assign(new ElementStub(), { scrollLeft: 0, scrollTop: 0, clientLeft: 0, clientTop: 0 });
+  const indicator = new ElementStub();
+  let x = 0;
+  const selected = new ElementStub();
+  selected.getBoundingClientRect = () => ({ left: x, top: 0, width: 100, height: 48 });
+  nav.querySelector = selector => selector === '[aria-current="page"]' ? selected : indicator;
+  const { motion, doc, main } = fixture(t, { nav });
+  motion.render('dashboard');
+  x = 100; motion.render('features');
+  const original = indicator.animation;
+  let painted = 36;
+  doc.defaultView.getComputedStyle = () => ({ width: '100px', height: '48px', transform: `matrix(1, 0, 0, 1, ${painted}, 0)` });
+  x = 200; motion.render('my');
+  assert.equal(original.state, 'cancelled');
+  assert.equal(indicator.frames[0].transform, 'matrix(1, 0, 0, 1, 36, 0) scale(1, 1)');
+  const entrances = main.animationCount;
+  painted = 82; motion.render('my', { clock: '09:01' });
+  assert.equal(indicator.frames[0].transform, 'matrix(1, 0, 0, 1, 82, 0) scale(1, 1)');
+  assert.equal(main.animationCount, entrances, 'background updates do not replay the root scene');
+  assert.equal(indicator.style.transform, 'translate3d(200px, 0px, 0)');
+});
+
+test('a second root navigation continues its painted opacity instead of flashing dim again', t => {
+  const { motion, doc, main } = fixture(t);
+  motion.render('dashboard'); motion.render('features');
+  doc.defaultView.getComputedStyle = () => ({ opacity: '.83', translate: '0 1.5px' });
+  motion.render('my');
+  assert.deepEqual(main.frames[0], { opacity: '.83', translate: '0 1.5px' });
+  assert.deepEqual(main.frames[1], { opacity: 1, translate: '0 0' });
+});
+
+test('in-flow choices animate occupied height and reverse without a layout jump', async t => {
+  const { motion, doc } = fixture(t);
+  const menu = Object.assign(new ElementStub(), { hidden: true, inert: true, matches: selector => selector === '.choice-options' });
+  menu.getBoundingClientRect = () => ({ height: 254 });
+  const opening = motion.disclosure(menu, true);
+  assert.equal(menu.frames[0].height, '0px');
+  assert.equal(menu.frames[1].height, '254px');
+  doc.defaultView.getComputedStyle = () => ({ opacity: '.6', translate: '0 -1px', height: '96px' });
+  const closing = motion.disclosure(menu, false);
+  assert.equal(menu.frames[0].height, '96px');
+  assert.equal(menu.frames[1].height, '0px');
+  assert.equal(menu.inert, true);
+  menu.animation.finish(); await Promise.all([opening, closing]);
+  assert.equal(menu.hidden, true);
+});
+
+function titleFixture(t) {
+  const { motion, preference } = fixture(t);
+  const parent = { layers: [], append(layer) { this.layers.push(layer); } };
+  const dialog = Object.assign(new ElementStub(), { open: true });
+  const title = Object.assign(new ElementStub(), { parentElement: parent, textContent: '새 메모', offsetLeft: 52, offsetTop: 16, offsetWidth: 240, offsetHeight: 24 });
+  title.closest = selector => selector === 'dialog' ? dialog : null;
+  title.cloneNode = () => {
+    const layer = new ElementStub(); layer.attributes = new Map([['id', 'sheet-title'], ['tabindex', '-1'], ['autofocus', '']]);
+    layer.removeAttribute = name => layer.attributes.delete(name);
+    layer.setAttribute = (name, value) => layer.attributes.set(name, value);
+    layer.remove = () => { parent.layers = parent.layers.filter(item => item !== layer); };
+    return layer;
+  };
+  return { motion, preference, parent, dialog, title };
+}
+
+test('page titles crossfade in the navigation direction without duplicate focus targets', async t => {
+  const { motion, parent, title } = titleFixture(t);
+  motion.swapTitle(title, '보관함');
+  const old = parent.layers[0];
+  assert.equal(old.textContent, '보관함');
+  assert.equal(old.attributes.has('id'), false);
+  assert.equal(old.attributes.has('tabindex'), false);
+  assert.equal(old.attributes.get('aria-hidden'), 'true');
+  assert.equal(old.attributes.has('inert'), true);
+  assert.equal(title.frames[0].translate, '14px 0');
+  old.animation.finish(); await Promise.resolve();
+  assert.equal(parent.layers.length, 0);
+  motion.swapTitle(title, '보관함', { back: true });
+  assert.equal(title.frames[0].translate, '-14px 0');
+});
+
+test('rapid title changes, dialog close and reduced motion clean up old labels', async t => {
+  const { motion, preference, parent, dialog, title } = titleFixture(t);
+  motion.swapTitle(title, '보관함'); const old = parent.layers[0];
+  title.textContent = '파일 가져오기'; motion.swapTitle(title, '새 메모');
+  await Promise.resolve();
+  assert.equal(parent.layers.length, 1);
+  assert.equal(parent.layers[0].textContent, '새 메모');
+  old.animation.dispatchEvent(new Event('finish'));
+  assert.equal(parent.layers.length, 1, 'a stale completion cannot remove the new transition');
+  dialog.close(); await Promise.resolve();
+  assert.equal(parent.layers.length, 0);
+  dialog.open = true; preference.matches = true;
+  motion.swapTitle(title, '보관함');
+  assert.equal(parent.layers.length, 0);
+});
+
 test('disclosure makes opening focusable immediately and hides only after exit', async t => {
   const { motion } = fixture(t);
   const menu = Object.assign(new ElementStub(), { hidden: true, inert: true });
@@ -206,6 +345,43 @@ test('rapid disclosure reversal ignores queued cancel and stale finish events', 
   latest.finish();
   await reopening;
   assert.equal(menu.hidden, false);
+});
+
+test('inline voice examples grow locally and reverse from their painted height', async t => {
+  const { motion, dialog, doc } = fixture(t);
+  const list = Object.assign(new ElementStub(), { hidden: true, inert: true, parentElement: dialog });
+  list.getBoundingClientRect = () => ({ height: 96 });
+  doc.defaultView.getComputedStyle = () => ({ height: '36px', opacity: '.6', translate: '0 -1px' });
+  const opening = motion.disclosure(list, true, { inFlow: true }), first = list.animation;
+  assert.equal(list.frames[0].height, '0px');
+  assert.equal(list.frames.at(-1).height, '96px');
+  const closing = motion.disclosure(list, false, { inFlow: true }), second = list.animation;
+  assert.equal(list.frames[0].height, '36px');
+  assert.equal(list.frames.at(-1).height, '0px');
+  const reopening = motion.disclosure(list, true, { inFlow: true });
+  assert.equal(list.frames[0].height, '36px');
+  await Promise.all([opening, closing]);
+  first.dispatchEvent(new Event('finish')); second.dispatchEvent(new Event('finish'));
+  await Promise.resolve();
+  assert.equal(list.hidden, false);
+  assert.equal(list.inert, false);
+  assert.equal(dialog.animationCount, 0, 'expanding examples never re-presents the voice panel');
+  list.animation.finish(); await reopening;
+});
+
+test('inline examples close immediately when reduced motion interrupts their height transition', async t => {
+  const { motion, preference } = fixture(t);
+  const list = Object.assign(new ElementStub(), { hidden: false, inert: false });
+  const closing = motion.disclosure(list, false, { inFlow: true });
+  assert.equal(list.hidden, false);
+  preference.matches = true; preference.dispatchEvent(new Event('change'));
+  await closing;
+  assert.equal(list.hidden, true);
+  assert.equal(list.inert, true);
+  await motion.disclosure(list, true, { inFlow: true });
+  assert.equal(list.hidden, false);
+  assert.equal(list.inert, false);
+  assert.equal(list.animationCount, 1);
 });
 
 test('reset settles disclosure to its last requested state without stale completion', async t => {

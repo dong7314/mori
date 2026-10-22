@@ -20,6 +20,7 @@
 @use 'interaction-motion';
 @use 'list-surfaces';
 @use 'chat-return-motion';
+@use 'calendar';
 @include flows.styles;
 @include inline-voice.styles;
 @include card-detail-page.styles;
@@ -33,3 +34,4 @@
 @include interaction-motion.styles;
 @include list-surfaces.styles;
 @include chat-return-motion.styles;
+@include calendar.styles;

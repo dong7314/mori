@@ -35,7 +35,10 @@ export function installOverlayScrollbars({ document: doc = globalThis.document, 
     });
   };
   const recheck = () => { rescan = true; queue(); };
-  const resize = new view.ResizeObserver(recheck);
+  // Size animation only changes thumb geometry. Roster discovery is already
+  // handled by DOM/style mutations and viewport changes; scanning every node
+  // on each disclosure frame would compete with its layout and paint.
+  const resize = new view.ResizeObserver(queue);
 
   function hostFor(target) {
     if (target === doc.scrollingElement) return doc.body;

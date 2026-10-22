@@ -1,7 +1,6 @@
-// Group padding belongs to the content and separators, not the feedback layer.
-// Extend feedback and the pointer target to the group's clipped edge without
-// moving its text or changing its measured height. A pseudo-element hit is
-// still delivered to the button, including the padded edge of a list row.
+// Each row owns its entire hit area and paints its background exactly once.
+// Keep the inset on its contents, rather than extending a second inherited
+// background over the group's padding during hover/press transitions.
 @mixin styles {
   :is(.surface, .record-list, .custom-list, .settings-list) {
     --list-surface-inset: 18px;
@@ -17,6 +16,12 @@
     }
     .theme-options > .theme-option:not(:has(input:disabled)):active { background-color: var(--control-pressed); }
   }
+
+  :is(.surface, .record-list, .custom-list, .settings-list):has(> :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row)),
+  #sheet[data-sheet-surface="sheet"] :is(.surface, .record-list, .settings-list):has(> :is(.record-row, .setting-row, .event-row)),
+  #sheet[data-sheet-surface="sheet"] :is(.guide-options, .time-choices, .stock-options, .theme-options) {
+    padding-inline: 0;
+  }
   @media (hover: hover) and (pointer: fine) {
     #sheet[data-sheet-surface="sheet"] .theme-options > .theme-option:not(:has(input:disabled)):hover:not(:active) {
       background-color: var(--control-hover);
@@ -24,25 +29,24 @@
   }
 
   :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row),
+  #sheet[data-sheet-surface="sheet"] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row),
   #sheet[data-sheet-surface="sheet"] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) {
     position: relative;
-    isolation: isolate;
+    padding-inline: var(--list-surface-inset);
+    border-block-start: 0;
 
-    &::before {
-      content: "";
-      position: absolute;
-      inset-block: 0;
-      inset-inline: calc(-1 * var(--list-surface-inset));
-      z-index: -1;
-      border-radius: 0;
-      background-color: inherit;
-      pointer-events: auto;
+    &::before { content: none; }
+    + :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .guide-option, .time-choice, .theme-option)::after {
+      content: ''; position: absolute;
+      inset: 0 var(--list-surface-inset) auto;
+      height: 1px; background: var(--line); pointer-events: none;
     }
 
-    // The enclosing group supplies the first/last/only row's corner shape.
-    // Inset separators remain exactly where the existing content starts.
-    &:focus-visible, &:has(input:focus-visible) { outline: none; }
-    &:focus-visible::before, &:has(input:focus-visible)::before {
+    > .feature-icon { display: inline-grid; place-items: center; align-self: center; }
+    > .feature-icon > .icon { margin: 0; flex: none; }
+
+    // The group clips feedback to its corners; focus stays inside that edge.
+    &:focus-visible, &:has(input:focus-visible) {
       outline: 2px solid var(--control-focus, var(--accent));
       outline-offset: -3px;
     }

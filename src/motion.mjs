@@ -1,13 +1,13 @@
-// Motion follows a change of context. Clock refreshes stay still, and content
-// never depends on an animation or an observer becoming ready to be readable.
+// Motion follows a change of context. Clock refreshes stay still, and native
+// content and controls stay usable throughout a transition.
 export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#tabs') } = {}) {
   if (!main) throw new TypeError('createMotion requires the page content element.');
   const doc = main.ownerDocument, view = doc.defaultView;
   const preference = view.matchMedia('(prefers-reduced-motion: reduce)');
   const active = new Set(), animations = new WeakMap(), messageStates = new WeakMap();
-  const opened = new WeakSet(), closing = new Map(), dialogListeners = new Map(), disclosures = new Map();
+  const opened = new WeakSet(), closing = new Map(), dialogListeners = new Map(), disclosures = new Map(), titleLayers = new Map();
   const ease = 'cubic-bezier(.22, 1, .36, 1)', spring = 'cubic-bezier(.22, .9, .28, 1)';
-  let observer, previous, navPosition, disposed = false;
+  let previous, navPosition, disposed = false;
   const reduced = element => disposed || preference.matches || doc.hidden ||
     doc.documentElement.classList.contains('reduce-motion') || Boolean(element?.closest('.reduce-motion'));
 
@@ -34,9 +34,9 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
   }
 
   function reset() {
-    observer?.disconnect(); observer = undefined;
     for (const animation of active) animation.cancel();
     active.clear();
+    for (const cleanup of [...titleLayers.values()]) cleanup();
     main.querySelectorAll('.motion-pending').forEach(element => element.classList.remove('motion-pending'));
     for (const operation of [...closing.values()]) operation.finish();
     for (const operation of [...disclosures.values()]) operation.finish();
@@ -44,7 +44,7 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
 
   // Small menus keep their DOM and focus targets throughout the transition.
   // A superseded operation can settle its promise, but cannot hide a reopened menu.
-  function disclosure(element, expanded) {
+  function disclosure(element, expanded, { inFlow = Boolean(element?.matches?.('.choice-options')) } = {}) {
     if (!element) return Promise.resolve();
     expanded = Boolean(expanded);
     const before = disclosures.get(element), wasHidden = element.hidden;
@@ -58,6 +58,7 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
       try { current = view.getComputedStyle?.(element); } catch { /* Optional visual continuity only. */ }
     }
     const start = current ? { opacity: current.opacity, translate: current.translate === 'none' ? '0 0' : current.translate } : undefined;
+    const currentHeight = current?.height;
     let resolveCompletion, finished = false;
     const promise = new Promise(resolve => { resolveCompletion = resolve; });
     const operation = { expanded, promise, finish: () => {
@@ -75,13 +76,16 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
     before?.finish();
     element.hidden = false;
     element.inert = !expanded;
+    // In-flow choices should reveal the space they occupy, rather than moving
+    // every field below them in a single frame before a separate list fade.
+    const height = inFlow ? `${element.getBoundingClientRect().height}px` : null;
     const animation = play(element, expanded ? [
-      start || { opacity: 0, translate: '0 -4px' },
-      { opacity: 1, translate: '0 0' },
+      { ...(start || { opacity: 0, translate: '0 -4px' }), ...(inFlow ? { height: currentHeight || '0px' } : {}) },
+      { opacity: 1, translate: '0 0', ...(inFlow ? { height } : {}) },
     ] : [
-      start || { opacity: 1, translate: '0 0' },
-      { opacity: 0, translate: '0 -3px' },
-    ], { duration: expanded ? 160 : 120, easing: expanded ? ease : 'cubic-bezier(.4, 0, 1, 1)', fill: expanded ? 'backwards' : 'forwards' });
+      { ...(start || { opacity: 1, translate: '0 0' }), ...(inFlow ? { height: currentHeight || height } : {}) },
+      { opacity: 0, translate: '0 -3px', ...(inFlow ? { height: '0px' } : {}) },
+    ], { duration: inFlow ? expanded ? 260 : 210 : expanded ? 160 : 120, easing: expanded || inFlow ? ease : 'cubic-bezier(.4, 0, 1, 1)', fill: expanded ? 'backwards' : 'forwards' });
     operation.animation = animation;
     if (!animation) operation.finish();
     else {
@@ -95,6 +99,35 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
     return enter(container, 0, { distance: 3, duration: 160 });
   }
 
+  function swapTitle(element, previousText, { back = false } = {}) {
+    titleLayers.get(element)?.();
+    if (!element?.isConnected || !previousText || previousText === element.textContent || reduced(element)) return;
+    const parent = element.parentElement, dialog = element.closest('dialog');
+    if (!parent || !dialog?.open) return;
+    const old = element.cloneNode(false);
+    for (const name of ['id', 'tabindex', 'autofocus']) old.removeAttribute(name);
+    old.textContent = previousText;
+    old.setAttribute('aria-hidden', 'true'); old.setAttribute('inert', '');
+    old.classList.add('navigation-title-outgoing');
+    Object.assign(old.style, { position: 'absolute', gridArea: 'auto', margin: '0px',
+      left: `${element.offsetLeft}px`, top: `${element.offsetTop}px`, width: `${element.offsetWidth}px`, height: `${element.offsetHeight}px` });
+    parent.append(old);
+    let incoming, outgoing;
+    const cleanup = () => {
+      incoming?.cancel(); outgoing?.cancel(); old.remove(); dialog.removeEventListener('close', cleanup);
+      if (titleLayers.get(element) === cleanup) titleLayers.delete(element);
+    };
+    titleLayers.set(element, cleanup); dialog.addEventListener('close', cleanup, { once: true });
+    const direction = back ? -1 : 1;
+    incoming = play(element, [{ opacity: 0, translate: `${direction * 14}px 0` }, { opacity: 1, translate: '0 0' }], { duration: 280 });
+    outgoing = play(old, [{ opacity: 1, translate: '0 0', offset: 0 }, { opacity: 0, translate: `${direction * -10}px 0`, offset: .68 }, { opacity: 0, translate: `${direction * -10}px 0`, offset: 1 }], { duration: 280, fill: 'forwards' });
+    if (!outgoing) cleanup();
+    else {
+      outgoing.addEventListener('finish', cleanup, { once: true });
+      outgoing.addEventListener('cancel', cleanup, { once: true });
+    }
+  }
+
   function visible(element) {
     const box = element.getBoundingClientRect(), page = main.getBoundingClientRect();
     return box.width > 0 && box.height > 0 && box.bottom > Math.max(0, page.top) &&
@@ -106,28 +139,16 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
     const candidates = [...new Set(elements)];
     const items = candidates.filter(element => !candidates.some(parent => parent !== element && parent.contains(element)));
     let index = 0;
-    const waiting = [];
     for (const item of items) {
       if (visible(item)) enter(item, index++ * stagger, { distance, duration });
-      else waiting.push(item);
     }
-    if (!waiting.length || typeof view.IntersectionObserver !== 'function') return;
-    // Offscreen sections remain visible. The observer only adds polish.
-    try {
-      observer = new view.IntersectionObserver(entries => {
-        entries.filter(entry => entry.isIntersecting).forEach((entry, position) => {
-          observer?.unobserve(entry.target);
-          enter(entry.target, position * 35, { distance: 10, duration: 420 });
-        });
-      }, { root: main, threshold: 0.06 });
-      waiting.forEach(item => observer.observe(item));
-    } catch { observer?.disconnect(); observer = undefined; }
   }
 
   function capture(scene, state) {
     return {
       scene,
-      month: main.querySelector('.month-title, .month-heading h2')?.textContent,
+      month: main.querySelector('.calendar-surface')?.dataset.month || main.querySelector('.month-title, .month-heading h2')?.textContent,
+      period: main.querySelector('.calendar-grid')?.dataset.period,
       date: main.querySelector('.calendar-grid [aria-pressed="true"], .selected-day')?.dataset.date,
       calendar: main.querySelector('.calendar-modes [aria-pressed="true"]')?.dataset.value,
       filter: main.querySelector('.segmented:not(.calendar-modes) [aria-pressed="true"], .filter-tabs .active')?.dataset.value,
@@ -137,7 +158,16 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
     };
   }
 
-  function moveNavigation(changed) {
+  function captureNavigation() {
+    const indicator = nav?.querySelector('[data-nav-indicator], .nav-indicator');
+    if (!navPosition || !indicator || !view.getComputedStyle) return null;
+    const style = view.getComputedStyle(indicator);
+    const width = parseFloat(style.width), height = parseFloat(style.height);
+    if (!style.transform || !Number.isFinite(width) || !Number.isFinite(height)) return null;
+    return { transform: style.transform === 'none' ? '' : style.transform, width, height, moving: Boolean(animations.get(indicator)) };
+  }
+
+  function moveNavigation(changed, painted) {
     const selected = nav?.querySelector('[aria-current="page"]');
     if (!selected) return;
     const indicator = nav.querySelector('[data-nav-indicator], .nav-indicator');
@@ -151,23 +181,29 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
       indicator.style.width = `${next.width}px`; indicator.style.height = `${next.height}px`;
       indicator.style.transformOrigin = '0 0';
       indicator.style.transform = `translate3d(${next.x}px, ${next.y}px, 0)`;
-      if (changed && navPosition && next.width > 0 && next.height > 0) play(indicator, [
-        { transform: `translate3d(${navPosition.x}px, ${navPosition.y}px, 0) scale(${navPosition.width / next.width}, ${navPosition.height / next.height})` },
+      if ((changed || painted?.moving) && navPosition && next.width > 0 && next.height > 0) play(indicator, [
+        { transform: painted ? `${painted.transform} scale(${painted.width / next.width}, ${painted.height / next.height})` : `translate3d(${navPosition.x}px, ${navPosition.y}px, 0) scale(${navPosition.width / next.width}, ${navPosition.height / next.height})` },
         { transform: `translate3d(${next.x}px, ${next.y}px, 0) scale(1, 1)` },
       ], { duration: 430, easing: spring });
       navPosition = next;
     }
     if (changed) play(selected.querySelector('.icon'), [
-      { scale: '.86', translate: '0 2px', offset: 0 },
-      { scale: '1.04', translate: '0 -1px', offset: 0.66 },
-      { scale: '1', translate: '0 0', offset: 1 },
-    ], { duration: 420, easing: spring });
+      { opacity: .55, translate: '0 1px' },
+      { opacity: 1, translate: '0 0' },
+    ], { duration: 240, easing: spring });
   }
 
   function render(scene, state = {}) {
     const current = capture(scene, state), changed = previous?.scene !== scene;
-    reset(); moveNavigation(changed && Boolean(previous));
-    if (changed) {
+    const paintedNav = captureNavigation();
+    const paintedScene = changed && animations.get(main) && view.getComputedStyle ? view.getComputedStyle(main) : null;
+    const sceneStart = { opacity: paintedScene?.opacity || .55, translate: paintedScene?.translate && paintedScene.translate !== 'none' ? paintedScene.translate : '0 5px' };
+    reset(); moveNavigation(changed && Boolean(previous), paintedNav);
+    if (changed && previous) {
+      // A root tab changes the whole scene together. Individual cards don't
+      // queue behind one another, and scrolling never replays their entrance.
+      play(main, [sceneStart, { opacity: 1, translate: '0 0' }], { duration: 260 });
+    } else if (changed) {
       // Independent sections: never animate both a card and its parent.
       reveal(main.querySelectorAll([
         '[data-motion="reveal"]', '.home-top', '.home-greeting',
@@ -178,14 +214,19 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
         '.schedule-topbar', '.calendar-modes', '.schedule-layout > section', '.quiet-card',
         '.feature-grid > .feature-tile', '.custom-list', '.create-feature',
         '.profile-summary', '.license-card', '.settings-list', '.brand-footer',
-      ].join(', ')));
+      ].join(', ')), { stagger: 25, distance: 8, duration: 380 });
     } else if (current.horizon !== previous.horizon) {
       reveal(main.querySelectorAll('.brief-card, .forecast-summary, .forecast-shelf'), { stagger: 40, distance: 10, duration: 400 });
-    } else if (current.calendar !== previous.calendar || current.month !== previous.month) {
-      reveal(main.querySelectorAll('.schedule-layout > section, .calendar-grid'), { stagger: 35, distance: 8, duration: 340 });
+    } else if (current.calendar !== previous.calendar || current.month !== previous.month || current.period !== previous.period) {
+      // Keep the calendar paper, toolbar and hover targets still. Only the new
+      // date grid and agenda change; never animate a surface and its grid twice.
+      const distance = current.calendar !== previous.calendar ? 0 : current.date > previous.date ? 8 : -8;
+      play(main.querySelector('.calendar-grid'), [
+        { opacity: .6, translate: `${distance}px 0` }, { opacity: 1, translate: '0 0' },
+      ], { duration: 240 });
+      enter(main.querySelector('.agenda-body'), 0, { distance: 4, duration: 220 });
     } else if (current.date !== previous.date) {
-      enter(main.querySelector('.agenda-body, .calendar-layout > section:last-child'), 0, { distance: 8, duration: 340 });
-      play(main.querySelector('.calendar-grid [aria-pressed="true"] .calendar-date-number'), [{ scale: '.9' }, { scale: '1' }], { duration: 320, easing: spring });
+      enter(main.querySelector('.agenda-body, .calendar-layout > section:last-child'), 0, { distance: 4, duration: 220 });
     } else if (current.filter !== previous.filter) {
       reveal(main.querySelectorAll('.feature-grid > .feature-tile, .custom-list, .create-feature, .memory-grid > article'), { stagger: 35, distance: 8, duration: 360 });
     } else if (current.search !== previous.search) {
@@ -269,7 +310,7 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
 
   const focus = event => {
     for (let element = event.target; element && element !== main; element = element.parentElement) {
-      observer?.unobserve(element); element.classList?.remove('motion-pending');
+      element.classList?.remove('motion-pending');
       // Opening disclosures deliberately expose focus targets immediately. Their
       // autofocus must not cancel the entrance it was just allowed to enter.
       if (!disclosures.get(element)?.expanded) animations.get(element)?.cancel();
@@ -292,5 +333,5 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
     dialogListeners.clear();
   }
 
-  return { render, enter, result, disclosure, messages, openDialog, closeDialog, reset, destroy };
+  return { render, enter, result, swapTitle, disclosure, messages, openDialog, closeDialog, reset, destroy };
 }
