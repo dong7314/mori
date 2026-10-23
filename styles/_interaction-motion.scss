@@ -41,7 +41,7 @@
 
   // Icon buttons and secondary actions use one quiet, local surface state.
   .quick-composer > button:first-child { border-radius: 24px; }
-  button:is(.header-button, .small-icon, .close-button, .text-button, .section-view-button, .preview-pill, .month-title, .today-button, .secondary-button, .create-feature):not(:disabled):active,
+  button:is(.header-button, .small-icon, .close-button, .month-title, .today-button, .secondary-button, .create-feature):not(:disabled):active,
   .quick-composer > button:first-child:not(:disabled):active,
   .inline-voice-examples button:not(:disabled):active,
   #sheet[data-sheet-surface="sheet"] .sheet-header > button:not(:disabled):active,
@@ -49,6 +49,20 @@
     transform: none;
     opacity: 1;
     background-color: var(--control-pressed);
+  }
+  // Text actions sit directly on a card or page. Keep that material visible
+  // instead of painting an opaque rectangle behind the label and chevron.
+  button:is(.text-button, .section-view-button, .window-trigger, .preview-pill),
+  #sheet[data-sheet-presentation="page"] #sheet-header-actions > button:not(:has(> .icon)) {
+    border-radius: .625rem;
+    background-color: transparent;
+  }
+  button:is(.text-button, .section-view-button, .window-trigger, .preview-pill):not(:disabled):active,
+  #main[data-page=dashboard] .section-view-button:not(:disabled):active,
+  #sheet[data-sheet-presentation="page"] #sheet-header-actions > button:not(:has(> .icon)):not(:disabled):active {
+    background-color: transparent;
+    color: var(--accent);
+    opacity: .65;
   }
   button:is(.primary-button, .social-login, .send-button, .quick-mic):not(:disabled):active,
   #sheet[data-sheet-surface="sheet"] .primary-button:not(:disabled):active {
@@ -104,12 +118,18 @@
       filter: none;
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
     }
-    button:is(.header-button, .small-icon, .close-button, .text-button, .section-view-button, .preview-pill, .month-title, .today-button, .secondary-button, .create-feature):not(:disabled):hover:not(:active),
+    button:is(.header-button, .small-icon, .close-button, .month-title, .today-button, .secondary-button, .create-feature):not(:disabled):hover:not(:active),
     .quick-composer > button:first-child:not(:disabled):hover:not(:active),
     .inline-voice-examples button:not(:disabled):hover:not(:active),
     #sheet[data-sheet-surface="sheet"] .sheet-header > button:not(:disabled):hover:not(:active),
     #sheet[data-sheet-presentation="page"] #sheet-header-actions > button:not(:disabled):hover:not(:active) {
       background-color: var(--control-hover);
+    }
+    button:is(.text-button, .section-view-button, .window-trigger, .preview-pill):not(:disabled):hover:not(:active),
+    #main[data-page=dashboard] .section-view-button:not(:disabled):hover:not(:active),
+    #sheet[data-sheet-presentation="page"] #sheet-header-actions > button:not(:has(> .icon)):not(:disabled):hover:not(:active) {
+      background-color: transparent;
+      color: color-mix(in srgb, var(--accent) 76%, var(--ink));
     }
     button:is(.primary-button, .social-login, .send-button, .quick-mic):not(:disabled):hover:not(:active),
     #sheet[data-sheet-surface="sheet"] .primary-button:not(:disabled):hover:not(:active) { opacity: .9; }
