@@ -1,7 +1,34 @@
 // Each row owns its entire hit area and paints its background exactly once.
 // Keep the inset on its contents, rather than extending a second inherited
 // background over the group's padding during hover/press transitions.
+@mixin single-line {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 @mixin styles {
+  // Preview text must not change a row's density. Full text remains in the
+  // destination; do not apply this to detail copy, messages or form guidance.
+  :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .conversation-draft) > :is(.row-content, .setting-copy) {
+    min-width: 0;
+    > :is(strong, small, .record-kind, .row-meta) { @include single-line; }
+    > small { min-block-size: 1.5em; line-height: 1.5; }
+  }
+  .stock-options > .setting-row > strong,
+  .agenda-content > strong,
+  .agenda-place > span,
+  .article-list > .article :is(h3, p, small),
+  .message-result > span > :is(strong, small) { @include single-line; }
+
+  .agenda-event-top { flex-wrap: nowrap; }
+  .agenda-event-top > span { @include single-line; }
+  .agenda-event-top > .event-kind { flex-shrink: 0; }
+  .stock-options > .setting-row > strong { flex: 1; }
+  .conversation-row > .row-date { align-self: flex-start; margin-top: 3px; }
+
   :is(.surface, .record-list, .custom-list, .settings-list) {
     --list-surface-inset: 18px;
   }

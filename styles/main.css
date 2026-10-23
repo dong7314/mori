@@ -8666,6 +8666,58 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   animation: none;
 }
 
+:is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .conversation-draft) > :is(.row-content, .setting-copy) {
+  min-width: 0;
+}
+:is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .conversation-draft) > :is(.row-content, .setting-copy) > :is(strong, small, .record-kind, .row-meta) {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+:is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .conversation-draft) > :is(.row-content, .setting-copy) > small {
+  min-block-size: 1.5em;
+  line-height: 1.5;
+}
+
+.stock-options > .setting-row > strong,
+.agenda-content > strong,
+.agenda-place > span,
+.article-list > .article :is(h3, p, small),
+.message-result > span > :is(strong, small) {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.agenda-event-top {
+  flex-wrap: nowrap;
+}
+
+.agenda-event-top > span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.agenda-event-top > .event-kind {
+  flex-shrink: 0;
+}
+
+.stock-options > .setting-row > strong {
+  flex: 1;
+}
+
+.conversation-row > .row-date {
+  align-self: flex-start;
+  margin-top: 3px;
+}
+
 :is(.surface, .record-list, .custom-list, .settings-list) {
   --list-surface-inset: 18px;
 }
@@ -9249,7 +9301,7 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   height: 18px;
 }
 
-.conversation-draft, .create-feature-row {
+.conversation-draft {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -9262,34 +9314,34 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   text-align: left;
   transition: background-color 160ms ease;
 }
-.conversation-draft > .feature-icon, .create-feature-row > .feature-icon {
+.conversation-draft > .feature-icon {
   width: 36px;
   height: 36px;
   flex-basis: 36px;
   border-radius: 12px;
 }
-.conversation-draft > .feature-icon > .icon, .create-feature-row > .feature-icon > .icon {
+.conversation-draft > .feature-icon > .icon {
   width: 20px;
   height: 20px;
 }
-.conversation-draft > span:not(.feature-icon), .create-feature-row > span:not(.feature-icon) {
+.conversation-draft > span:not(.feature-icon) {
   flex: 1;
   min-width: 0;
 }
-.conversation-draft strong, .create-feature-row strong {
+.conversation-draft strong {
   display: block;
   font-size: 0.9375rem;
   font-weight: 580;
   line-height: 1.5;
 }
-.conversation-draft small, .create-feature-row small {
+.conversation-draft small {
   display: block;
   margin-top: 3px;
   color: var(--secondary);
   font-size: 0.8125rem;
   line-height: 1.5;
 }
-.conversation-draft > .icon:last-child, .create-feature-row > .icon:last-child {
+.conversation-draft > .icon:last-child {
   width: 15px;
   height: 15px;
   color: var(--muted);
@@ -9297,10 +9349,6 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
 
 .conversation-draft {
   margin-top: 18px;
-}
-
-.create-feature-row {
-  margin-top: 12px;
 }
 
 button:is(.search-clear, .conversation-draft, .create-feature-row):not(:disabled):active {
@@ -9421,27 +9469,6 @@ button:is(.search-clear, .conversation-draft, .create-feature-row):not(:disabled
     font-size: 0.875rem;
     line-height: 1.5;
     font-weight: 450;
-  }
-  #main[data-page=conversations] .conversation-row {
-    align-items: flex-start;
-    padding-block: 17px;
-  }
-  #main[data-page=conversations] .conversation-row > .feature-icon {
-    align-self: flex-start;
-    margin-top: 2px;
-  }
-  #main[data-page=conversations] .conversation-row .row-content small {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    white-space: normal;
-    text-overflow: clip;
-    line-height: 1.55;
-    word-break: keep-all;
-    overflow-wrap: anywhere;
-  }
-  #main[data-page=conversations] .conversation-row .row-date {
-    padding-top: 3px;
   }
   #main[data-page=features] .segmented {
     margin-bottom: 20px;

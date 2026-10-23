@@ -276,7 +276,7 @@ function scheduleEvent(event, nextId = null, date = ui.date) {
   const kind = eventKind(event), span = eventDaySpan(event, date);
   return button('detail', `<span class="agenda-clock"><b>${span.startLabel}</b><small>${span.endLabel}</small></span>
     <span class="agenda-content"><span class="agenda-event-top"><span class="event-kind ${kind.value}">${kind.label}</span>${span.continuation ? `<span class="next-badge">${span.continuation}</span>` : ''}${event.id === nextId ? '<span class="next-badge">다음 일정</span>' : ''}</span>
-    <strong>${esc(event.title)}</strong><span class="agenda-range">${span.startLabel} – ${span.endLabel}</span><span class="agenda-place">${icon('pin')}${esc(event.place || '장소 미정')}</span></span>${arrow}`,
+    <strong>${esc(event.title)}</strong><span class="agenda-range">${span.startLabel} – ${span.endLabel}</span><span class="agenda-place">${icon('pin')}<span>${esc(event.place || '장소 미정')}</span></span></span>${arrow}`,
     `agenda-event ${kind.value} ${event.id === nextId ? 'is-next' : ''}`, `data-ref="event:${event.id}"`);
 }
 function schedule() {
@@ -328,10 +328,18 @@ function calendarJump(year = dayDate(ui.date).getFullYear()) {
 function featureStatus(id) {
   return ({parking: data.parking ? `${data.parking.floor} ${data.parking.spot}` : '저장된 위치 없음', news: `매일 ${clockLabel(data.news.time)}`, stock: data.stock.symbol, note: `${data.notes.length}개 저장됨`, schedule: `오늘 일정 ${todayEvents().length}개`, reminder: `진행 중 ${data.reminders.filter(r => !r.cancelled && r.target > current()).length}개`})[id];
 }
+function customFeatureRow(feature) {
+  const schedule = feature.time ? `${feature.repeat} ${clockLabel(feature.time)}` : '필요할 때 실행';
+  const result = feature.result ? ` · 최근 실행 ${shortDate(feature.result.at)} · 결과 ${feature.result.items.length}개` : '';
+  return button('detail', `${mark(feature.icon, 'purple')}<span class="row-content"><strong>${esc(feature.title)}</strong><small>${esc(schedule + result)}</small></span>${tag(!feature.work ? '초안' : feature.active ? '사용 중' : '중지', feature.active ? 'green' : '')}${arrow}`, 'custom-row', `data-ref="custom:${feature.id}"`);
+}
 function features() {
   return `${heading('기능', '', button('new-custom', icon('plus'), 'header-button', 'aria-label="새 기능 만들기"'))}<div class="segmented">${[['all', '모든 기능'], ['builtin', '기본 기능'], ['custom', '내 기능']].map(([v, title]) => button('feature-filter', title, ui.filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${ui.filter === v}"`)).join('')}</div>
     ${ui.filter !== 'custom' ? `${section('기본 기능', '<span class="section-caption">6가지</span>')}<div class="feature-grid">${BUILTINS.map(f => button('detail', `<span class="feature-tile-copy"><h3>${f.title}</h3><p>${f.subtitle}</p><span class="feature-status">${esc(featureStatus(f.id))}</span></span>${featureArt(f.id, featurePreviewParams(f.id))}${arrow}`, `feature-tile feature-tile--${f.id}`, `data-ref="${f.id}"`)).join('')}</div>` : ''}
-    ${ui.filter !== 'builtin' ? `${section('내 기능', `<span class="section-caption">${data.customs.filter(f => f.active).length}개 사용 중</span>`)}<div class="custom-list">${data.customs.map(f => button('detail', `${mark(f.icon, 'purple')}<span class="row-content"><strong>${esc(f.title)}</strong><small>${esc(f.time ? `${f.repeat} ${clockLabel(f.time)}` : '필요할 때 실행')}</small>${f.result ? `<span class="row-meta">최근 실행 ${shortDate(f.result.at)} · 결과 ${f.result.items.length}개</span>` : ''}</span>${tag(!f.work ? '초안' : f.active ? '사용 중' : '중지', f.active ? 'green' : '')}${arrow}`, 'custom-row', `data-ref="custom:${f.id}"`)).join('') || empty('spark', '아직 내 기능이 없어요', '반복할 일과 시간을 정해 만들어 보세요.')}</div><button class="create-feature-row" data-action="new-custom">${mark('plus', 'purple')}<span><strong>새 기능 만들기</strong><small>반복할 일과 시간 정하기</small></span>${arrow}</button>` : ''}`;
+    ${ui.filter !== 'builtin' ? `${section('내 기능', `<span class="section-caption">${data.customs.filter(f => f.active).length}개 사용 중</span>`)}<div class="custom-list">
+      ${data.customs.map(customFeatureRow).join('') || empty('spark', '아직 내 기능이 없어요', '반복할 일과 시간을 정해 만들어 보세요.')}
+      ${button('new-custom', `${mark('plus', 'purple')}<span class="row-content"><strong>새 기능 만들기</strong><small>반복할 일과 시간 정하기</small></span>${arrow}`, 'custom-row create-feature-row')}
+    </div>` : ''}`;
 }
 const themeLabel = () => ({system: '시스템 설정', light: '라이트', dark: '다크'})[selectedTheme];
 function my() {
@@ -624,7 +632,7 @@ function renderDetail(ref) {
   else if (kind === 'note') { if (!data.notes.length) return noteForm(); ui.recordSearch = ''; recordsSheet('note'); }
   else if (kind === 'schedule') {
     if (!sheetCardOrigin && !presentationSource?.matches('.brief-card')) return closeSheet().then(() => go('schedule'));
-    openSheet('스케줄', `<p class="sheet-description">${dateLabel(current())}</p><div class="surface">${todayEvents().map(eventRow).join('') || empty('calendar', '오늘 일정이 없어요', '새 약속을 추가하거나 달력에서 다른 날을 확인하세요.')}</div><div class="detail-actions">${button('new-event', icon('plus') + ' 일정 추가', 'secondary-button')}${button('go-schedule', '달력으로 보기 ' + arrow, 'secondary-button')}</div>`);
+    openSheet('스케줄', `<p class="sheet-description">${dateLabel(current())}</p><div class="surface">${todayEvents().map(event => scheduleEvent(event, null, dateKey(current()))).join('') || empty('calendar', '오늘 일정이 없어요', '새 약속을 추가하거나 달력에서 다른 날을 확인하세요.')}</div><div class="detail-actions">${button('new-event', icon('plus') + ' 일정 추가', 'secondary-button')}${button('go-schedule', '달력으로 보기 ' + arrow, 'secondary-button')}</div>`);
   }
   else if (kind === 'event') { const e = data.events.find(e => e.id === id); if (!e) return; const kind = eventKind(e); openSheet('나의 약속', `<div class="event-detail-top">${mark('calendar', kind.value)}${tag(kind.label, kind.value)}</div><div class="detail-title"><h2>${esc(e.title)}</h2><p>${dateLabel(dayDate(e.date))}</p></div><div class="event-detail-time">${icon('clock')}<div><strong>${e.time} <span>– ${eventEnd(e)}</span></strong><small>${eventDuration(e)}분 동안</small></div></div><div class="event-detail-place">${icon('pin')}<span>${esc(e.place || '장소를 정하지 않았어요')}</span></div>${e.memo ? `<div class="note-body">${esc(e.memo)}</div>` : ''}${button('edit-event', icon('compose') + ' 일정 편집하기', 'primary-button', `data-id="${id}"`)}`); }
   else if (kind === 'reminder' && id) { const r = data.reminders.find(r => r.id === id); if (!r) return; const done = current() >= r.target; openSheet('나의 알림', `<div class="timer-scene ${r.cancelled ? 'cancelled' : ''}"><p>${esc(r.title)}</p><div class="timer-ring"><svg viewBox="0 0 240 240" aria-hidden="true"><circle class="timer-track" cx="120" cy="120" r="108"/><circle class="timer-progress" cx="120" cy="120" r="108" stroke-dasharray="679" stroke-dashoffset="0"/></svg><div><span data-countdown="${id}">${r.cancelled ? '중지됨' : remaining(r.target)}</span><small>${r.cancelled ? '다시 시작할 수 있어요' : done ? '목표 시각이 되었어요' : '남은 시간'}</small></div></div><h2>${time(r.target)}</h2><p>기기 알림은 아직 지원하지 않아요</p></div><div class="detail-actions">${button('timer-extend', '+ 5분', 'secondary-button', `data-id="${id}"`)}${button('timer-cancel', r.cancelled ? '다시 30분 시작' : '알림 취소', r.cancelled ? 'primary-button' : 'secondary-button', `data-id="${id}"`)}</div>${developerPreview ? `<details class="support-details"><summary>알림 완료 화면 미리보기</summary><p class="field-help">체험 시간을 이 알림의 목표 시각으로 이동해요.</p>${button('timer-finish', '목표 시각으로 이동하기', 'text-button full', `data-id="${id}"`)}</details>` : ''}`, 'timer-sheet'); }

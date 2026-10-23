@@ -15,7 +15,7 @@
       > .icon { width: 18px; height: 18px; }
     }
   }
-  .conversation-draft, .create-feature-row {
+  .conversation-draft {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -34,7 +34,6 @@
     > .icon:last-child { width: 15px; height: 15px; color: var(--muted); }
   }
   .conversation-draft { margin-top: 18px; }
-  .create-feature-row { margin-top: 12px; }
   button:is(.search-clear, .conversation-draft, .create-feature-row):not(:disabled):active { background-color: var(--control-pressed); }
   @media (hover: hover) and (pointer: fine) {
     button:is(.search-clear, .conversation-draft, .create-feature-row):not(:disabled):hover:not(:active) { background-color: var(--control-hover); }
@@ -89,22 +88,6 @@
         > .feature-icon { flex: 0 0 32px; margin: 0; }
         > h3 { margin: 0; font-size: .875rem; line-height: 1.5; font-weight: 450; }
       }
-    }
-
-    #main[data-page=conversations] {
-      .conversation-row { align-items: flex-start; padding-block: 17px; }
-      .conversation-row > .feature-icon { align-self: flex-start; margin-top: 2px; }
-      .conversation-row .row-content small {
-        display: -webkit-box;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
-        white-space: normal;
-        text-overflow: clip;
-        line-height: 1.55;
-        word-break: keep-all;
-        overflow-wrap: anywhere;
-      }
-      .conversation-row .row-date { padding-top: 3px; }
     }
 
     #main[data-page=features] {
