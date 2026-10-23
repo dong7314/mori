@@ -669,13 +669,18 @@ function syncComposer() {
   if (nearBottom) messages.scrollTop = messages.scrollHeight;
   $('#chat-send').disabled = !input.value.trim() || input.value.length > 4000 || busy.has(ui.chatId) || voiceActive();
 }
-function openChat(id = null, returnSource = null) {
-  if ($('#chat-panel').open) persistDraft();
+function openChat(id = null, returnSource = null, presentation = 'composer') {
+  const dialog = $('#chat-panel');
+  if (dialog.open) persistDraft();
+  // Keep the original return direction when starting another conversation
+  // inside the open chat. A later launch from the dock gets its own mode.
+  else dialog.dataset.chatPresentation = presentation;
+  dialog.querySelector('[data-action=close-chat]').setAttribute('aria-label', dialog.dataset.chatPresentation === 'page' ? '대화 목록으로 돌아가기' : '대화 접기');
   stopVoice();
   ui.chatId = id; $('#chat-input').value = data.drafts[id || 'new'] || '';
   $('#chat-announcement').textContent = '';
   const source = [returnSource, presentationSource, $('#main [data-action=new-chat]'), $('#main [data-action=guide]'), $('#quick-composer [data-action=new-chat]'), $('#tabs [aria-current=page]')].find(isAvailableControl);
-  renderChat(true); presentations.show($('#chat-panel'), { source, kind: 'chat' }); syncComposer(); moveToast();
+  renderChat(true); presentations.show(dialog, { source, kind: 'chat' }); syncComposer(); moveToast();
 }
 function renderChat(forceScroll = false) {
   if ($('#chat-panel').dataset.closing) return;
@@ -981,8 +986,8 @@ document.addEventListener('click', async event => {
   if (a === 'guide') return guide();
   if (a === 'day-preview') { closeWindowMenu(); return dayPreview(); }
   if (a === 'set-clock') { setClock(data, Number(el.dataset.hour), Number(el.dataset.minute)); tickScheduled(data); save(); closeSheet(); go('dashboard'); render(); return toast('체험 시간을 바꿨어요. 지금 필요한 카드를 살펴보세요.'); }
-  if (a === 'new-chat') return openChat();
-  if (a === 'open-conversation') return openChat(id);
+  if (a === 'new-chat') return openChat(null, el, ui.view === 'conversations' && el.closest('#main') ? 'page' : 'composer');
+  if (a === 'open-conversation') return openChat(id, el, 'page');
   if (a === 'close-chat') { suspendVoice(); return presentations.dismiss($('#chat-panel')); }
   if (a === 'prompt') return prompt(el.dataset.prompt);
   if (a === 'chat-example') { if (voiceActive()) return toast('녹음을 마치거나 취소한 뒤 예시를 골라 주세요.'); if ($('#chat-input').value.trim()) { $('#chat-input').focus(); return toast('작성 중인 메시지를 먼저 보내거나 지워 주세요.'); } $('#chat-input').value = el.dataset.prompt; persistDraft(); syncComposer(); return $('#chat-input').focus(); }
@@ -1188,7 +1193,11 @@ document.addEventListener('input', event => { if (event.target.id === 'chat-inpu
 document.addEventListener('change', event => { if (event.target.closest('#custom-form')) updateCustomPreview(); });
 $('#chat-panel').addEventListener('close', () => {
   if ($('#chat-panel').open) return;
+  // The native close event runs after presentation has restored the opener.
+  // Refreshing the list must not remove that focused control without a replacement.
+  const returnFocus = $('#main').contains(document.activeElement) ? captureControl(document.activeElement) : null;
   stopVoice(); persistDraft(); render();
+  resolveControl($('#main'), returnFocus, { visible: true })?.focus({ preventScroll: true });
 });
 $('#voice-transcript').addEventListener('input', () => { voiceFallbackEdited = true; updateVoiceInput(); });
 $('#voice-examples-toggle').addEventListener('click', () => {

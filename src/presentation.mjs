@@ -59,7 +59,8 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     return { left, top, right, bottom, width: right - left, height: bottom - top };
   };
   const isCard = element => element?.matches?.('.brief-card, .forecast-card, .time-card.parking');
-  const isNavigationPage = dialog => dialog?.dataset.sheetPresentation === 'page' && !dialog.classList?.contains('card-page');
+  const isNavigationPage = dialog => dialog?.dataset.chatPresentation === 'page' ||
+    dialog?.dataset.sheetPresentation === 'page' && !dialog.classList?.contains('card-page');
   function captureVisual(source) {
     const rect = isCard(source) && visibleRect(source);
     if (!rect) return null;

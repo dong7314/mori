@@ -849,6 +849,46 @@ test('reduced-motion navigation pages appear and return without horizontal anima
   assert.equal(view.open, false);
 });
 
+test('a list conversation returns horizontally and the same dialog can reopen vertically from the dock', async () => {
+  const view = dialog(), listTrigger = source(), dockTrigger = source(), presentation = createPresentations();
+  view.dataset.chatPresentation = 'page';
+  presentation.show(view, { source: listTrigger, kind: 'chat' });
+  assert.equal(view.animations.at(-1).frames[0].transform, 'translateX(390px)');
+  view.animations.at(-1).finish(); await Promise.resolve();
+  // A new conversation inside the open page must retain its return route.
+  presentation.show(view, { source: source(), kind: 'chat' });
+  view.getBoundingClientRect = () => ({ left: 0, top: 0, width: 430, height: 844 });
+  const closingPage = presentation.dismiss(view);
+  assert.equal(view.animations.at(-1).frames.at(-1).transform, 'translateX(430px)');
+  assert.deepEqual(view.animations.at(-1).frames.map(frame => Number(frame.opacity)), [1, 1]);
+  view.animations.at(-1).finish(); await closingPage;
+  assert.deepEqual(listTrigger.focused, { preventScroll: true });
+  view.dataset.chatPresentation = 'composer';
+  presentation.show(view, { source: dockTrigger, kind: 'chat' });
+  assert.equal(view.animations.at(-1).frames[0].transform, 'translateY(844px)');
+  view.animations.at(-1).finish(); await Promise.resolve();
+  const closingDock = presentation.dismiss(view);
+  assert.equal(view.animations.at(-1).frames.at(-1).transform, 'translateY(844px)');
+  view.animations.at(-1).finish(); await closingDock;
+  assert.deepEqual(dockTrigger.focused, { preventScroll: true });
+});
+
+test('list conversations respect reduced motion and ignore the modal vertical pull gesture', async () => {
+  const view = dialog(), trigger = source(), presentation = createPresentations({ reducedMotion: () => true });
+  view.dataset.chatPresentation = 'page';
+  presentation.pullToDismiss(view, () => assert.fail('A navigation conversation must not dismiss vertically'));
+  presentation.show(view, { source: trigger, kind: 'chat' });
+  view.dispatch('pointerdown', { preventDefault() { assert.fail('Navigation must not capture a vertical drag'); } });
+  view.dispatch('pointermove', { clientY: 360 });
+  view.dispatch('pointerup', { clientY: 360 });
+  assert.equal(view.style.transform, undefined);
+  assert.equal(view.open, true);
+  await presentation.dismiss(view);
+  assert.equal(view.animations.length, 0);
+  assert.equal(view.open, false);
+  assert.deepEqual(trigger.focused, { preventScroll: true });
+});
+
 test('mobile chat enters and returns through the viewport edge without fading its text', async () => {
   const view = dialog(), trigger = source(), presentation = createPresentations();
   presentation.show(view, { source: trigger, kind: 'chat' });
