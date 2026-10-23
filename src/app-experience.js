@@ -6,6 +6,7 @@ import { createVoicePreview } from './voice-preview.mjs';
 import { installOverlayScrollbars } from './overlay-scrollbars.mjs';
 import { createAccountLoader } from './account-session.mjs';
 import { createFormDrafts } from './form-drafts.mjs';
+import { showFormError, clearFormError } from './form-feedback.mjs';
 import { VERSION, BUILTINS, seed, uid, esc, dateKey, nowOf, setClock, dashboardCards, applyRequest, runCustom, minuteOf, tickScheduled } from './experience.mjs';
 import { DASHBOARD_WINDOWS, dashboardTimeline } from './dashboard-timeline.mjs';
 import { recordsOf, conversationGroups, customPreview } from './experience-library.mjs';
@@ -1015,24 +1016,27 @@ document.addEventListener('click', async event => {
     finally { busy.delete('logout'); el.disabled = false; }
   }
 });
+for (const type of ['input', 'change']) document.addEventListener(type, event => {
+  const form = event.target.form || event.target.closest('form');
+  if (form) clearFormError(form, form.id === 'note-form' ? null : event.target);
+});
 document.addEventListener('submit', async event => {
   event.preventDefault(); const form = event.target, v = Object.fromEntries(new FormData(form)), id = form.dataset.id;
   if (form.id === 'conversation-form') { const c = data.conversations.find(c => c.id === id); if (!c || !v.title.trim()) return; c.title = v.title.trim(); save(); closeSheet(); render(); renderChat(); return toast('대화 이름을 바꿨어요.'); }
   if (form.id === 'chat-form') return send(v.message || '');
-  if (form.id === 'parking-form') { try { const payload = parkingAttempt(null, parkingValues(form)).payload; data.parking = { ...payload, at: current() }; save(); render(); openDetail('parking'); return toast('위치와 표시 방식을 기억했어요.'); } catch (err) { form.querySelector('.form-error').textContent = err.message; } return; }
+  if (form.id === 'parking-form') { try { const payload = parkingAttempt(null, parkingValues(form)).payload; data.parking = { ...payload, at: current() }; save(); render(); openDetail('parking'); return toast('위치와 표시 방식을 기억했어요.'); } catch (err) { showFormError(form, err.message); } return; }
   if (form.id === 'note-form') {
-    const error = form.querySelector('.form-error');
-    if (!v.title.trim() && !v.body.trim()) { error.textContent = '제목이나 내용을 한 줄 남겨주세요.'; return; }
+    if (!v.title.trim() && !v.body.trim()) { showFormError(form, '제목이나 내용을 한 줄 남겨주세요.', { field: 'title' }); return; }
     const n = { id: id || uid(), title: v.title.trim() || v.body.slice(0, 28), body: v.body.trim(), at: current() }, previous = data.notes;
     data.notes = id ? previous.map(note => note.id === id ? n : note) : [n, ...previous];
-    if (!save()) { data.notes = previous; error.textContent = '저장하지 못했어요. 작성한 내용은 유지됩니다. 저장 공간을 확보한 뒤 다시 시도해 주세요.'; return; }
+    if (!save()) { data.notes = previous; showFormError(form, '저장하지 못했어요. 작성한 내용은 유지됩니다. 저장 공간을 확보한 뒤 다시 시도해 주세요.'); return; }
     formDrafts.commit(form); render(); openDetail(`note:${n.id}`); return toast('메모를 저장했어요.');
   }
   if (form.id === 'event-form') {
     const e = { id: id || uid(), title: v.title.trim(), date: v.date, time: v.time, place: v.place.trim(), color: v.color, duration: Number(v.duration), memo: v.memo.trim() }, previous = data.events;
-    if (!e.title) { form.querySelector('.form-error').textContent = '일정 이름을 입력해 주세요.'; return; }
+    if (!e.title) { showFormError(form, '일정 이름을 입력해 주세요.', { field: 'title' }); return; }
     data.events = id ? previous.map(event => event.id === id ? e : event) : [...previous, e];
-    if (!save()) { data.events = previous; form.querySelector('.form-error').textContent = '저장하지 못했어요. 작성한 내용을 확인하고 다시 시도해 주세요.'; return; }
+    if (!save()) { data.events = previous; showFormError(form, '저장하지 못했어요. 작성한 내용을 확인하고 다시 시도해 주세요.'); return; }
     ui.date = e.date; ui.month = new Date(e.date + 'T12:00:00'); ui.month.setDate(1);
     formDrafts.commit(form); render(); openDetail(`event:${e.id}`); return toast('약속을 저장했어요.');
   }
@@ -1041,7 +1045,7 @@ document.addEventListener('submit', async event => {
     const f = { ...existing, id: id || uid(), title: v.title.trim() || v.work.trim().slice(0, 24) || '새로운 내 기능', work: v.work.trim(), description: v.description.trim(), time: v.time, repeat: v.time ? (v.repeat === '필요할 때' ? '매일' : v.repeat) : '필요할 때', icon: customPreview(v).icon, active: Boolean(v.work.trim()) && (existing?.work?.trim() ? existing.active : true), content: v.content.trim(), version: (existing?.version || 0) + 1, runs: existing?.runs || 0, result: existing?.result || null };
     if (existing && (existing.time !== f.time || existing.repeat !== f.repeat)) delete f.occurrence;
     data.customs = existing ? previous.map(custom => custom.id === id ? f : custom) : [...previous, f];
-    if (!save()) { data.customs = previous; form.querySelector('.form-error').textContent = '저장하지 못했어요. 작성한 내용을 확인하고 다시 시도해 주세요.'; return; }
+    if (!save()) { data.customs = previous; showFormError(form, '저장하지 못했어요. 작성한 내용을 확인하고 다시 시도해 주세요.'); return; }
     formDrafts.commit(form); render(); openDetail(`custom:${f.id}`); return toast(f.work ? '내 기능으로 저장했어요.' : '기능 초안을 저장했어요.');
   }
   if (form.id === 'news-form') { data.news.topic = v.topic.trim(); data.news.time = v.time; save(); render(); openDetail('news'); return toast('브리핑 설정을 저장했어요.'); }
@@ -1073,7 +1077,7 @@ document.addEventListener('submit', async event => {
       toast(form.id === 'profile-form' ? '사용자 정보를 수정했어요.' : '테마를 적용했어요.');
     } catch (err) {
       if (err.status === 409) await loadAccount();
-      if (form.isConnected) form.querySelector('.form-error').textContent = err.status === 409 ? '다른 곳에서 변경됐어요. 최신 정보를 불러왔으니 내용을 확인하고 다시 저장해 주세요.' : err.message;
+      if (form.isConnected) showFormError(form, err.status === 409 ? '다른 곳에서 변경됐어요. 최신 정보를 불러왔으니 내용을 확인하고 다시 저장해 주세요.' : err.message);
     } finally { submit.disabled = false; }
     return;
   }
@@ -1089,7 +1093,7 @@ document.addEventListener('submit', async event => {
       if (epoch === ui.sheetEpoch && form.isConnected) closeSheet();
       toast('계정에 위치와 표시 방식을 저장했어요.');
     } catch (err) {
-      if (epoch === ui.sheetEpoch && form.isConnected) form.querySelector('.form-error').textContent = err.message;
+      if (epoch === ui.sheetEpoch && form.isConnected) showFormError(form, err.message);
       else toast(err.message);
     } finally { submit.disabled = false; }
   }
