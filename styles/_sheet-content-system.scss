@@ -275,7 +275,7 @@
   @media (max-width: 360px) {
     #sheet[data-sheet-surface="sheet"] {
       .field-pair { grid-template-columns: minmax(0, 1fr); gap: 0; }
-      .detail-actions, .detail-toolbar { flex-direction: column; }
+      .detail-actions, .detail-toolbar { flex-direction: column; > button { flex: 0 0 auto; width: 100%; } }
       .parking-weekdays { grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); }
     }
   }

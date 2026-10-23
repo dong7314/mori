@@ -21,6 +21,7 @@
 @use 'list-surfaces';
 @use 'chat-return-motion';
 @use 'calendar';
+@use 'mobile-refinement';
 @include flows.styles;
 @include inline-voice.styles;
 @include card-detail-page.styles;
@@ -35,3 +36,5 @@
 @include list-surfaces.styles;
 @include chat-return-motion.styles;
 @include calendar.styles;
+
+@include mobile-refinement.styles;

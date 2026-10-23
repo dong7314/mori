@@ -73,7 +73,7 @@
 
   // Time browsing stays a horizontally browsable collection, never a four-up
   // miniature phone layout. Its start edge follows the normal card band.
-  .forecast-summary { padding: 18px 22px; margin-bottom: 24px; }
+  .forecast-summary { padding: 16px 20px; }
   .forecast-card { flex-basis: calc(50% - 7px); min-height: 212px; padding: 22px; }
   .forecast-rail { gap: 14px; padding-bottom: 16px; }
   .forecast-shelf { margin-bottom: 24px; }

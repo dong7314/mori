@@ -1,6 +1,27 @@
 // Dashboard collections preview records; creation stays in each destination.
 @mixin styles {
+  #main[data-page=dashboard] :is(.window-trigger, .section-view-button) {
+    font-size: .8125rem;
+    font-weight: 500;
+    line-height: 1.5;
+    letter-spacing: -.02em;
+  }
+
   #main[data-page=dashboard] .home-lower {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: none;
+
+    .dashboard-records .record-list > .empty-state {
+      display: grid;
+      grid-template-columns: 2rem minmax(0, 1fr);
+      gap: .25rem .75rem;
+      padding: 1.25rem 0;
+      text-align: left;
+      > .feature-icon { grid-row: 1 / 3; margin: 0; width: 2rem; height: 2rem; }
+      > h3 { grid-column: 2; margin: 0; font-size: .875rem; font-weight: 500; }
+      > p { grid-column: 2; margin: 0; font-size: .8125rem; line-height: 1.6; }
+    }
+
     .dashboard-section-heading {
       display: flex;
       align-items: center;
@@ -30,10 +51,6 @@
         background: none;
         color: var(--secondary);
         box-shadow: none;
-        font-size: .8125rem;
-        font-weight: 500;
-        line-height: 1.5;
-        letter-spacing: -.02em;
         white-space: nowrap;
 
         > .icon {

@@ -268,18 +268,7 @@
           word-break: keep-all;
         }
       }
-      .forecast-card-bottom {
-        flex: 0 0 auto;
-        justify-content: flex-start;
-        gap: .375rem;
-        margin: 0;
-        color: var(--secondary);
-        font-size: .75rem;
-        font-weight: 400;
-        line-height: 1.6;
-        overflow-wrap: anywhere;
-        > .icon { display: none; }
-      }
+
     }
 
     .card-detail-body {

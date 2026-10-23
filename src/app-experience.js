@@ -39,7 +39,6 @@ try { data = JSON.parse(localStorage.getItem(KEY) ?? (previewId ? localStorage.g
 data ||= seed();
 data.drafts ||= {};
 // Old demo preferences no longer control account settings or dashboard visibility.
-data.profile.recent = true;
 data.profile.notify = true;
 data.profile.reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 let selectedTheme = 'system';
@@ -107,21 +106,34 @@ function dashboardCollection(title, viewAction, viewLabel, content, cls = 'surfa
 }
 function empty(iconName, title, copy, action = '') { return `<div class="empty-state">${mark(iconName)}<h3>${title}</h3>${copy ? `<p>${copy}</p>` : ''}${action}</div>`; }
 function tag(text, cls = '') { return `<span class="tag ${cls}">${text}</span>`; }
-function eventRow(e) { return button('detail', `<span class="event-time">${e.time}</span><span class="event-line ${e.color}"></span><span class="row-content"><strong>${esc(e.title)}</strong><small>${esc(e.place || '나의 일정')}</small></span>${arrow}`, 'event-row', `data-ref="event:${e.id}"`); }
 function mapArt() { return `<div class="parking-map" aria-hidden="true"><span class="map-road"></span><span class="map-road vertical"></span><span class="map-label">주차 위치 메모</span><div class="parking-slots"><i></i><i></i><i class="occupied">${icon('car')}</i><i></i></div><span class="map-pin">${esc(data.parking?.spot || 'P')}</span><span class="map-dot"></span><span class="map-tree one"></span><span class="map-tree two"></span></div>`; }
 function recordRow(r) { return button('detail', `${mark(r.icon, r.color)}<span class="row-content"><span class="record-kind">${r.label} · ${shortDate(r.at)}</span><strong>${esc(r.title)}</strong><small>${esc(r.excerpt.replace(/\n/g, ' · '))}${r.kind === 'document' && r.size_bytes != null ? ` · ${formatBytes(r.size_bytes)}` : ''}</small></span>${arrow}`, 'record-row', `data-ref="${r.kind}:${r.id}"`); }
 function matchingRecords() {
   const query = ui.recordSearch.trim().toLocaleLowerCase('ko-KR');
   return recordsOf(data, ui.recordFilter).filter(r => `${r.title} ${r.excerpt}`.toLocaleLowerCase('ko-KR').includes(query));
 }
-function recordResults(records) {
-  return records.map(recordRow).join('') || empty(ui.recordSearch.trim() ? 'search' : 'note', ui.recordSearch.trim() ? '일치하는 기록이 없어요' : '아직 남긴 기록이 없어요', ui.recordSearch.trim() ? '다른 단어로 다시 찾아보세요.' : '새 메모나 파일을 추가하세요.');
+function searchField(id, label, placeholder, value, action) {
+  return `<div class="search-box">${icon('search')}<input id="${id}" type="search" aria-label="${label}" placeholder="${placeholder}" value="${esc(value)}">${button(action, icon('close'), 'search-clear', `aria-label="${label}어 지우기" aria-controls="${id}" ${value ? '' : 'hidden'}`)}</div>`;
 }
+function recordResults(records) {
+  if (records.length) return records.map(recordRow).join('');
+  if (ui.recordSearch.trim()) return empty('search', '검색 결과가 없어요', '다른 검색어로 찾아보세요.', button('clear-record-search', '검색어 지우기', 'text-button'));
+  const label = { note: '메모', document: '문서', custom: '실행 결과' }[ui.recordFilter] || '기록';
+  return empty(ui.recordFilter === 'document' ? 'file' : 'note', `저장된 ${label}${label === '기록' ? '이' : '가'} 없어요`, ui.recordFilter === 'custom' ? '내 기능을 실행하면 결과를 여기서 확인할 수 있어요.' : '메모나 파일을 추가해 보세요.');
+}
+function refreshRecords() {
+  const records = matchingRecords(), list = $('.library-sheet .record-list');
+  if (!list) return;
+  $('.library-count').innerHTML = `${ui.recordSearch.trim() ? '검색 결과' : '최근 기록'} <strong>${records.length}</strong>`;
+  list.innerHTML = recordResults(records);
+  $('.library-sheet .search-clear').hidden = !ui.recordSearch;
+}
+
 function recordsSheet(filter = ui.recordFilter) {
   ui.recordFilter = filter;
   const query = ui.recordSearch.trim().toLocaleLowerCase('ko-KR');
   const records = matchingRecords();
-  openSheet('기록 보관함', `<label class="search-box library-search">${icon('search')}<input id="record-search" type="search" aria-label="기록 검색" placeholder="제목 · 메모 내용 · 파일 이름 검색" value="${esc(ui.recordSearch)}"></label><div class="filter-chips" aria-label="기록 종류">${[['all', '전체'], ['note', '메모'], ['document', '문서'], ['custom', '실행 결과']].map(([v, label]) => button('record-filter', label, filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${filter === v}"`)).join('')}</div><div class="library-count" role="status">${query ? '검색 결과' : '최근 기록'} <strong>${records.length}</strong></div><div class="record-list">${recordResults(records)}</div><div class="detail-actions library-actions">${button('new-note', icon('compose') + ' 새 메모', 'secondary-button')}${button('document', icon('upload') + ' 파일 가져오기', 'secondary-button')}</div>`, 'library-sheet');
+  openSheet('기록 보관함', `<div class="library-search">${searchField('record-search', '기록 검색', '제목이나 내용 검색', ui.recordSearch, 'clear-record-search')}</div><div class="filter-chips" aria-label="기록 종류">${RECORD_FILTERS.map(([v, label]) => button('record-filter', label, filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${filter === v}"`)).join('')}</div><div class="library-count" role="status">${query ? '검색 결과' : '최근 기록'} <strong>${records.length}</strong></div><div class="record-list">${recordResults(records)}</div><div class="detail-actions library-actions">${button('new-note', icon('compose') + ' 새 메모', 'secondary-button')}${button('document', icon('upload') + ' 파일 가져오기', 'secondary-button')}</div>`, 'library-sheet');
 }
 const latestNote = () => data.notes.reduce((a, b) => !a || new Date(b.at) > new Date(a.at) ? b : a, null);
 const nextReminder = () => data.reminders.filter(r => !r.cancelled && r.target > current()).sort((a, b) => a.target - b.target)[0];
@@ -184,7 +196,7 @@ function briefCard(ref) {
     const f = data.customs.find(f => f.id === id); label = '나의 반복하는 부탁'; symbol = f.icon; color = 'purple'; title = esc(f.title); copy = esc(f.description || f.work); stamp = f.time ? `${clockLabel(f.time)} · ${esc(f.repeat)}` : '필요할 때 실행';
     visual = cardVisual('custom', { icon: f.icon, time: f.time });
   }
-  return button('detail', `<span class="brief-top" data-card-part="label">${mark(symbol, color)}<span>${label}</span>${arrow}</span><span class="brief-body"><span class="brief-copy"><strong data-card-part="title">${title}</strong><span data-card-part="summary">${copy}</span></span>${visual}</span><span class="brief-stamp" data-card-part="stamp">${icon('clock')}${stamp}</span>`, `brief-card ${kind}`, `data-ref="${esc(actionRef)}" data-card-kind="${kind}" aria-label="${kind === 'parking' ? '주차 위치 상세' : label + ' 상세'}"`);
+  return button('detail', `<span class="brief-top" data-card-part="label">${mark(symbol, color)}<span>${label}</span></span><span class="brief-body"><span class="brief-copy"><strong data-card-part="title">${title}</strong><span data-card-part="summary">${copy}</span></span>${visual}</span><span class="brief-stamp" data-card-part="stamp">${icon('clock')}${stamp}</span>`, `brief-card ${kind}`, `data-ref="${esc(actionRef)}" data-card-kind="${kind}" aria-label="${kind === 'parking' ? '주차 위치 상세' : label + ' 상세'}"`);
 }
 function closeWindowMenu(restoreFocus = false) {
   ui.windowMenu = false;
@@ -210,44 +222,51 @@ function positionWindowMenu() {
 function windowPicker() {
   const selected = DASHBOARD_WINDOWS.find(w => w.hours === ui.horizon);
   return `<div class="time-window-picker">${button('toggle-window', `${icon('clock')}<span>${ui.horizon ? selected.hours === 24 ? '하루 보기' : `앞으로 ${selected.label}` : time(current())}</span>${arrow}`, `window-trigger ${ui.horizon ? 'is-expanded-range' : ''}`, `id="dashboard-window-trigger" aria-expanded="${ui.windowMenu}" aria-controls="dashboard-window-menu" aria-label="표시 시간 범위: ${selected.label}. 범위 선택"`)}
-    <div id="dashboard-window-menu" class="window-menu" role="group" aria-label="표시 시간 범위" ${ui.windowMenu ? '' : 'hidden'}><p>표시할 시간 범위</p>${DASHBOARD_WINDOWS.map(w => button('set-window', `<span><strong>${w.label}</strong><small>${w.description}</small></span>${icon(w.hours === ui.horizon ? 'check' : 'chevron')}`, '', `data-hours="${w.hours}" aria-pressed="${w.hours === ui.horizon}"`)).join('')}${developerPreview ? button('day-preview', '체험 시간 변경' + arrow, 'window-demo') : ''}</div></div>`;
+    <div id="dashboard-window-menu" class="window-menu" role="group" aria-label="표시 시간 범위" ${ui.windowMenu ? '' : 'hidden'}><p>표시할 시간 범위</p>${DASHBOARD_WINDOWS.map(w => button('set-window', `<span><strong>${w.label}</strong><small>${w.description}</small></span>${w.hours === ui.horizon ? icon('check') : ''}`, '', `data-hours="${w.hours}" aria-pressed="${w.hours === ui.horizon}"`)).join('')}${developerPreview ? button('day-preview', '체험 시간 변경' + arrow, 'window-demo') : ''}</div></div>`;
 }
 function forecastCard(item) {
   const atLabel = item.end === null ? '항상 표시' : `${item.current && dateKey(item.at) !== dateKey(current()) ? '어제 ' : ''}${time(item.at)}`;
   const kind = item.kind === 'event' ? 'schedule' : item.kind;
   const params = featurePreviewParams(kind, item.ref.split(':')[1]);
   const art = featureArt(kind, item.kind === 'news' && !item.current ? { ...params, status: 'scheduled', articleCount: undefined } : params).replace('<svg ', '<svg data-card-part="art" ');
-  return button('detail', `<div class="forecast-card-top" data-card-part="label">${mark(item.icon, item.color)}${item.current ? '' : `<span class="forecast-status">${item.action}</span>`}</div><div class="forecast-body"><div class="forecast-copy"><div class="forecast-time" data-card-part="time">${atLabel}${item.current && item.end !== null ? '<small>부터</small>' : ''}</div><h4 data-card-part="title">${esc(item.title)}</h4><p data-card-part="summary">${esc(item.description)}</p></div>${art}</div><div class="forecast-card-bottom" data-card-part="stamp"><span>${item.detail}</span>${icon('arrow')}</div>`, `forecast-card ${item.color} ${item.current ? 'is-current' : ''}`, `data-ref="${esc(item.ref)}" data-card-kind="${kind}" data-occurrence="${esc(item.key)}" aria-label="${esc(item.title)}, ${atLabel}, ${item.current ? '지금 확인 가능' : item.action}"`);
+  return button('detail', `<div class="forecast-card-top" data-card-part="label">${mark(item.icon, item.color)}${item.current ? '' : `<span class="forecast-status">${item.action}</span>`}</div><div class="forecast-body"><div class="forecast-copy"><div class="forecast-time" data-card-part="time">${atLabel}${item.current && item.end !== null ? '<small>부터</small>' : ''}</div><h4 data-card-part="title">${esc(item.title)}</h4><p data-card-part="summary">${esc(item.description)}</p></div>${art}</div>`, `forecast-card ${item.color} ${item.current ? 'is-current' : ''}`, `data-ref="${esc(item.ref)}" data-card-kind="${kind}" data-occurrence="${esc(item.key)}" aria-label="${esc(item.title)}, ${atLabel}, ${item.current ? '지금 확인 가능' : item.action}"`);
 }
 function forecastShelves() {
   const result = dashboardTimeline(data, ui.horizon, current());
   const rangeEnd = `${dateKey(result.until) !== dateKey(result.from) ? '내일 ' : ''}${time(result.until)}`;
-  return `<div class="forecast-summary" role="status"><div><span class="forecast-eyebrow">${ui.horizon === 24 ? '앞으로 24시간' : `앞으로 ${ui.horizon}시간`}</span><p>${time(result.from)} <span>—</span> ${rangeEnd}</p></div><strong>${result.count}<small>개 항목</small></strong></div>
-    <div class="forecast-shelves">${result.groups.map(group => `<section class="forecast-shelf" aria-labelledby="shelf-heading-${group.key}"><header><div>${group.key === 'current' ? '' : `<span class="shelf-overline">${group.span}</span>`}<h3 id="shelf-heading-${group.key}">${group.label}<span>${group.items.length}</span></h3></div><div class="shelf-nav">${button('shelf-page', icon('back'), '', `data-rail="forecast-${group.key}" data-direction="-1" aria-label="${group.label} 이전 카드" aria-controls="forecast-${group.key}" disabled`)}${button('shelf-page', icon('arrow'), '', `data-rail="forecast-${group.key}" data-direction="1" aria-label="${group.label} 다음 카드" aria-controls="forecast-${group.key}"`)}</div></header><div class="forecast-rail" id="forecast-${group.key}" data-forecast-rail role="group" aria-label="${group.label} 카드 목록">${group.items.map(forecastCard).join('')}</div></section>`).join('') || empty('leaf', '이 시간에는 예정된 일이 없어요', '범위를 넓혀 다가오는 일을 살펴보세요.', ui.horizon < 24 ? button('set-window', '하루 전체 살펴보기 ' + arrow, 'text-button', 'data-hours="24"') : button('new-chat', '새 요청 입력', 'text-button'))}</div>
+  return `<div class="forecast-summary" role="status" aria-atomic="true"><p class="forecast-range"><time datetime="${new Date(result.from).toISOString()}">${time(result.from)}</time><span class="forecast-range-end"><span class="range-separator" aria-hidden="true">–</span><time datetime="${new Date(result.until).toISOString()}">${rangeEnd}</time></span></p><p class="forecast-count"><strong>${result.count}</strong><span>개 항목</span></p></div>
+    <div class="forecast-shelves">${result.groups.map(group => `<section class="forecast-shelf" aria-labelledby="shelf-heading-${group.key}"><header><div>${group.key === 'current' ? '' : `<span class="shelf-overline">${group.span}</span>`}<h3 id="shelf-heading-${group.key}">${group.label}<span>${group.items.length}</span></h3></div><div class="shelf-nav">${button('shelf-page', icon('back'), '', `data-rail="forecast-${group.key}" data-direction="-1" aria-label="${group.label} 이전 카드" aria-controls="forecast-${group.key}" disabled`)}${button('shelf-page', icon('chevron'), '', `data-rail="forecast-${group.key}" data-direction="1" aria-label="${group.label} 다음 카드" aria-controls="forecast-${group.key}"`)}</div></header><div class="forecast-rail" id="forecast-${group.key}" data-forecast-rail role="group" aria-label="${group.label} 카드 목록">${group.items.map(forecastCard).join('')}</div></section>`).join('') || empty('leaf', '이 시간에는 예정된 일이 없어요', '범위를 넓혀 다가오는 일을 살펴보세요.', ui.horizon < 24 ? button('set-window', '하루 전체 살펴보기 ' + arrow, 'text-button', 'data-hours="24"') : button('new-chat', '새 요청 입력', 'text-button'))}</div>
     `;
 }
 function dashboardNow(cards) {
-  return `<section class="now-section ${ui.horizon ? 'is-browsing' : ''}"><div class="section-heading now-heading"><h2>${ui.horizon ? '미리 보는 하루' : '지금 챙길 것'}</h2>${windowPicker()}</div>${ui.horizon ? forecastShelves() : cards.length ? `<div class="brief-grid">${cards.map(briefCard).join('')}</div>` : empty('leaf', '지금 표시할 일정이 없어요', '일정과 반복 작업은 정한 시간에 여기에 표시돼요.', button('set-window', '앞으로 3시간 보기 ' + arrow, 'text-button', 'data-hours="3"'))}</section>`;
+  return `<section class="now-section ${ui.horizon ? 'is-browsing' : ''}"><div class="section-heading now-heading"><h2>${ui.horizon ? '미리 보는 하루' : '지금 챙길 것'}</h2>${windowPicker()}</div>${ui.horizon ? forecastShelves() : cards.length ? `<div class="brief-grid">${cards.map(briefCard).join('')}</div>` : empty('leaf', '지금 예정된 일이 없어요', '예약한 시간에 일정과 반복 작업을 보여드려요.', button('set-window', '앞으로 3시간 보기 ' + arrow, 'text-button', 'data-hours="3"'))}</section>`;
+}
+const RECORD_FILTERS = [['all', '전체'], ['note', '메모'], ['document', '문서'], ['custom', '실행 결과']];
+function dashboardRecordItems() {
+  const records = recordsOf(data).slice(0, 5);
+  return records.map(recordRow).join('') || empty('note', '아직 남긴 기록이 없어요', '메모와 문서, 내 기능의 실행 결과를 여기서 확인해요.');
+}
+function dashboardRecords() {
+  return `<section class="dashboard-records">${dashboardCollection('기록과 정리', 'records', '전체 보기', `<div id="dashboard-record-list" class="record-list">${dashboardRecordItems()}</div>`, 'dashboard-record-body')}</section>`;
 }
 function dashboard() {
   const h = new Date(current()).getHours(), cards = dashboardCards(data);
   return `<div class="home-top"><span class="wordmark">mori<span>·</span></span><div class="home-tools">${developerPreview ? button('day-preview', `${icon(h < 18 ? 'sun' : 'moon')}<span>${h < 12 ? '아침' : h < 18 ? '낮' : '저녁'} 체험</span>`, 'preview-pill', 'aria-label="체험 시간 바꾸기"') : ''}${button('go-my', `<span>${esc((ui.liveUser?.display_name || data.profile.name).slice(0, 1))}</span>`, 'home-profile', 'aria-label="마이 화면"')}</div></div>
-    <header class="home-greeting"><p class="home-date">${dateLabel(current())}</p><h1>${esc(ui.liveUser?.display_name || data.profile.name)}님,<br>${h < 12 ? '가벼운 하루를 시작해요' : h < 18 ? '오후도 가볍게 보내요' : '오늘도 수고했어요'}</h1><p class="greeting-caption">작은 기억은 모리에게 맡겨두세요.</p></header>
+    <header class="home-greeting"><p class="home-date">${dateLabel(current())}</p><h1>${esc(ui.liveUser?.display_name || data.profile.name)}님, 안녕하세요</h1></header>
     ${dashboardNow(cards)}
-    <div class="home-lower"><section>${dashboardCollection('오늘의 약속', 'go-schedule', '일정으로', todayEvents().map(eventRow).join('') || empty('calendar', '오늘 약속이 없어요', ''))}
-    ${data.profile.recent ? dashboardCollection('최근 대화', 'go-conversations', '대화로', data.conversations.slice().sort((a, b) => b.at - a.at).slice(0, 2).map(conversationRow).join('') || empty('chat', '아직 대화가 없어요', '')) : ''}</section>
-    <section>${dashboardCollection('기록과 정리', 'records', '전체 보기', recordsOf(data).slice(0, 3).map(recordRow).join('') || empty('note', '아직 남긴 기록이 없어요', ''), 'record-list')}
-    ${section('모리와 더 편하게')}<div class="surface utility-list">${button('guide', `${mark('compass', 'blue')}<span class="row-content"><strong>모리 둘러보기</strong><small>작은 부탁 하나부터 시작해요</small></span>${arrow}`, 'record-row')}${button('new-custom', `${mark('spark', 'purple')}<span class="row-content"><strong>반복하는 부탁 만들기</strong><small>시간에 맞춰 챙기는 나만의 기능</small></span>${arrow}`, 'record-row')}</div><p class="home-signoff">작은 부탁, 가벼운 하루. <span>mori</span></p></section></div>`;
+    <div class="home-lower">${dashboardRecords()}
+    <section class="dashboard-utilities">${section('모리와 더 편하게')}<div class="surface utility-list">${button('guide', `${mark('compass', 'blue')}<span class="row-content"><strong>모리 둘러보기</strong><small>작은 부탁 하나부터 시작해요</small></span>${arrow}`, 'record-row')}${button('new-custom', `${mark('spark', 'purple')}<span class="row-content"><strong>반복하는 부탁 만들기</strong><small>시간에 맞춰 챙기는 나만의 기능</small></span>${arrow}`, 'record-row')}</div><p class="home-signoff">작은 부탁, 가벼운 하루. <span>mori</span></p></section></div>`;
 }
 function conversationRow(c) { const last = c.messages.at(-1), draft = data.drafts[c.id]; return button('open-conversation', `${mark(c.pinned ? 'pin' : 'chat', c.pinned ? 'green' : 'soft')}<span class="row-content"><strong>${esc(c.title)}</strong><small class="${draft ? 'draft-text' : ''}">${draft ? '작성 중 · ' + esc(draft) : esc(last?.text || '새 이야기를 시작해 보세요')}</small></span><span class="row-date">${shortDate(c.at)}</span>`, 'conversation-row', `data-id="${c.id}"`); }
 function conversationContent() {
   const groups = conversationGroups(data.conversations, ui.search, current()), count = groups.reduce((n, [, items]) => n + items.length, 0);
-  return `
-  ${!ui.search ? `<div class="conversation-start"><div class="mori-small"><img src="/assets/mori.svg" alt=""></div><div><h2>무슨 생각 하고 계세요?</h2><p>${data.drafts.new ? '쓰던 부탁이 기다리고 있어요.' : '작은 부탁 하나부터 시작해요.'}</p>${button('new-chat', data.drafts.new ? '작성 중인 부탁 이어쓰기 ' + arrow : '새 이야기 시작하기 ' + arrow, 'text-button')}</div>${button('voice', icon('mic'), 'header-button', 'aria-label="음성으로 입력"')}</div>` : `<p class="list-label" role="status">검색 결과 <span>${count}개</span></p>`}
-  <div class="conversation-groups">${groups.map(([label, items]) => `<section><p class="list-label">${label} <span>${items.length}</span></p><div class="surface">${items.map(conversationRow).join('')}</div></section>`).join('') || (ui.search ? empty('search', '찾는 이야기가 없어요', '조금 더 짧은 단어나 다른 표현으로 찾아보세요.', button('clear-search', '검색 지우기', 'text-button')) : empty('chat', '첫 이야기를 기다리고 있어요', '주차 위치, 떠오른 생각, 작은 부탁을 남겨보세요.', button('new-chat', '모리와 대화하기', 'primary-button')))}</div>`;
+  const draft = !ui.search && data.drafts.new;
+  return `${draft ? button('new-chat', `${mark('compose')}<span class="row-content"><strong>작성 중인 대화</strong><small>${esc(data.drafts.new)}</small></span>${arrow}`, 'conversation-draft') : ''}
+  ${ui.search ? `<p class="list-label" role="status">검색 결과 <span>${count}개</span></p>` : ''}
+  <div class="conversation-groups">${groups.map(([label, items]) => `<section><p class="list-label">${label} <span>${items.length}</span></p><div class="surface">${items.map(conversationRow).join('')}</div></section>`).join('') || (ui.search ? empty('search', '검색 결과가 없어요', '대화 제목이나 내용으로 다시 찾아보세요.', button('clear-search', '검색어 지우기', 'text-button')) : empty('chat', '아직 대화가 없어요', '주차 위치를 남기거나 일정을 부탁해 보세요.', button('new-chat', '새 대화', 'primary-button')))}</div>`;
 }
 function conversations() {
-  return `${heading('대화', '모리와 나눈 이야기', button('new-chat', icon('compose'), 'header-button', 'aria-label="새 대화"'))}<label class="search-box">${icon('search')}<input id="conversation-search" type="search" placeholder="지난 이야기 검색" value="${esc(ui.search)}" aria-label="대화 검색"></label><div id="conversation-content">${conversationContent()}</div>`;
+  return `${heading('대화', '', button('new-chat', icon('compose'), 'header-button', 'aria-label="새 대화"'))}${searchField('conversation-search', '대화 검색', '대화 검색', ui.search, 'clear-search')}<div id="conversation-content">${conversationContent()}</div>`;
 }
 function conversationOptions() {
   const c = data.conversations.find(c => c.id === ui.chatId); if (!c) return;
@@ -278,7 +297,7 @@ function schedule() {
   if (ui.calendar === 'week') {
     agenda = dates.map(key => { const items = eventsOn(data.events, key); return `<section class="week-day-group ${key === ui.date ? 'is-selected' : ''}">
       <div class="week-day-heading">${button('select-date', `${shortDate(dayDate(key))}<span>${dayDate(key).toLocaleDateString('ko-KR', { weekday: 'short' })}</span>${key === today ? '<em>오늘</em>' : ''}`, '', `data-date="${key}"`)}<small>${items.length ? items.length + '개의 약속' : '비워둔 하루'}</small>${button('new-event', icon('plus'), 'small-icon', `data-date="${key}" aria-label="${dateLabel(dayDate(key))} 일정 추가"`)}</div>
-      ${items.map(event => scheduleEvent(event, next?.id, key)).join('') || '<p class="week-empty">여유로운 하루네요. 나를 위한 시간을 더해도 좋아요.</p>'}</section>`; }).join('');
+      ${items.map(event => scheduleEvent(event, next?.id, key)).join('') || '<p class="week-empty">등록된 일정이 없어요.</p>'}</section>`; }).join('');
   } else if (ui.calendar === 'day') {
     const currentHour = new Date(current()).getHours();
     agenda = `<div class="day-timeline">${timelineHours(events, ui.date).map(hour => {
@@ -287,10 +306,10 @@ function schedule() {
       return `<div class="timeline-slot ${ui.date === today && hour === currentHour ? 'is-current' : ''}"><span class="hour-label">${hourText}${ui.date === today && hour === currentHour ? '<i>지금</i>' : ''}</span><div>${items.map(event => scheduleEvent(event, next?.id)).join('') || button('new-event', icon('plus') + '<span>일정 추가</span>', 'empty-hour', `data-date="${ui.date}" data-time="${hourText}" aria-label="${hourText} 일정 추가"`)}</div></div>`;
     }).join('')}</div>`;
   } else {
-    agenda = events.map(event => scheduleEvent(event, next?.id)).join('') || `<div class="calendar-empty">${mark('sun', 'amber')}<h3>아직 약속이 없는 하루예요</h3><p>쉬어가는 시간도 좋은 일정이죠.<br>기억할 일이 생기면 여기에 남겨주세요.</p>${button('new-event', icon('plus') + ' 첫 일정 추가', 'secondary-button')}</div>`;
+    agenda = events.map(event => scheduleEvent(event, next?.id)).join('') || `<div class="calendar-empty">${mark('sun', 'amber')}<h3>등록된 일정이 없어요</h3><p>새 약속이나 할 일을 추가해 보세요.</p>${button('new-event', icon('plus') + ' 첫 일정 추가', 'secondary-button')}</div>`;
   }
-  return `<div class="schedule-topbar">${heading('일정', '내 하루의 흐름을 한눈에', button('new-event', icon('plus'), 'header-button', 'aria-label="일정 추가"'))}
-    <div class="schedule-summary"><div><span>${scopeLabel}의 약속</span><strong>${scope.length}<small>개</small></strong></div><p>${next ? `다음은 <b>${esc(next.title)}</b><span>오늘 ${next.time} · ${esc(next.place || '장소 미정')}</span>` : '지금은 여유로운 시간이에요.<span>다가올 약속을 천천히 챙겨보세요.</span>'}</p></div></div>
+  return `<div class="schedule-topbar">${heading('일정', '', button('new-event', icon('plus'), 'header-button', 'aria-label="일정 추가"'))}
+    <div class="schedule-summary"><div><span>${scopeLabel}의 약속</span><strong>${scope.length}<small>개</small></strong></div><p>${next ? `다음은 <b>${esc(next.title)}</b><span>오늘 ${next.time} · ${esc(next.place || '장소 미정')}</span>` : '오늘 남은 일정이 없어요.<span>날짜를 선택해 일정을 확인하세요.</span>'}</p></div></div>
     <div class="segmented calendar-modes" aria-label="달력 보기 방식">${[['month', '월'], ['week', '주'], ['day', '일']].map(([id, title]) => button('calendar-mode', title, ui.calendar === id ? 'selected' : '', `data-value="${id}" aria-pressed="${ui.calendar === id}"`)).join('')}</div>
     <div class="schedule-layout ${ui.calendar}"><section class="calendar-surface" data-month="${year}-${String(month + 1).padStart(2, '0')}" aria-label="날짜 선택">
       <div class="month-header">${button('calendar-jump', `<span class="calendar-title-copy"><small>${year}년</small><strong>${month + 1}월</strong></span>${arrow}`, 'month-title', `aria-label="${year}년 ${month + 1}월, 연도와 월 선택"`)}<div class="calendar-navigation">${button('calendar-today', '오늘', 'today-button')}<span class="calendar-period-nav" role="group" aria-label="달력 기간 이동">${button('month-prev', icon('back'), 'small-icon', 'aria-label="이전 기간"')}${button('month-next', arrow, 'small-icon', 'aria-label="다음 기간"')}</span></div></div>
@@ -310,9 +329,9 @@ function featureStatus(id) {
   return ({parking: data.parking ? `${data.parking.floor} ${data.parking.spot}` : '저장된 위치 없음', news: `매일 ${clockLabel(data.news.time)}`, stock: data.stock.symbol, note: `${data.notes.length}개 저장됨`, schedule: `오늘 일정 ${todayEvents().length}개`, reminder: `진행 중 ${data.reminders.filter(r => !r.cancelled && r.target > current()).length}개`})[id];
 }
 function features() {
-  return `${heading('기능', '매일의 부탁을, 나만의 방식으로', button('new-custom', icon('plus'), 'header-button', 'aria-label="새 기능 만들기"'))}<div class="segmented">${[['all', '모든 기능'], ['builtin', '기본 기능'], ['custom', '내 기능']].map(([v, title]) => button('feature-filter', title, ui.filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${ui.filter === v}"`)).join('')}</div>
-    ${ui.filter !== 'custom' ? `${section('매일을 위한 기본 기능', '<span class="section-caption">6가지</span>')}<div class="feature-grid">${BUILTINS.map(f => button('detail', `<span class="feature-tile-copy"><h3>${f.title}</h3><p>${f.subtitle}</p><span class="feature-status">${esc(featureStatus(f.id))}</span></span>${featureArt(f.id, featurePreviewParams(f.id))}${arrow}`, `feature-tile feature-tile--${f.id}`, `data-ref="${f.id}"`)).join('')}</div>` : ''}
-    ${ui.filter !== 'builtin' ? `${section('나에게 맞춘 기능', `<span class="section-caption">${data.customs.filter(f => f.active).length}개 사용 중</span>`)}<div class="custom-list">${data.customs.map(f => button('detail', `${mark(f.icon, 'purple')}<span class="row-content"><strong>${esc(f.title)}</strong><small>${esc(f.time ? `${f.repeat} ${clockLabel(f.time)}` : '필요할 때 실행')}</small>${f.result ? `<span class="row-meta">최근 실행 ${shortDate(f.result.at)} · 결과 ${f.result.items.length}개</span>` : ''}</span>${tag(!f.work ? '초안' : f.active ? '사용 중' : '중지', f.active ? 'green' : '')}${arrow}`, 'custom-row', `data-ref="custom:${f.id}"`)).join('') || empty('spark', '나만의 루틴을 만들어보세요', '반복하는 부탁을 한 번만 정해두세요.')}</div><button class="create-feature" data-action="new-custom"><span class="create-icon">${icon('spark')}</span><span class="tiny-label">나만의 반복</span><h3>반복하는 부탁,<br>내 기능으로 기억해요.</h3><p>할 일과 시간을 정하면 같은 모양의 카드로 만나보세요.</p><span>새 기능 만들기 ${icon('plus')}</span></button>` : ''}`;
+  return `${heading('기능', '', button('new-custom', icon('plus'), 'header-button', 'aria-label="새 기능 만들기"'))}<div class="segmented">${[['all', '모든 기능'], ['builtin', '기본 기능'], ['custom', '내 기능']].map(([v, title]) => button('feature-filter', title, ui.filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${ui.filter === v}"`)).join('')}</div>
+    ${ui.filter !== 'custom' ? `${section('기본 기능', '<span class="section-caption">6가지</span>')}<div class="feature-grid">${BUILTINS.map(f => button('detail', `<span class="feature-tile-copy"><h3>${f.title}</h3><p>${f.subtitle}</p><span class="feature-status">${esc(featureStatus(f.id))}</span></span>${featureArt(f.id, featurePreviewParams(f.id))}${arrow}`, `feature-tile feature-tile--${f.id}`, `data-ref="${f.id}"`)).join('')}</div>` : ''}
+    ${ui.filter !== 'builtin' ? `${section('내 기능', `<span class="section-caption">${data.customs.filter(f => f.active).length}개 사용 중</span>`)}<div class="custom-list">${data.customs.map(f => button('detail', `${mark(f.icon, 'purple')}<span class="row-content"><strong>${esc(f.title)}</strong><small>${esc(f.time ? `${f.repeat} ${clockLabel(f.time)}` : '필요할 때 실행')}</small>${f.result ? `<span class="row-meta">최근 실행 ${shortDate(f.result.at)} · 결과 ${f.result.items.length}개</span>` : ''}</span>${tag(!f.work ? '초안' : f.active ? '사용 중' : '중지', f.active ? 'green' : '')}${arrow}`, 'custom-row', `data-ref="custom:${f.id}"`)).join('') || empty('spark', '아직 내 기능이 없어요', '반복할 일과 시간을 정해 만들어 보세요.')}</div><button class="create-feature-row" data-action="new-custom">${mark('plus', 'purple')}<span><strong>새 기능 만들기</strong><small>반복할 일과 시간 정하기</small></span>${arrow}</button>` : ''}`;
 }
 const themeLabel = () => ({system: '시스템 설정', light: '라이트', dark: '다크'})[selectedTheme];
 function my() {
@@ -579,7 +598,7 @@ function updateEventPreview() {
 }
 function customForm(id) {
   const f = data.customs.find(f => f.id === id);
-  openSheet(f ? '내 기능 편집' : '나만의 기능 만들기', `<div class="form-intro compact-intro">${mark('spark', 'purple')}<h3>반복하는 부탁을 기억해요.</h3><p>반복할 일과 실행 시간을 입력하세요.</p></div>${!f ? button('custom-example', '예시 채우기 · 평일 저녁에 메모 정리하기 ' + arrow, 'example-request') : ''}<form id="custom-form" data-id="${f?.id || ''}"><fieldset class="icon-picker"><legend>카드 아이콘</legend>${[['spark', '반짝임'], ['note', '메모'], ['leaf', '일상'], ['news', '정보'], ['bell', '알림'], ['compass', '여행']].map(([v, label]) => `<label><input type="radio" name="icon" value="${v}" ${(f?.icon || 'spark') === v ? 'checked' : ''}><span>${icon(v)}<span class="sr-only">${label}</span></span></label>`).join('')}</fieldset>${field('기능 이름', 'title', f?.title || '', 'text', 'maxlength="60" placeholder="예: 퇴근 정리"')}${textArea('어떤 일을 하면 좋을까요?', 'work', f?.work || '', 'maxlength="2000" placeholder="오늘 저장한 메모를 모아서 할 일을 정리해줘"')}${field('짧은 설명 · 선택', 'description', f?.description || '', 'text', 'maxlength="180" placeholder="카드에 보여줄 한 줄"')}<div class="field-pair">${field('실행 시간 · 선택', 'time', f?.time || '', 'time')}${choiceField('반복', 'repeat', f?.repeat || '필요할 때', ['필요할 때', '매일', '평일', '한 번'])}</div><details class="support-details"><summary>참고할 내용 추가하기</summary>${textArea('참고 자료 · 선택', 'content', f?.content || '', 'maxlength="6000" placeholder="함께 확인할 내용을 남겨주세요"')}</details><p class="field-help">시간이 없으면 필요할 때 직접 실행해요.<br>체험에서는 앱이 열려 있을 때 저장한 메모를 정리해요.</p><details class="support-details custom-preview-disclosure"><summary>대시보드 카드 미리보기</summary><div id="custom-preview" class="custom-preview" aria-label="기능 카드 미리보기"></div></details><p class="form-error" role="alert"></p><button class="primary-button" type="submit">${f ? '변경 저장' : '내 기능으로 저장'} ${icon('check')}</button></form>`);
+  openSheet(f ? '내 기능 편집' : '나만의 기능 만들기', `<div class="form-intro compact-intro">${mark('spark', 'purple')}<h3>반복하는 부탁을 기억해요.</h3><p>반복할 일과 실행 시간을 입력하세요.</p></div>${!f ? button('custom-example', '메모 정리 기능으로 시작하기 ' + arrow, 'example-request') : ''}<form id="custom-form" data-id="${f?.id || ''}"><fieldset class="icon-picker"><legend>카드 아이콘</legend>${[['spark', '반짝임'], ['note', '메모'], ['leaf', '일상'], ['news', '정보'], ['bell', '알림'], ['compass', '여행']].map(([v, label]) => `<label><input type="radio" name="icon" aria-label="${label}" value="${v}" ${(f?.icon || 'spark') === v ? 'checked' : ''}><span>${icon(v)}<span class="sr-only">${label}</span></span></label>`).join('')}</fieldset>${field('기능 이름', 'title', f?.title || '', 'text', 'maxlength="60" placeholder="예: 퇴근 정리"')}${textArea('어떤 일을 하면 좋을까요?', 'work', f?.work || '', 'maxlength="2000" placeholder="오늘 저장한 메모를 모아서 할 일을 정리해줘"')}${field('짧은 설명 · 선택', 'description', f?.description || '', 'text', 'maxlength="180" placeholder="카드에 보여줄 한 줄"')}<div class="field-pair">${field('실행 시간 · 선택', 'time', f?.time || '', 'time')}${choiceField('반복', 'repeat', f?.repeat || '필요할 때', ['필요할 때', '매일', '평일', '한 번'])}</div><details class="support-details"><summary>참고할 내용 추가하기</summary>${textArea('참고 자료 · 선택', 'content', f?.content || '', 'maxlength="6000" placeholder="함께 확인할 내용을 남겨주세요"')}</details><p class="field-help">시간을 지정하지 않으면 필요할 때 직접 실행해요.${developerPreview ? '<br>체험에서는 앱이 열려 있을 때 저장한 메모를 정리해요.' : ''}</p><details class="support-details custom-preview-disclosure"><summary>대시보드 카드 미리보기</summary><div id="custom-preview" class="custom-preview" aria-label="기능 카드 미리보기"></div></details><p class="form-error" role="alert"></p><button class="primary-button" type="submit">${f ? '변경 저장' : '내 기능으로 저장'} ${icon('check')}</button></form>`);
   updateCustomPreview();
 }
 function updateCustomPreview() {
@@ -664,7 +683,7 @@ function renderChat(forceScroll = false) {
   const nearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 100, scroll = messages.scrollTop;
   $('#chat-title').textContent = c?.title || '모리';
   $('#chat-options').hidden = !c;
-  messages.innerHTML = !c?.messages.length ? `<div class="chat-welcome"><span class="voice-emblem" aria-hidden="true"><i class="fluid-layer"></i><i class="fluid-layer"></i><i class="fluid-layer"></i></span><p>내 곁의 작은 비서</p><h2>무엇을 챙겨드릴까요?</h2><span>문득 떠오른 생각부터, 잊고 싶지 않은 일까지.<br>편하게 이야기해 주세요.</span></div><div class="chat-suggestions">${[['car', '주차 위치 기억하기', '지하 3층 B16에 주차했어'], ['note', '떠오른 생각 남기기', '메모해줘: '], ['spark', '내 기능 실행하기', '퇴근 정리 실행해줘']].map(([i, title, t]) => button('chat-example', `${mark(i)}<span>${title}</span>${arrow}`, '', `data-prompt="${esc(t)}"`)).join('')}</div>` : c.messages.map(m => `<div class="message ${m.role}">${m.role === 'assistant' ? `<span class="assistant-avatar">${icon('spark')}</span>` : ''}<div><p>${esc(m.text)}</p>${m.ref ? button('detail', `${icon('check')}<span><small>부탁한 일의 결과</small><strong>${referenceTitle(m.ref)}</strong></span>${arrow}`, 'message-result', `data-ref="${m.ref}"`) : ''}</div></div>`).join('');
+  messages.innerHTML = !c?.messages.length ? `<div class="chat-welcome"><span class="voice-emblem" aria-hidden="true"><i class="fluid-layer"></i><i class="fluid-layer"></i><i class="fluid-layer"></i></span><h2>무엇을 도와드릴까요?</h2><span>일정을 부탁하거나 기억할 일을 남겨보세요.</span></div><div class="chat-suggestions">${[['car', '주차 위치 기억하기', '지하 3층 B16에 주차했어'], ['note', '메모 남기기', '메모해줘: '], ['calendar', '일정 추가하기', '내일 오후 2시에 회의 있어']].map(([i, title, t]) => button('chat-example', `${mark(i)}<span>${title}</span>${arrow}`, '', `data-prompt="${esc(t)}"`)).join('')}</div>` : c.messages.map(m => `<div class="message ${m.role}">${m.role === 'assistant' ? `<span class="assistant-avatar">${icon('spark')}</span>` : ''}<div><p>${esc(m.text)}</p>${m.ref ? button('detail', `${icon('check')}<span><small>부탁한 일의 결과</small><strong>${referenceTitle(m.ref)}</strong></span>${arrow}`, 'message-result', `data-ref="${m.ref}"`) : ''}</div></div>`).join('');
   if (busy.has(ui.chatId)) messages.insertAdjacentHTML('beforeend', `<div class="assistant-progress"><span class="typing"><i></i><i></i><i></i></span> 내 기능과 요청을 확인하고 있어요</div>`);
   syncComposer(); messages.scrollTop = forceScroll || nearBottom ? messages.scrollHeight : scroll;
   motion.messages(messages, ui.chatId || 'new');
@@ -935,12 +954,22 @@ document.addEventListener('click', async event => {
     rail.scrollBy({ left: Number(el.dataset.direction) * Math.max(1, Math.floor(rail.clientWidth / step)) * step, behavior: data.profile.reduced || matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
     return;
   }
-  if (a === 'records') { ui.recordSearch = ''; return recordsSheet(); }
+  if (a === 'records') { ui.recordSearch = ''; return recordsSheet(el.closest('.dashboard-records') ? 'all' : ui.recordFilter); }
   if (a === 'record-filter') return recordsSheet(el.dataset.value);
-  if (a === 'clear-search') { ui.search = ''; render(); return $('#conversation-search').focus(); }
+  if (a === 'clear-search' || a === 'clear-record-search') {
+    const input = $(a === 'clear-search' ? '#conversation-search' : '#record-search');
+    if (!input) return;
+    input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true }));
+    return input.focus({ preventScroll: true });
+  }
   if (a === 'chat-options') return conversationOptions();
   if (a === 'pin-conversation') { const c = data.conversations.find(c => c.id === id); c.pinned = !c.pinned; save(); closeSheet(); render(); return toast(c.pinned ? '대화를 목록 위에 고정했어요.' : '고정을 해제했어요.'); }
-  if (a === 'undo-note') { if (!deletedNote) return; data.notes.push(deletedNote); deletedNote = null; save(); render(); return toast('메모를 다시 가져왔어요.'); }
+  if (a === 'undo-note') {
+    if (!deletedNote) return;
+    const previous = data.notes; data.notes = [...previous, deletedNote];
+    if (!save()) { data.notes = previous; return; }
+    deletedNote = null; render(); refreshRecords(); return toast('메모를 다시 가져왔어요.');
+  }
   if (a === 'detail') return openDetail(el.dataset.ref);
   if (a === 'carousel') return $('#time-carousel')?.children[Number(el.dataset.index)]?.scrollIntoView({ behavior: data.profile.reduced ? 'instant' : 'smooth', block: 'nearest', inline: 'start' });
   if (a === 'carousel-page') {
@@ -965,7 +994,16 @@ document.addEventListener('click', async event => {
   if (a === 'edit-parking') return parkingForm();
 
   if (a === 'new-note' || a === 'edit-note') return noteForm(id);
-  if (a === 'delete-note') { const n = data.notes.find(n => n.id === id); deletedNote = n; data.notes = data.notes.filter(n => n.id !== id); save(); closeSheet(); render(); return toast(`‘${n.title}’ 메모를 삭제했어요.`, 'undo-note'); }
+  if (a === 'delete-note') {
+    const n = data.notes.find(n => n.id === id); if (!n) return;
+    const previous = data.notes; data.notes = previous.filter(note => note.id !== id);
+    if (!save()) { data.notes = previous; return; }
+    deletedNote = n; render();
+    const libraryIndex = sheetTrail.findLastIndex(entry => entry.cls === 'library-sheet');
+    if (libraryIndex >= 0) { sheetTrail = sheetTrail.slice(0, libraryIndex + 1); backSheet(); }
+    else await closeSheet();
+    return toast('메모를 삭제했어요.', 'undo-note');
+  }
   if (a === 'new-event' || a === 'edit-event') return eventForm(id, el.dataset.date || ui.date, el.dataset.time || '14:00');
   if (a === 'delete-event') { deletedEvent = data.events.find(event => event.id === id); data.events = data.events.filter(event => event.id !== id); save(); closeSheet(); render(); return toast('약속을 삭제했어요.', 'undo-event'); }
   if (a === 'undo-event') { if (!deletedEvent) return; data.events.push(deletedEvent); deletedEvent = null; save(); render(); return toast('약속을 다시 가져왔어요.'); }
@@ -1102,10 +1140,8 @@ document.addEventListener('input', event => {
   if (event.target.id === 'record-search') {
     // Keep the input node alive so Korean IME composition and the caret are preserved.
     ui.recordSearch = event.target.value;
-    const records = matchingRecords();
-    $('.library-count').innerHTML = `${ui.recordSearch.trim() ? '검색 결과' : '최근 기록'} <strong>${records.length}</strong>`;
+    refreshRecords();
     const list = $('.library-sheet .record-list');
-    list.innerHTML = recordResults(records);
     if (!event.isComposing) motion.result(list);
   }
   if (event.target.id === 'note-content') $('#note-length').textContent = `${event.target.value.length.toLocaleString()}자`;
@@ -1113,6 +1149,7 @@ document.addEventListener('input', event => {
 document.addEventListener('input', event => {
   if (event.target.id !== 'conversation-search') return;
   ui.search = event.target.value;
+  $('#main .search-clear').hidden = !ui.search;
   const list = $('#conversation-content');
   list.innerHTML = conversationContent();
   if (!event.isComposing) motion.result(list);

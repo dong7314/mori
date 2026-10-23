@@ -35,7 +35,7 @@
       padding-bottom: calc(var(--composer-rail-height, 2.75rem) + 2.875rem + env(safe-area-inset-bottom));
       scroll-padding-bottom: calc(var(--composer-rail-height, 2.75rem) + 2.875rem);
     }
-    .messages:has(.chat-welcome) { display: flex; flex-direction: column; }
+    .messages:has(.chat-welcome) { display: flex; flex-direction: column; transition: opacity 180ms ease, visibility 180ms; }
     .chat-welcome { padding: 1rem 0 1.875rem; margin-block: auto; }
     .chat-welcome .voice-emblem { --orb-size: 5.5rem; margin: .5rem auto 1.75rem; transition: opacity 180ms ease; }
     .chat-welcome > p { color: var(--chat-secondary); font-size: .75rem; letter-spacing: .015em; }
@@ -64,7 +64,7 @@
       backdrop-filter: none;
       transition: box-shadow 400ms ease, border-radius 400ms ease;
       &:focus-within { border-color: #fffffff0; box-shadow: 0 0 0 1px #8faa9680, 0 4px 8px #34405e08, 0 12px 30px #34405e0e; }
-      &.voice-expanded { border-color: #ffffffed; border-radius: 1.875rem; box-shadow: 0 0 0 1px #9cba9b45, 0 8px 28px #52775e0e, inset 0 1px 0 #fff; }
+      &.voice-expanded { background: #fff; border-color: #ffffffed; border-radius: 1.875rem; box-shadow: 0 0 0 1px #9cba9b45, 0 8px 28px #52775e0e, inset 0 1px 0 #fff; }
       textarea { color: var(--chat-ink); padding-left: .75rem; font-size: 1rem; &::placeholder { font-size: .9375rem; color: #8a8f9c; } }
       // The rounded composer is the focus indicator for this editor. The global
       // :focus-visible rule must not draw a second rectangle around its textarea.
@@ -78,9 +78,10 @@
     .send-button { background: var(--voice-accent); color: var(--voice-on-accent); box-shadow: 0 3px 7px #52775e24, inset 0 1px 0 #ffffff29; }
     .send-button:disabled { opacity: 1; background: var(--voice-soft); color: #a5b7a5; box-shadow: none; }
     .send-button .icon { width: 1.125rem; height: 1.125rem; }
-    // One active emblem. Preserve the welcome's space and copy so opening
-    // voice never causes the background conversation to jump or disappear.
-    &:has(> #chat-form.voice-expanded) .chat-welcome .voice-emblem { opacity: 0; }
+    // Keep the empty conversation's geometry, but fade its introduction out
+    // while voice is open so the expanding surface never cuts a heading in half.
+    // Existing messages remain visible when continuing an actual conversation.
+    &:has(> #chat-form.voice-expanded) .messages:has(.chat-welcome) { opacity: 0; visibility: hidden; pointer-events: none; }
   }
   .quick-composer .quick-mic { width: 2.75rem; height: 2.75rem; flex: 0 0 2.75rem; color: #52775e; background: linear-gradient(145deg,#eaf2e6,#dce9d8); border-color: #ffffffbf; box-shadow: 0 3px 6px #52775e14, inset 0 1px 2px #ffffffbf; .icon { width: 1.125rem; height: 1.125rem; } }
   @keyframes fluid-orbit { to { transform: rotate(360deg); } }
@@ -113,7 +114,7 @@
     .chat-panel .chat-suggestions button { background: #ffffff05; border-color: #ffffff0e; box-shadow: inset 0 1px 0 #ffffff05, 0 4px 8px #00000008; }
     .chat-panel .chat-composer { background: #292e39fa; border-color: #ffffff16; box-shadow: 0 0 0 1px #aeb6cc12, 0 12px 32px #0000001a, inset 0 1px 0 #ffffff08; }
     .chat-panel .chat-composer:focus-within { border-color: #8faa9680; box-shadow: 0 12px 30px #0000001f; }
-    .chat-panel .chat-composer.voice-expanded { border-color: #ffffff20; box-shadow: 0 0 0 1px #a1b69e29, 0 12px 32px #00000024, inset 0 1px 0 #ffffff12; }
+    .chat-panel .chat-composer.voice-expanded { background: #292e39; border-color: #ffffff20; box-shadow: 0 0 0 1px #a1b69e29, 0 12px 32px #00000024, inset 0 1px 0 #ffffff12; }
     .chat-panel .chat-composer #chat-mic { color: var(--voice-accent); }
     .chat-panel .chat-composer #chat-mic::before { background: var(--voice-soft); box-shadow: inset 0 1px 0 #ffffff12, inset 0 0 0 1px #ffffff0d; }
     .chat-panel .chat-composer #chat-mic[aria-expanded=true]::before { background: #405b46; }
@@ -125,8 +126,8 @@
     .voice-emblem .fluid-layer:nth-child(3) { background: radial-gradient(circle at 40% 30%,#ffffff59,#b0cc916b 55%,transparent); }
     .quick-composer .quick-mic { color: #bed3c0; background: linear-gradient(145deg,#3d5643,#324936); border-color: #ffffff29; box-shadow: 0 3px 8px #00000015, inset 0 1px 1px #ffffff24; }
   }
-  @media (prefers-reduced-motion: reduce) { .voice-emblem .fluid-layer, .chat-panel::after { animation: none !important; } .chat-panel::before, .chat-panel::after, .chat-welcome .voice-emblem { transition: none; } }
+  @media (prefers-reduced-motion: reduce) { .voice-emblem .fluid-layer, .chat-panel::after { animation: none !important; } .chat-panel::before, .chat-panel::after, .chat-welcome .voice-emblem, .chat-panel .messages:has(.chat-welcome) { transition: none; } }
   .reduce-motion .voice-emblem .fluid-layer { animation: none !important; }
   .reduce-motion .chat-panel::before, .reduce-motion .chat-panel::after { animation: none !important; transition: none; }
-  .reduce-motion .chat-welcome .voice-emblem { transition: none; }
+  .reduce-motion .chat-welcome .voice-emblem, .reduce-motion .chat-panel .messages:has(.chat-welcome) { transition: none; }
 }
