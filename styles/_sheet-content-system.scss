@@ -1,7 +1,13 @@
 // A single body vocabulary for scoped tasks, independent of their entry point.
 // Card heroes, the conversation screen and voice retain their own presentation.
 @mixin styles {
-  #sheet[data-sheet-surface="sheet"] {
+  // An editor nested beneath an expanded card uses an ordinary page body.
+  #sheet[data-sheet-surface="sheet"] .card-detail-body {
+    width: 100%; max-width: none; margin: 0; padding: 0;
+    background: transparent; border: 0; border-radius: 0;
+  }
+  // Share content controls without sharing the outer page/card presentation.
+  #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) {
     --sheet-paper: var(--surface);
     --sheet-canvas: var(--canvas);
 
@@ -9,16 +15,6 @@
       background: var(--sheet-canvas);
       color: var(--ink);
       > :last-child { margin-bottom: 0; }
-    }
-
-    .card-detail-body {
-      width: 100%;
-      max-width: none;
-      margin: 0;
-      padding: 0;
-      background: transparent;
-      border: 0;
-      border-radius: 0;
     }
 
     :is(.sheet-description, .form-caption, .form-intro > p) {
@@ -214,8 +210,6 @@
       .row-content small { font-size: .75rem; line-height: 1.55; }
       > button:active { transform: none; background: var(--soft); }
     }
-    .search-box { min-height: 48px; padding: 10px 14px; border: 0; border-radius: 14px; background: var(--sheet-paper); box-shadow: none; input { min-width: 0; font-size: max(16px, 1rem); line-height: 1.5; background: transparent; } }
-    .library-search { margin-bottom: 16px; }
     .library-count { margin: 4px 0 12px; padding-inline: 2px; font-size: .75rem; line-height: 1.5; color: var(--secondary); strong { font-weight: 550; color: var(--ink); } }
     .filter-chips { gap: 6px; margin: 0 0 16px; button { min-height: 44px; padding: 8px 13px; border: 0; border-radius: 12px; font-size: .8125rem; background: transparent; } .selected { color: var(--accent); background: var(--accent-soft); } }
     .library-actions { position: static; margin: 20px 0 0; padding: 0; background: transparent; box-shadow: none; }
@@ -231,7 +225,7 @@
       word-break: keep-all;
       overflow-wrap: anywhere;
       .icon { flex: 0 0 18px; width: 18px; height: 18px; }
-      &:active { transform: scale(.99); }
+      &:active { transform: none; }
       &:disabled { transform: none; }
     }
     .primary-button { background: var(--accent); color: var(--canvas); }
@@ -272,14 +266,21 @@
     }
   }
 
+  #sheet[data-sheet-surface="card"] .card-detail-body {
+    --detail-body-gutter: clamp(20px, 5vw, 32px);
+    max-width: calc(760px + var(--detail-body-gutter) * 2);
+    padding: 24px var(--detail-body-gutter) calc(40px + env(safe-area-inset-bottom));
+    background: var(--sheet-canvas);
+  }
+
   @media (max-width: 360px) {
-    #sheet[data-sheet-surface="sheet"] {
+    #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) {
       .field-pair { grid-template-columns: minmax(0, 1fr); gap: 0; }
       .detail-actions, .detail-toolbar { flex-direction: column; > button { flex: 0 0 auto; width: 100%; } }
       .parking-weekdays { grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); }
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    #sheet[data-sheet-surface="sheet"] :is(.primary-button, .secondary-button, .danger-button, .social-login, .choice-trigger, .field input, .field textarea) { transition: none; }
+    #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) :is(.primary-button, .secondary-button, .danger-button, .social-login, .choice-trigger, .field input, .field textarea) { transition: none; }
   }
 }

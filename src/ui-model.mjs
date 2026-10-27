@@ -5,8 +5,8 @@ export function phaseAt(date = new Date()) { const h = date.getHours(); return h
 export const parkingLabel = parking => parking ? [parking.floor, parking.zone, parking.spot].filter(Boolean).join(' · ') : '';
 export function normalizeParking(values) {
   const payload = Object.fromEntries(['floor', 'zone', 'spot'].map(key => [key, String(values[key] || '').trim() || null]));
-  if (!Object.values(payload).some(Boolean)) throw new Error('층, 구역, 자리 번호 중 하나를 알려주세요.');
-  for (const [key, value] of Object.entries(payload)) if (value && (value.length > (key === 'floor' ? 32 : 64) || /[\x00-\x1f\x7f]/.test(value))) throw new Error('위치를 조금 더 짧게 입력해 주세요.');
+  if (!Object.values(payload).some(Boolean)) throw Object.assign(new Error('층, 구역, 자리 번호 중 하나를 알려주세요.'), { field: 'spot' });
+  for (const [key, value] of Object.entries(payload)) if (value && (value.length > (key === 'floor' ? 32 : 64) || /[\x00-\x1f\x7f]/.test(value))) throw Object.assign(new Error('위치를 조금 더 짧게 입력해 주세요.'), { field: key });
   return values.display_mode || values.purpose ? { ...payload, ...parkingOptions(values) } : payload;
 }
 export function parkingAttempt(previous, values, newId = () => crypto.randomUUID()) {

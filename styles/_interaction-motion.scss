@@ -7,6 +7,8 @@
     --motion-control-ease: cubic-bezier(.2, .7, .2, 1);
     --control-hover: color-mix(in srgb, var(--accent) 5%, var(--surface));
     --control-pressed: color-mix(in srgb, var(--accent) 10%, var(--surface));
+    --control-hover-tint: color-mix(in srgb, var(--accent) 5%, transparent);
+    --control-pressed-tint: color-mix(in srgb, var(--accent) 10%, transparent);
     --control-focus: color-mix(in srgb, var(--accent) 70%, var(--surface));
   }
 
@@ -28,15 +30,35 @@
 
   // Flat lists retain their exact bounds and separators while pressed.
   button:is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .article, .guide-option, .time-choice, .document-sample-row, .message-result):not(:disabled):active,
-  #sheet[data-sheet-surface="sheet"] button:is(.record-row, .setting-row, .event-row, .article, .guide-option, .time-choice, .document-sample-row):not(:disabled):active {
+  #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) button:is(.record-row, .setting-row, .event-row, .article, .guide-option, .time-choice, .document-sample-row):not(:disabled):active {
     transform: none;
     opacity: 1;
     background-color: var(--control-pressed);
   }
+  // Match the list feedback without replacing a card's gradient or shadow.
+  // The tint sits above the material and below its text/artwork. One local
+  // stacking context keeps it inside the card, including during scene motion.
+  button:is(.brief-card, .forecast-card, .feature-tile) {
+    isolation: isolate;
+    &::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      border-radius: inherit;
+      pointer-events: none;
+      background-color: transparent;
+      transition: background-color var(--motion-release) var(--motion-control-ease);
+    }
+  }
   button:is(.brief-card, .forecast-card, .feature-tile):not(:disabled):active {
     transform: none;
-    opacity: .92;
+    opacity: 1;
     filter: none;
+    &::before {
+      background-color: var(--control-pressed-tint);
+      transition-duration: var(--motion-feedback);
+    }
   }
 
   // Icon buttons and secondary actions use one quiet, local surface state.
@@ -65,7 +87,7 @@
     opacity: .65;
   }
   button:is(.primary-button, .social-login, .send-button, .quick-mic):not(:disabled):active,
-  #sheet[data-sheet-surface="sheet"] .primary-button:not(:disabled):active {
+  #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) .primary-button:not(:disabled):active {
     transform: none;
     opacity: .83;
   }
@@ -75,7 +97,7 @@
     opacity: .75;
   }
   .choice-trigger:not(:disabled):active,
-  #sheet[data-sheet-surface="sheet"] .choice-trigger:not(:disabled):active {
+  #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) .choice-trigger:not(:disabled):active {
     transform: none;
     opacity: 1;
     border-color: var(--accent);
@@ -110,13 +132,13 @@
   // Mouse hover is optional feedback, never a layout or full-screen effect.
   @media (hover: hover) and (pointer: fine) {
     button:is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .article, .guide-option, .time-choice, .document-sample-row, .message-result):not(:disabled):hover:not(:active),
-    #sheet[data-sheet-surface="sheet"] button:is(.record-row, .setting-row, .event-row, .article, .guide-option, .time-choice, .document-sample-row):not(:disabled):hover:not(:active) {
+    #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) button:is(.record-row, .setting-row, .event-row, .article, .guide-option, .time-choice, .document-sample-row):not(:disabled):hover:not(:active) {
       background-color: var(--control-hover);
     }
     button:is(.brief-card, .forecast-card, .feature-tile):not(:disabled):hover:not(:active) {
       transform: none;
       filter: none;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+      &::before { background-color: var(--control-hover-tint); }
     }
     button:is(.header-button, .small-icon, .close-button, .month-title, .today-button, .secondary-button, .create-feature):not(:disabled):hover:not(:active),
     .quick-composer > button:first-child:not(:disabled):hover:not(:active),
@@ -132,13 +154,13 @@
       color: color-mix(in srgb, var(--accent) 76%, var(--ink));
     }
     button:is(.primary-button, .social-login, .send-button, .quick-mic):not(:disabled):hover:not(:active),
-    #sheet[data-sheet-surface="sheet"] .primary-button:not(:disabled):hover:not(:active) { opacity: .9; }
+    #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) .primary-button:not(:disabled):hover:not(:active) { opacity: .9; }
     :is(.segmented, .filter-chips, .state-picker) > button:not(.selected):not(:disabled):hover:not(:active),
     .tab-bar > button:not([aria-current]):not(:disabled):hover:not(:active),
     .choice-options > button:not([aria-selected="true"]):not(:disabled):hover:not(:active),
     .window-menu > button:not([aria-pressed="true"]):not(:disabled):hover:not(:active) { background-color: var(--control-hover); }
     .choice-trigger:not(:disabled):hover:not(:active),
-    #sheet[data-sheet-surface="sheet"] .choice-trigger:not(:disabled):hover:not(:active) { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+    #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) .choice-trigger:not(:disabled):hover:not(:active) { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
     .theme-option:hover { background-color: var(--control-hover); }
     button:is(.danger-button, .logout-button):not(:disabled):hover:not(:active) {
       background-color: color-mix(in srgb, var(--danger) 6%, transparent);
@@ -148,11 +170,13 @@
   // Keep semantic feedback while removing motion for this preference.
   @media (prefers-reduced-motion: reduce) {
     :is(.app-frame, dialog) button { transition-duration: 0ms !important; }
+    button:is(.brief-card, .forecast-card, .feature-tile)::before { transition: none; }
     :is(.sheet, .chat-panel) :is(input, textarea), :is(.parking-weekdays, .icon-picker) label > span,
     .parking-options label::before, .theme-option { transition: none !important; }
     :is(.support-details, .custom-preview-disclosure)[open] > :not(summary) { animation: none; }
   }
   .reduce-motion :is(.app-frame, dialog) button { transition-duration: 0ms !important; }
+  .reduce-motion button:is(.brief-card, .forecast-card, .feature-tile)::before { transition: none; }
   .reduce-motion :is(.sheet, .chat-panel) :is(input, textarea), .reduce-motion :is(.parking-weekdays, .icon-picker) label > span,
   .reduce-motion .parking-options label::before, .reduce-motion .theme-option { transition: none !important; }
   .reduce-motion :is(.support-details, .custom-preview-disclosure)[open] > :not(summary) { animation: none; }

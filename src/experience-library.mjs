@@ -22,10 +22,23 @@ export function conversationGroups(conversations, query = '', now = Date.now()) 
   return [...groups].filter(([, items]) => items.length);
 }
 
+// Validate the schedule the form actually shows; never turn a manual request
+// into a daily automation (or discard a chosen recurrence) during saving.
+export function normalizeCustomSchedule(values = {}) {
+  const time = typeof values.time === 'string' ? values.time.trim() : values.time == null ? '' : String(values.time);
+  const repeat = typeof values.repeat === 'string' ? values.repeat.trim() : values.repeat == null ? '필요할 때' : String(values.repeat);
+  const invalid = (message, field) => { throw Object.assign(new Error(message), { field }); };
+  if (!['필요할 때', '매일', '평일', '한 번'].includes(repeat)) invalid('반복 방식을 다시 선택해 주세요.', 'repeat');
+  if (time && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) invalid('실행 시간을 확인해 주세요.', 'time');
+  if (!time && repeat !== '필요할 때') invalid('예약 실행할 시간을 선택해 주세요.', 'time');
+  if (time && repeat === '필요할 때') invalid('시간에 맞춰 실행할 반복 방식을 선택해 주세요.', 'repeat');
+  return { time, repeat };
+}
+
 export function customPreview(values) {
   const work = values.work.trim();
   return { title: values.title.trim() || work.slice(0, 24) || '새로운 내 기능',
     description: values.description.trim() || '나에게 맞춰 기억하는 작은 부탁', work,
-    time: values.time, repeat: values.time ? (values.repeat === '필요할 때' ? '매일' : values.repeat) : '필요할 때',
+    time: values.time, repeat: values.repeat,
     icon: ['spark', 'note', 'leaf', 'news', 'bell', 'compass'].includes(values.icon) ? values.icon : 'spark' };
 }

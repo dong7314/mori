@@ -14,7 +14,9 @@ export function parkingOptions(values) {
   if (display_mode === 'always') return { purpose, display_mode, display_schedule: null };
   const s = values.display_schedule || values;
   const days = (s.days || []).map(Number).sort((a, b) => a - b), duration = Number(s.duration_minutes ?? 90);
-  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(s.time || '') || !days.length || days.some(d => !Number.isInteger(d) || d < 0 || d > 6) || new Set(days).size !== days.length || !Number.isInteger(duration) || duration < 1 || duration > 1440) throw new Error('표시 시각과 요일을 확인해 주세요.');
+  if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(s.time || '')) throw Object.assign(new Error('표시 시작 시간을 확인해 주세요.'), { field: 'time' });
+  if (!days.length || days.some(d => !Number.isInteger(d) || d < 0 || d > 6) || new Set(days).size !== days.length) throw Object.assign(new Error('표시할 요일을 하나 이상 선택해 주세요.'), { field: 'days' });
+  if (!Number.isInteger(duration) || duration < 1 || duration > 1440) throw Object.assign(new Error('표시 기간을 확인해 주세요.'), { field: 'duration_minutes' });
   const timezone = s.timezone || 'Asia/Seoul';
   try { new Intl.DateTimeFormat('en', { timeZone: timezone }); } catch { throw new Error('시간대를 확인해 주세요.'); }
   return { purpose, display_mode, display_schedule: { time: s.time, timezone, days, duration_minutes: duration } };

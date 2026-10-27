@@ -6,15 +6,20 @@ import { createVoicePreview } from './voice-preview.mjs';
 import { installOverlayScrollbars } from './overlay-scrollbars.mjs';
 import { createAccountLoader } from './account-session.mjs';
 import { createFormDrafts } from './form-drafts.mjs';
-import { showFormError, clearFormError } from './form-feedback.mjs';
+import { showFormError, clearFormError, validateForm } from './form-feedback.mjs';
+import { commitStateChange } from './state-change.mjs';
+import { createScreenHistory } from './screen-history.mjs';
 import { VERSION, BUILTINS, seed, uid, esc, dateKey, nowOf, setClock, dashboardCards, applyRequest, runCustom, minuteOf, tickScheduled } from './experience.mjs';
 import { DASHBOARD_WINDOWS, dashboardTimeline } from './dashboard-timeline.mjs';
-import { recordsOf, conversationGroups, customPreview } from './experience-library.mjs';
+import { recordsOf, conversationGroups, customPreview, normalizeCustomSchedule } from './experience-library.mjs';
+import { patchLiveView } from './live-view.mjs';
+import { createSearchUpdates } from './search-updates.mjs';
 import { api } from './api.mjs';
 import { parkingConfig, parkingOptions, parkingDescription, parkingPurpose } from './parking-display.mjs';
-import { DOCUMENT_MAX_BYTES, documentRecord, formatBytes, storeOriginal, readOriginal } from './document-store.mjs';
+import { DOCUMENT_MAX_BYTES, documentRecord, formatBytes, storeOriginal, readOriginal, removeOriginal } from './document-store.mjs';
 import { choiceField, installChoices, setChoice } from './choice-field.mjs';
-import { EVENT_KINDS, eventKind, dayDate, eventsOn, moveDate, calendarDates, eventDuration, eventEnd, eventDaySpan, timelineHours, hasOverlap } from './calendar-model.mjs';
+import { pickerField, createFormPickers, syncPickerFields } from './form-picker.mjs';
+import { EVENT_KINDS, eventKind, dayDate, eventsOn, moveDate, calendarDates, eventDuration, eventEnd, eventDaySpan, calendarEventContext, timelineHours, hasOverlap } from './calendar-model.mjs';
 import { parkingAttempt, parkingLabel } from './ui-model.mjs';
 import { createMotion } from './motion.mjs';
 import { cardVisual, featureArt, stockCandlestickChart } from './card-visuals.mjs';
@@ -56,18 +61,34 @@ matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event 
     voiceLayoutAnimation?.cancel();
     presentations.settle($('#chat-panel'));
   }
-  render();
+  document.documentElement.classList.toggle('reduce-motion', data.profile.reduced);
+  render({ background: true });
 });
 const ui = { view: 'dashboard', horizon: 0, windowMenu: false, resetRails: false, date: dateKey(nowOf(data)), month: new Date(nowOf(data)), calendar: 'month', filter: 'all', chatId: null, search: '', chart: '1일', detail: null, recordFilter: 'all', recordSearch: '', liveUser: null, liveParking: null, sheetEpoch: 0, accountState: 'checking', settingsRevision: 0, settingsState: 'checking' };
 ui.month.setDate(1);
 installChoices(document, { disclose: (element, expanded) => motion.disclosure(element, expanded) });
-let toastTimer, recognition, liveAttempt = null, fileBusy = false, deletedEvent = null, deletedNote = null;
+let toastTimer, recognition, liveAttempt = null, fileBusy = false, deletedEvent = null, deletedNote = null, deletedDocument = null;
 const busy = new Set();
 const presentations = createPresentations({ reducedMotion: () => data.profile.reduced });
-const formDrafts = createFormDrafts();
-const draftForm = () => $('#sheet-content form:is(#note-form, #event-form, #custom-form)');
-const loadAccount = createAccountLoader({ request: api, state: ui, onSettings: prefs => { selectedTheme = prefs.theme; applyTheme(); }, onChange: () => render() });
+const formDrafts = createFormDrafts({ storage: localStorage, key: `${KEY}.form-drafts.v1` });
+const draftForm = () => $('#sheet-content form:is(#note-form, #event-form, #custom-form, #parking-form, #news-form)');
+let draftStorageWarning = false;
+function captureDraft(form = draftForm()) {
+  const saved = formDrafts.capture(form);
+  if (!saved && !draftStorageWarning) toast('초안을 이 기기에 보관하지 못했어요. 페이지를 닫기 전에 내용을 복사해 주세요.');
+  draftStorageWarning = !saved;
+}
+const loadAccount = createAccountLoader({ request: api, state: ui, onSettings: prefs => { selectedTheme = prefs.theme; applyTheme(); }, onChange: () => render({ background: true }) });
 let presentationSource = null, detailRequest = null, sheetCurrent = null, sheetTrail = [], returningSheet = false, sheetOrigin = null, sheetCardOrigin = null;
+let restoringNavigation = false, chatOrigin = null;
+const navigation = createScreenHistory({ history, location, events: window, restore: restoreNavigation });
+const formPickers = createFormPickers(document, {
+  now: () => current(),
+  show: (dialog, source) => presentations.show(dialog, { source, kind: 'sheet' }),
+  dismiss: dialog => presentations.dismiss(dialog),
+  onCreate: dialog => presentations.pullToDismiss(dialog, () => formPickers.close()),
+  onChange: () => syncNavigation(),
+});
 const voiceSession = createVoiceSession();
 let voiceExpanded = false, voiceFallbackEdited = false, voiceEndTimer, voiceLayoutAnimation;
 let voicePreviewing = false;
@@ -89,6 +110,10 @@ document.addEventListener('click', event => {
 }, true);
 let railObserver, carouselObserver;
 const pageScroll = new Map();
+const boundRails = new WeakSet(), resultMarkup = new WeakMap();
+const searchUpdates = createSearchUpdates();
+const composingInputs = new Set();
+let pendingBackgroundRender = false;
 const time = value => new Date(value).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' });
 const dateLabel = value => new Date(value).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
 const shortDate = value => new Date(value).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
@@ -96,6 +121,15 @@ const clockLabel = value => { const [h, m] = value.split(':').map(Number); retur
 const current = () => nowOf(data);
 const todayEvents = () => data.events.filter(e => e.date === dateKey(current())).sort((a, b) => a.time.localeCompare(b.time));
 function save() { try { localStorage.setItem(KEY, JSON.stringify(data)); return true; } catch { toast('저장 공간이 부족해요. 문서나 오래된 기록을 정리해 주세요.'); return false; } }
+function changeState(mutate, form = null) {
+  const result = commitStateChange(data, mutate, state => localStorage.setItem(KEY, JSON.stringify(state)));
+  data = result.state;
+  if (!result.ok) {
+    if (form) showFormError(form, result.error.message, { field: result.error.field });
+    else toast(result.error.message);
+  }
+  return result.ok;
+}
 function moveToast() { const host = presentations.topDialog() || document.body; if ($('#toast').parentElement !== host) host.append($('#toast')); }
 function toast(message, undoAction = '') { moveToast(); clearTimeout(toastTimer); $('#toast').innerHTML = `<span>${esc(message)}</span>${undoAction ? button(undoAction, '되돌리기', '') : ''}`; $('#toast').classList.toggle('has-action', Boolean(undoAction)); $('#toast').classList.add('visible'); toastTimer = setTimeout(() => $('#toast').classList.remove('visible'), undoAction ? 9000 : 3400); }
 function heading(title, subtitle = '', trailing = '') { return `<header class="page-heading"><div>${subtitle ? `<p class="eyebrow">${subtitle}</p>` : ''}<h1>${title}</h1></div>${trailing}</header>`; }
@@ -121,11 +155,17 @@ function recordResults(records) {
   const label = { note: '메모', document: '문서', custom: '실행 결과' }[ui.recordFilter] || '기록';
   return empty(ui.recordFilter === 'document' ? 'file' : 'note', `저장된 ${label}${label === '기록' ? '이' : '가'} 없어요`, ui.recordFilter === 'custom' ? '내 기능을 실행하면 결과를 여기서 확인할 수 있어요.' : '메모나 파일을 추가해 보세요.');
 }
-function refreshRecords() {
+function updateSearchResults(list, markup, animate = false) {
+  if (!list || resultMarkup.get(list) === markup) return;
+  list.innerHTML = markup;
+  resultMarkup.set(list, markup);
+  if (animate) motion.result(list);
+}
+function refreshRecords({ animate = false } = {}) {
   const records = matchingRecords(), list = $('.library-sheet .record-list');
   if (!list) return;
   $('.library-count').innerHTML = `${ui.recordSearch.trim() ? '검색 결과' : '최근 기록'} <strong>${records.length}</strong>`;
-  list.innerHTML = recordResults(records);
+  updateSearchResults(list, recordResults(records), animate);
   $('.library-sheet .search-clear').hidden = !ui.recordSearch;
 }
 
@@ -134,6 +174,7 @@ function recordsSheet(filter = ui.recordFilter) {
   const query = ui.recordSearch.trim().toLocaleLowerCase('ko-KR');
   const records = matchingRecords();
   openSheet('기록 보관함', `<div class="library-search">${searchField('record-search', '기록 검색', '제목이나 내용 검색', ui.recordSearch, 'clear-record-search')}</div><div class="filter-chips" aria-label="기록 종류">${RECORD_FILTERS.map(([v, label]) => button('record-filter', label, filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${filter === v}"`)).join('')}</div><div class="library-count" role="status">${query ? '검색 결과' : '최근 기록'} <strong>${records.length}</strong></div><div class="record-list">${recordResults(records)}</div><div class="detail-actions library-actions">${button('new-note', icon('compose') + ' 새 메모', 'secondary-button')}${button('document', icon('upload') + ' 파일 가져오기', 'secondary-button')}</div>`, 'library-sheet');
+  resultMarkup.set($('.library-sheet .record-list'), recordResults(records));
 }
 const latestNote = () => data.notes.reduce((a, b) => !a || new Date(b.at) > new Date(a.at) ? b : a, null);
 const nextReminder = () => data.reminders.filter(r => !r.cancelled && r.target > current()).sort((a, b) => a.target - b.target)[0];
@@ -282,7 +323,8 @@ function scheduleEvent(event, nextId = null, date = ui.date) {
 function schedule() {
   const selected = dayDate(ui.date), year = selected.getFullYear(), month = selected.getMonth();
   const today = dateKey(current()), dates = calendarDates(ui.date, ui.calendar), events = eventsOn(data.events, ui.date);
-  const next = todayEvents().find(event => minuteOf(event.time) >= new Date(current()).getHours() * 60 + new Date(current()).getMinutes());
+  const gridDates = calendarDates(ui.date, 'month'), weekOffset = Math.floor(gridDates.indexOf(ui.date) / 7);
+  const { ongoing, next } = calendarEventContext(data.events, today, current());
   const scopeDates = ui.calendar === 'day' ? [ui.date] : ui.calendar === 'month' ? dates.filter(key => key.startsWith(ui.date.slice(0, 7))) : dates;
   const scope = [...new Map(scopeDates.flatMap(key => eventsOn(data.events, key)).map(event => [event.id, event])).values()];
   const scopeLabel = { month: ui.date.slice(0, 7) === today.slice(0, 7) ? '이번 달' : '선택한 달', week: dates.includes(today) ? '이번 주' : '선택한 주', day: ui.date === today ? '오늘' : '선택한 날' }[ui.calendar];
@@ -291,13 +333,13 @@ function schedule() {
     const day = dayDate(key), items = eventsOn(data.events, key);
     return button('select-date', `<span class="calendar-date-number">${day.getDate()}</span><span class="calendar-markers" aria-hidden="true">${items.slice(0, 3).map(event => `<i class="${eventKind(event).value}"></i>`).join('')}${items.length > 3 ? '<b>+</b>' : ''}</span>`,
       `${key === ui.date ? 'selected' : ''} ${day.getMonth() !== month ? 'outside' : ''} ${key === today ? 'today' : ''} ${day.getDay() === 0 ? 'sunday' : day.getDay() === 6 ? 'saturday' : ''}`,
-      `data-date="${key}" aria-label="${day.getFullYear()}년 ${day.getMonth() + 1}월 ${day.getDate()}일${key === today ? ', 오늘' : ''}, 일정 ${items.length}개" aria-pressed="${key === ui.date}" tabindex="${key === ui.date ? 0 : -1}" ${key === today ? 'aria-current="date"' : ''}`);
+      `data-date="${key}" aria-label="${day.getFullYear()}년 ${day.getMonth() + 1}월 ${day.getDate()}일${key === today ? ', 오늘' : ''}, 일정 ${items.length}개" aria-pressed="${key === ui.date}" tabindex="${key === ui.date ? 0 : -1}" ${key === today ? 'aria-current="date"' : ''} ${ui.calendar !== 'month' && !dates.includes(key) ? 'inert aria-hidden="true"' : ''}`);
   };
   let agenda;
   if (ui.calendar === 'week') {
-    agenda = dates.map(key => { const items = eventsOn(data.events, key); return `<section class="week-day-group ${key === ui.date ? 'is-selected' : ''}">
-      <div class="week-day-heading">${button('select-date', `${shortDate(dayDate(key))}<span>${dayDate(key).toLocaleDateString('ko-KR', { weekday: 'short' })}</span>${key === today ? '<em>오늘</em>' : ''}`, '', `data-date="${key}"`)}<small>${items.length ? items.length + '개의 약속' : '비워둔 하루'}</small>${button('new-event', icon('plus'), 'small-icon', `data-date="${key}" aria-label="${dateLabel(dayDate(key))} 일정 추가"`)}</div>
-      ${items.map(event => scheduleEvent(event, next?.id, key)).join('') || '<p class="week-empty">등록된 일정이 없어요.</p>'}</section>`; }).join('');
+    agenda = dates.map(key => { const items = eventsOn(data.events, key); return `<section class="week-day-group ${key === ui.date ? 'is-selected' : ''}" data-empty="${!items.length}">
+      <div class="week-day-heading">${button('select-date', `<span class="week-date-label">${shortDate(dayDate(key))}<span>${dayDate(key).toLocaleDateString('ko-KR', { weekday: 'short' })}</span>${key === today ? '<em>오늘</em>' : ''}</span><small>${items.length ? items.length + '개의 약속' : '비워둔 하루'}</small>`, 'week-date-button', `data-date="${key}" aria-pressed="${key === ui.date}"`)}${button('new-event', icon('plus') + '<span>추가</span>', 'week-add-button', `data-date="${key}" aria-label="${dateLabel(dayDate(key))} 일정 추가"`)}</div>
+      ${items.map(event => scheduleEvent(event, next?.id, key)).join('')}</section>`; }).join('');
   } else if (ui.calendar === 'day') {
     const currentHour = new Date(current()).getHours();
     agenda = `<div class="day-timeline">${timelineHours(events, ui.date).map(hour => {
@@ -309,17 +351,17 @@ function schedule() {
     agenda = events.map(event => scheduleEvent(event, next?.id)).join('') || `<div class="calendar-empty">${mark('sun', 'amber')}<h3>등록된 일정이 없어요</h3><p>새 약속이나 할 일을 추가해 보세요.</p>${button('new-event', icon('plus') + ' 첫 일정 추가', 'secondary-button')}</div>`;
   }
   return `<div class="schedule-topbar">${heading('일정', '', button('new-event', icon('plus'), 'header-button', 'aria-label="일정 추가"'))}
-    <div class="schedule-summary"><div><span>${scopeLabel}의 약속</span><strong>${scope.length}<small>개</small></strong></div><p>${next ? `다음은 <b>${esc(next.title)}</b><span>오늘 ${next.time} · ${esc(next.place || '장소 미정')}</span>` : '오늘 남은 일정이 없어요.<span>날짜를 선택해 일정을 확인하세요.</span>'}</p></div></div>
-    <div class="segmented calendar-modes" aria-label="달력 보기 방식">${[['month', '월'], ['week', '주'], ['day', '일']].map(([id, title]) => button('calendar-mode', title, ui.calendar === id ? 'selected' : '', `data-value="${id}" aria-pressed="${ui.calendar === id}"`)).join('')}</div>
-    <div class="schedule-layout ${ui.calendar}"><section class="calendar-surface" data-month="${year}-${String(month + 1).padStart(2, '0')}" aria-label="날짜 선택">
-      <div class="month-header">${button('calendar-jump', `<span class="calendar-title-copy"><small>${year}년</small><strong>${month + 1}월</strong></span>${arrow}`, 'month-title', `aria-label="${year}년 ${month + 1}월, 연도와 월 선택"`)}<div class="calendar-navigation">${button('calendar-today', '오늘', 'today-button')}<span class="calendar-period-nav" role="group" aria-label="달력 기간 이동">${button('month-prev', icon('back'), 'small-icon', 'aria-label="이전 기간"')}${button('month-next', arrow, 'small-icon', 'aria-label="다음 기간"')}</span></div></div>
+    <div class="schedule-summary"><div><span>${scopeLabel}의 약속</span><strong>${scope.length}<small>개</small></strong></div><p>${ongoing ? `지금 진행 중 <b>${esc(ongoing.title)}</b><span>${ongoing.date === today ? eventEnd(ongoing) : eventDaySpan(ongoing, today).endLabel}까지 · ${esc(ongoing.place || '장소 미정')}</span>` : next ? `다음은 <b>${esc(next.title)}</b><span>오늘 ${next.time} · ${esc(next.place || '장소 미정')}</span>` : '오늘 남은 일정이 없어요.<span>날짜를 선택해 일정을 확인하세요.</span>'}</p></div></div>
+    <div class="segmented calendar-modes" data-motion-segments aria-label="달력 보기 방식">${[['month', '월'], ['week', '주'], ['day', '일']].map(([id, title]) => button('calendar-mode', title, ui.calendar === id ? 'selected' : '', `data-value="${id}" aria-pressed="${ui.calendar === id}"`)).join('')}</div>
+    <div class="content-switch"><div id="schedule-view-content" class="view-content"><div class="schedule-layout ${ui.calendar}"><section class="calendar-surface" data-month="${year}-${String(month + 1).padStart(2, '0')}" aria-label="날짜 선택">
+      <div class="month-header">${button('calendar-jump', `<span class="calendar-title-copy"><small>${year}년</small><strong>${month + 1}월</strong></span>${icon('chevron')}`, 'month-title', `aria-label="${year}년 ${month + 1}월, 연도와 월 선택" aria-haspopup="dialog" aria-controls="sheet"`)}<div class="calendar-navigation">${button('calendar-today', '오늘', 'today-button', 'aria-label="오늘 날짜로 이동"')}<span class="calendar-period-nav" role="group" aria-label="달력 기간 이동">${button('month-prev', icon('back'), 'small-icon', `aria-label="${ui.calendar === 'month' ? '이전 달' : ui.calendar === 'week' ? '이전 주' : '이전 날'}"`)}${button('month-next', icon('chevron'), 'small-icon', `aria-label="${ui.calendar === 'month' ? '다음 달' : ui.calendar === 'week' ? '다음 주' : '다음 날'}"`)}</span></div></div>
       <div class="weekdays">${['일', '월', '화', '수', '목', '금', '토'].map(day => `<span>${day}</span>`).join('')}</div>
-      <div class="calendar-grid ${ui.calendar !== 'month' ? 'week-strip' : ''}" data-period="${dates[0]}/${dates.at(-1)}">${dates.map(cell).join('')}</div>
+      <div class="calendar-grid-viewport" data-calendar-rows="${ui.calendar === 'month' ? gridDates.length / 7 : 1}" data-calendar-full-rows="${gridDates.length / 7}" data-calendar-offset="${weekOffset}"><div class="calendar-grid ${ui.calendar !== 'month' ? 'week-strip' : ''}" data-period="${dates[0]}/${dates.at(-1)}">${gridDates.map(cell).join('')}</div></div>
       <div class="calendar-legend">${EVENT_KINDS.map(kind => `<span><i class="${kind.value}"></i>${kind.label}</span>`).join('')}</div>
     </section><section class="agenda-panel" aria-label="일정 목록">
-      <div class="agenda-heading"><div><p>${ui.calendar === 'week' ? '한 주의 흐름' : `${ui.date === today ? '오늘 · ' : ''}${selected.toLocaleDateString('ko-KR', { weekday: 'long' })}`}</p><h2>${ui.calendar === 'week' ? weekLabel : `${selected.getMonth() + 1}월 ${selected.getDate()}일`}</h2></div><span>${ui.calendar === 'week' ? scope.length : events.length}개의 약속</span></div>
+      <div class="agenda-heading" aria-live="polite" aria-atomic="true"><div><p>${ui.calendar === 'week' ? '한 주의 흐름' : `${ui.date === today ? '오늘 · ' : ''}${selected.toLocaleDateString('ko-KR', { weekday: 'long' })}`}</p><h2>${ui.calendar === 'week' ? weekLabel : `${selected.getMonth() + 1}월 ${selected.getDate()}일`}</h2></div><span>${ui.calendar === 'week' ? scope.length : events.length}개의 약속</span></div>
       <div class="agenda-body">${agenda}</div>${events.length && ui.calendar === 'month' ? button('new-event', icon('plus') + ' 이 날에 일정 추가', 'agenda-add') : ''}
-    </section></div><div class="quiet-card">${icon('spark')}<div><strong>음성으로 일정 입력</strong><p>말한 내용을 확인한 뒤 보내세요.</p></div>${button('voice', icon('mic'), 'small-icon', 'aria-label="음성으로 일정 입력"')}</div>`;
+    </section></div><div class="brand-footer">mori <span>작은 부탁, 가벼운 하루.</span></div></div></div>`;
 }
 function calendarJump(year = dayDate(ui.date).getFullYear()) {
   ui.jumpYear = year;
@@ -328,24 +370,84 @@ function calendarJump(year = dayDate(ui.date).getFullYear()) {
 function featureStatus(id) {
   return ({parking: data.parking ? `${data.parking.floor} ${data.parking.spot}` : '저장된 위치 없음', news: `매일 ${clockLabel(data.news.time)}`, stock: data.stock.symbol, note: `${data.notes.length}개 저장됨`, schedule: `오늘 일정 ${todayEvents().length}개`, reminder: `진행 중 ${data.reminders.filter(r => !r.cancelled && r.target > current()).length}개`})[id];
 }
-function customFeatureRow(feature) {
+function customFeatureTile(feature) {
   const schedule = feature.time ? `${feature.repeat} ${clockLabel(feature.time)}` : '필요할 때 실행';
   const result = feature.result ? ` · 최근 실행 ${shortDate(feature.result.at)} · 결과 ${feature.result.items.length}개` : '';
-  return button('detail', `${mark(feature.icon, 'purple')}<span class="row-content"><strong>${esc(feature.title)}</strong><small>${esc(schedule + result)}</small></span>${tag(!feature.work ? '초안' : feature.active ? '사용 중' : '중지', feature.active ? 'green' : '')}${arrow}`, 'custom-row', `data-ref="custom:${feature.id}"`);
+  return button('detail', `<span class="feature-tile-copy"><h3>${esc(feature.title)}</h3><p>${esc(schedule + result)}</p><span class="feature-status">${tag(!feature.work ? '초안' : feature.active ? '사용 중' : '중지', feature.work && feature.active ? 'green' : '')}</span></span><span class="feature-art feature-art--custom" aria-hidden="true">${mark(feature.icon, 'purple')}</span>`, 'feature-tile feature-tile--custom', `data-ref="${esc(`custom:${feature.id}`)}"`);
 }
 function features() {
-  return `${heading('기능', '', button('new-custom', icon('plus'), 'header-button', 'aria-label="새 기능 만들기"'))}<div class="segmented">${[['all', '모든 기능'], ['builtin', '기본 기능'], ['custom', '내 기능']].map(([v, title]) => button('feature-filter', title, ui.filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${ui.filter === v}"`)).join('')}</div>
-    ${ui.filter !== 'custom' ? `${section('기본 기능', '<span class="section-caption">6가지</span>')}<div class="feature-grid">${BUILTINS.map(f => button('detail', `<span class="feature-tile-copy"><h3>${f.title}</h3><p>${f.subtitle}</p><span class="feature-status">${esc(featureStatus(f.id))}</span></span>${featureArt(f.id, featurePreviewParams(f.id))}${arrow}`, `feature-tile feature-tile--${f.id}`, `data-ref="${f.id}"`)).join('')}</div>` : ''}
-    ${ui.filter !== 'builtin' ? `${section('내 기능', `<span class="section-caption">${data.customs.filter(f => f.active).length}개 사용 중</span>`)}<div class="custom-list">
-      ${data.customs.map(customFeatureRow).join('') || empty('spark', '아직 내 기능이 없어요', '반복할 일과 시간을 정해 만들어 보세요.')}
-      ${button('new-custom', `${mark('plus', 'purple')}<span class="row-content"><strong>새 기능 만들기</strong><small>반복할 일과 시간 정하기</small></span>${arrow}`, 'custom-row create-feature-row')}
-    </div>` : ''}`;
+  return `${heading('기능', '', button('new-custom', icon('plus'), 'header-button', 'aria-label="새 기능 만들기"'))}<div class="segmented" data-motion-segments aria-label="기능 종류">${[['all', '모든 기능'], ['builtin', '기본 기능'], ['custom', '내 기능']].map(([v, title]) => button('feature-filter', title, ui.filter === v ? 'selected' : '', `data-value="${v}" aria-pressed="${ui.filter === v}"`)).join('')}</div>
+    <div class="content-switch"><div id="feature-view-content" class="view-content">${ui.filter !== 'custom' ? `${section('기본 기능', '<span class="section-caption">6가지</span>')}<div class="feature-grid">${BUILTINS.map(f => button('detail', `<span class="feature-tile-copy"><h3>${f.title}</h3><p>${f.subtitle}</p><span class="feature-status">${esc(featureStatus(f.id))}</span></span>${featureArt(f.id, featurePreviewParams(f.id))}`, `feature-tile feature-tile--${f.id}`, `data-ref="${f.id}"`)).join('')}</div>` : ''}
+    ${ui.filter !== 'builtin' ? `${section('내 기능', `<span class="section-caption">${data.customs.filter(f => f.active).length}개 사용 중</span>`)}<div class="feature-grid custom-feature-grid">
+      ${data.customs.map(customFeatureTile).join('') || empty('spark', '아직 내 기능이 없어요', '오른쪽 위 + 버튼으로 나만의 기능을 만들어 보세요.')}
+    </div>` : ''}</div></div>`;
 }
 const themeLabel = () => ({system: '시스템 설정', light: '라이트', dark: '다크'})[selectedTheme];
+function selectScheduleDate(date, focusSelector = `[data-date="${date}"][aria-pressed]`) {
+  if (ui.date !== date) {
+    const sameWeek = ui.calendar === 'week' && calendarDates(ui.date, 'week')[0] === calendarDates(date, 'week')[0];
+    ui.date = date; ui.month = dayDate(date);
+    if (ui.view === 'schedule' && $('#schedule-view-content')) {
+      motion.updateSchedule(() => render({ background: true }), { animateAgenda: !sameWeek });
+    } else render();
+  }
+  document.querySelector(focusSelector)?.focus({ preventScroll: true });
+}
+function patchCalendarContent(content, next) {
+  const layout = content.querySelector('.schedule-layout'), nextLayout = next.querySelector('.schedule-layout');
+  if (layout.className !== nextLayout.className) layout.className = nextLayout.className;
+  const grid = content.querySelector('.calendar-grid'), nextGrid = next.querySelector('.calendar-grid');
+  const nextDates = new Map([...nextGrid.children].map(cell => [cell.dataset.date, cell]));
+  if (grid.className !== nextGrid.className) grid.className = nextGrid.className;
+  // All modes share one month grid. The viewport folds to the selected week;
+  // retained dates never disappear, resize or overlap during a mode change.
+  if (grid.dataset.period !== nextGrid.dataset.period) {
+    const existing = new Map([...grid.children].map(cell => [cell.dataset.date, cell]));
+    const incoming = [...nextGrid.children], wanted = new Set(incoming.map(cell => cell.dataset.date));
+    for (const cell of [...grid.children]) if (!wanted.has(cell.dataset.date)) cell.remove();
+    incoming.forEach((cell, index) => {
+      const retained = existing.get(cell.dataset.date) || cell;
+      if (grid.children[index] !== retained) grid.insertBefore(retained, grid.children[index] || null);
+    });
+    grid.dataset.period = nextGrid.dataset.period;
+  }
+  for (const cell of grid.children) {
+    const hidden = nextDates.get(cell.dataset.date).inert;
+    if (cell.inert !== hidden) cell.inert = hidden;
+    if (hidden) cell.setAttribute('aria-hidden', 'true'); else cell.removeAttribute('aria-hidden');
+  }
+  const viewport = content.querySelector('.calendar-grid-viewport'), nextViewport = next.querySelector('.calendar-grid-viewport');
+  for (const property of ['calendarRows', 'calendarFullRows', 'calendarOffset']) {
+    if (viewport.dataset[property] !== nextViewport.dataset[property]) viewport.dataset[property] = nextViewport.dataset[property];
+  }
+  content.querySelector('.agenda-panel').replaceChildren(...next.querySelector('.agenda-panel').childNodes);
+}
+function switchViewContent(kind, value) {
+  const order = kind === 'calendar' ? ['month', 'week', 'day'] : ['all', 'builtin', 'custom'];
+  if (!order.includes(value) || ui[kind] === value) return;
+  const selector = kind === 'calendar' ? '#schedule-view-content' : '#feature-view-content';
+  const content = $(selector);
+  if (!content) return;
+  ui[kind] = value;
+  const segments = $('#main [data-motion-segments]');
+  for (const control of segments.querySelectorAll('button')) {
+    const selected = control.dataset.value === value;
+    control.classList.toggle('selected', selected); control.setAttribute('aria-pressed', String(selected));
+  }
+  const template = document.createElement('template');
+  template.innerHTML = kind === 'calendar' ? schedule() : features();
+  motion.switchContent(content, () => {
+    const next = template.content.querySelector(selector);
+    if (kind === 'calendar') {
+      patchCalendarContent(content, next);
+      $('.schedule-summary').replaceChildren(...template.content.querySelector('.schedule-summary').childNodes);
+    } else content.replaceChildren(...next.childNodes);
+  }, { scene: ui.view });
+}
 function my() {
   const user = ui.liveUser;
   const status = ui.accountState === 'checking' ? '계정을 확인하고 있어요' : ui.accountState === 'error' ? '계정 연결을 확인해 주세요' : '로그인하고 시작해요';
-  return `${heading('마이', '나의 계정과 이용 설정')}<div class="profile-summary"><div class="profile-art"><img src="/assets/mori.svg" alt="모리"></div><div><span class="account-eyebrow">${user ? '나의 모리' : '나의 모리'}</span><h2>${user ? esc(user.display_name) + '님' : '반가워요'}</h2><p>${user ? user.providers.map(p => p === 'naver' ? '네이버' : '카카오').join(' · ') + '로 로그인 중' : status}</p></div></div>
+  return `${heading('마이')}<div class="profile-summary"><div class="profile-art"><img src="/assets/mori.svg" alt="모리"></div><div><span class="account-eyebrow">${user ? '나의 모리' : '나의 모리'}</span><h2>${user ? esc(user.display_name) + '님' : '반가워요'}</h2><p>${user ? user.providers.map(p => p === 'naver' ? '네이버' : '카카오').join(' · ') + '로 로그인 중' : status}</p></div></div>
     ${!user ? button('account', '네이버 · 카카오로 로그인 ' + icon('arrow'), 'primary-button full') : ''}
     <div class="license-card account-plan"><div>${tag(user?.tier === 'pro' ? 'Pro' : 'Free')}<h3>${user?.tier === 'pro' ? '나만을 위한 모리' : '가볍게 시작하는 모리'}</h3><p>${user?.tier === 'pro' ? '이용 중인 요금제를 확인하세요.' : '무료로 일상의 부탁을 시작하세요.'}</p></div>${button('license', '요금제 보기 ' + arrow, 'text-button')}</div>
     ${section('계정')}<div class="settings-list">${button('account', `${mark('user', 'soft')}<span class="setting-copy"><strong>사용자 정보</strong><small>${user ? '내 정보와 연결된 계정 확인' : '로그인 후 확인할 수 있어요'}</small></span>${arrow}`, 'setting-row')}${button('edit-profile', `${mark('compose', 'soft')}<span class="setting-copy"><strong>사용자 정보 수정</strong><small>모리가 부를 이름을 변경해요</small></span>${arrow}`, 'setting-row')}</div>
@@ -353,16 +455,8 @@ function my() {
     ${section('요금제')}<div class="settings-list">${button('license', `${mark('spark', 'purple')}<span class="setting-copy"><strong>요금제 및 결제 관리</strong><small>무료 이용 · Pro 결제 · 구독 해지</small></span>${arrow}`, 'setting-row')}</div>
     ${user ? button('logout', '로그아웃', 'logout-button full') : ''}<div class="brand-footer">mori <span>작은 부탁, 가벼운 하루.</span></div>`;
 }
-function render({ scrollTop } = {}) {
-  const main = $('#main');
+function syncRootTabs() {
   const tabFocus = captureControl($('#tabs').contains(document.activeElement) ? document.activeElement : null);
-  const previousScroll = scrollTop ?? main.scrollTop;
-  const railPositions = new Map([...document.querySelectorAll('[data-forecast-rail]')].map(el => [el.id, el.scrollLeft]));
-  railObserver?.disconnect();
-  main.innerHTML = ({ dashboard, schedule, conversations, features, my }[ui.view] || dashboard)();
-  main.classList.toggle('has-composer', ui.view === 'dashboard');
-  main.dataset.page = ui.view;
-  main.scrollTo({ top: previousScroll, behavior: 'instant' });
   // Keep the live glass indicator and buttons mounted. Replacing them loses
   // their in-flight position, pressed state and keyboard focus on every render.
   const tabs = $('#tabs');
@@ -372,31 +466,129 @@ function render({ scrollTop } = {}) {
     else tab.removeAttribute('aria-current');
   }
   resolveControl($('#tabs'), tabFocus, { visible: true })?.focus({ preventScroll: true });
-  $('#quick-composer').hidden = false; document.documentElement.classList.toggle('reduce-motion', data.profile.reduced);
-  const syncRail = rail => {
-    const max = rail.scrollWidth - rail.clientWidth;
-    rail.closest('.forecast-shelf').querySelector('.shelf-nav').hidden = max <= 2;
-    for (const control of rail.closest('.forecast-shelf').querySelectorAll('[data-direction]')) {
-      control.disabled = Number(control.dataset.direction) < 0 ? rail.scrollLeft <= 2 : rail.scrollLeft >= max - 2;
-    }
-  };
-  railObserver = new ResizeObserver(entries => entries.forEach(({ target }) => syncRail(target)));
+}
+function render({ scrollTop, background = false } = {}) {
+  const main = $('#main');
+  if (background && main.dataset.page === ui.view) {
+    if ([...composingInputs].some(input => main.contains(input))) { pendingBackgroundRender = true; return; }
+    pendingBackgroundRender = false;
+    const template = document.createElement('template');
+    template.innerHTML = ({ dashboard, schedule, conversations, features, my }[ui.view] || dashboard)();
+    patchLiveView(main, template.content);
+    if (ui.view === 'conversations') resultMarkup.set($('#conversation-content'), conversationContent());
+    syncForecastRails();
+    if (ui.windowMenu) positionWindowMenu();
+    return;
+  }
+  pendingBackgroundRender = false;
+  syncRootTabs();
+  const changed = Boolean(main.dataset.page && main.dataset.page !== ui.view);
+  const targetScroll = scrollTop ?? (changed ? pageScroll.get(ui.view) || 0 : main.scrollTop);
+  renderPage({ scrollTop: targetScroll });
+}
+function syncForecastRail(rail) {
+  const max = Math.max(0, rail.scrollWidth - rail.clientWidth), shelf = rail.closest('.forecast-shelf');
+  const position = Math.min(max, Math.max(0, rail.scrollLeft));
+  const previous = max > 2 && position > 2, next = max > 2 && position < max - 2;
+  for (const [name, value] of [['fadeStart', previous], ['fadeEnd', next]]) {
+    if (rail.dataset[name] !== String(value)) rail.dataset[name] = String(value);
+  }
+  shelf.querySelector('.shelf-nav').hidden = max <= 2;
+  for (const control of shelf.querySelectorAll('[data-direction]')) {
+    control.disabled = Number(control.dataset.direction) < 0 ? !previous : !next;
+  }
+}
+function syncForecastRails(positions) {
+  railObserver?.disconnect();
+  railObserver = new ResizeObserver(entries => entries.forEach(({ target }) => syncForecastRail(target)));
   for (const rail of document.querySelectorAll('[data-forecast-rail]')) {
-    if (!ui.resetRails) rail.scrollLeft = railPositions.get(rail.id) || 0;
-    rail.addEventListener('scroll', () => syncRail(rail), { passive: true });
-    railObserver.observe(rail); syncRail(rail);
+    if (positions && !ui.resetRails) rail.scrollLeft = positions.get(rail.id) || 0;
+    if (!boundRails.has(rail)) {
+      rail.addEventListener('scroll', () => syncForecastRail(rail), { passive: true });
+      boundRails.add(rail);
+    }
+    railObserver.observe(rail); syncForecastRail(rail);
   }
   ui.resetRails = false;
+}
+function renderPage({ scrollTop } = {}) {
+  const main = $('#main');
+  const previousScroll = scrollTop ?? main.scrollTop;
+  const railPositions = new Map([...document.querySelectorAll('[data-forecast-rail]')].map(el => [el.id, el.scrollLeft]));
+  main.innerHTML = ({ dashboard, schedule, conversations, features, my }[ui.view] || dashboard)();
+  main.classList.toggle('has-composer', ui.view === 'dashboard');
+  main.dataset.page = ui.view;
+  main.scrollTo({ top: previousScroll, behavior: 'instant' });
+  $('#quick-composer').hidden = false; document.documentElement.classList.toggle('reduce-motion', data.profile.reduced);
+  if (ui.view === 'conversations') resultMarkup.set($('#conversation-content'), conversationContent());
+  syncForecastRails(railPositions);
   if (ui.windowMenu) positionWindowMenu();
   motion.render(ui.view);
 }
 function route() {
+  navigation.route();
   const next = location.hash.slice(1), previous = ui.view;
-  pageScroll.set(previous, $('#main').scrollTop);
+  if (next !== previous && !restoringNavigation && (activeDialog('#sheet') || activeDialog('#chat-panel'))) restoreNavigation(null);
+  pageScroll.set($('#main').dataset.page || previous, $('#main').scrollTop);
   ui.view = ['dashboard', 'schedule', 'conversations', 'features', 'my'].includes(next) ? next : 'dashboard';
   render({ scrollTop: pageScroll.get(ui.view) || 0 });
 }
-function go(view) { closeWindowMenu(); if (location.hash === `#${view}`) $('#main').scrollTo({ top: 0, behavior: data.profile.reduced ? 'instant' : 'smooth' }); else location.hash = view; }
+async function go(view) {
+  closeWindowMenu();
+  if ($('#sheet').open) await closeSheet();
+  if ($('#chat-panel').open) await closeChat();
+  if (location.hash === `#${view}`) $('#main').scrollTo({ top: 0, behavior: data.profile.reduced ? 'instant' : 'smooth' });
+  else location.hash = view;
+}
+const activeDialog = id => $(id).open && !$(id).hasAttribute('data-closing');
+function navigationSnapshot() {
+  const chat = activeDialog('#chat-panel') ? { id: ui.chatId, presentation: $('#chat-panel').dataset.chatPresentation, origin: chatOrigin } : null;
+  const sheet = activeDialog('#sheet') && sheetCurrent ? { current: { ...sheetCurrent }, trail: sheetTrail.slice(), ref: sheetCurrent.ref,
+    origin: sheetOrigin, cardOrigin: sheetCardOrigin, scroll: $('#sheet-content').scrollTop,
+    presentation: $('#sheet').dataset.sheetPresentation, control: captureControl(document.activeElement),
+    form: draftForm() ? { id: draftForm().id, record: draftForm().dataset.id, date: draftForm().elements.date?.value, time: draftForm().elements.time?.value } : null } : null;
+  return { chat, sheet, picker: formPickers.snapshot() };
+}
+function syncNavigation() {
+  if (restoringNavigation) return Promise.resolve();
+  const snapshot = navigationSnapshot();
+  return navigation.sync(Number(Boolean(snapshot.chat)) + (snapshot.sheet ? snapshot.sheet.trail.length + 1 : 0) + Number(Boolean(snapshot.picker)), snapshot);
+}
+async function restoreNavigation(snapshot) {
+  restoringNavigation = true; presentationSource = null;
+  try {
+    captureDraft();
+    await formPickers.close({ notify: false, restoreFocus: false });
+    if (!snapshot?.sheet && $('#sheet').open) await closeSheet();
+    if (!snapshot?.chat && $('#chat-panel').open) await closeChat();
+    if (snapshot?.chat && (!activeDialog('#chat-panel') || ui.chatId !== snapshot.chat.id)) openChat(snapshot.chat.id,
+      resolveControl(snapshot.chat.origin?.root, snapshot.chat.origin?.control, { visible: true }), snapshot.chat.presentation);
+    if (snapshot?.sheet) {
+      const target = snapshot.sheet;
+      sheetTrail = target.trail.slice(); sheetOrigin = target.origin; sheetCardOrigin = target.cardOrigin;
+      $('#sheet').dataset.sheetPresentation = target.presentation;
+      returningSheet = true;
+      const kind = target.ref?.split(':')[0], id = target.ref?.split(':')[1];
+      const records = { note: data.notes, event: data.events, custom: data.customs, document: data.documents, reminder: data.reminders };
+      if (id && records[kind] && !records[kind].some(record => record.id === id)) openSheet('삭제된 기록', empty('note', '삭제된 기록이에요', '뒤로 돌아가 다른 기록을 확인해 주세요.'));
+      else if (target.form?.id === 'note-form') noteForm(target.form.record);
+      else if (target.form?.id === 'event-form') eventForm(target.form.record, target.form.date, target.form.time);
+      else if (target.form?.id === 'custom-form') customForm(target.form.record);
+      else if (target.form?.id === 'parking-form') parkingForm();
+      else if (target.form?.id === 'news-form') newsSettings();
+      else if (target.current.restore) await target.current.restore();
+      else if (target.ref) await openDetail(target.ref);
+      else if (target.current.cls === 'library-sheet') recordsSheet();
+      else openSheet(target.current.title, target.current.content, target.current.cls);
+      $('#sheet-content').scrollTop = target.scroll;
+      (resolveControl($('#sheet-content'), target.control, { visible: true }) || $('#sheet-title')).focus({ preventScroll: true });
+    }
+    if (snapshot?.picker) await formPickers.restore(snapshot.picker);
+  } catch {
+    await closeSheet();
+    toast('이 화면을 다시 열지 못했어요. 목록에서 다시 선택해 주세요.');
+  } finally { returningSheet = false; restoringNavigation = false; }
+}
 function cardDetailHero() {
   if (!sheetCardOrigin) return '';
   const { sourceRef, occurrence, forecast, kind } = sheetCardOrigin;
@@ -447,8 +639,10 @@ function cardDetailBody(content, ref, hasHero) {
   return template.innerHTML;
 }
 function openSheet(title, content, cls = '', { ref = detailRequest, restore = null } = {}) {
-  formDrafts.capture(draftForm());
-  const dialog = $('#sheet'), wasOpen = dialog.open && !dialog.hasAttribute('data-closing'), source = presentationSource;
+  captureDraft();
+  if (!returningSheet) syncNavigation();
+  const dialog = $('#sheet'), wasOpen = dialog.open && !dialog.hasAttribute('data-closing');
+  const source = restoringNavigation ? resolveControl(sheetOrigin?.root, sheetOrigin?.control, { visible: true }) : presentationSource;
   const scroller = $('#sheet-content'), previousRef = ui.detail, previousSize = sheetCurrent?.size;
   const parentPresentation = wasOpen ? dialog.dataset.sheetPresentation : '';
   const refreshing = wasOpen && Boolean(ref) && ref === previousRef && !returningSheet;
@@ -463,7 +657,7 @@ function openSheet(title, content, cls = '', { ref = detailRequest, restore = nu
   const focusedControl = captureControl(scroller.contains(source) ? source : scroller.contains(document.activeElement) ? document.activeElement : null);
   const action = source?.dataset.action;
   const nested = ['detail', 'edit-parking', 'edit-note', 'new-note', 'edit-event', 'new-event', 'edit-custom', 'edit-profile', 'news-settings', 'stock-settings', 'article', 'document', 'preset-reminder', 'account', 'license', 'theme'];
-  if (!wasOpen) {
+  if (!wasOpen && !restoringNavigation) {
     sheetTrail = [];
     const origin = source || document.activeElement;
     sheetOrigin = { root: origin?.closest('dialog') || document, control: captureControl(origin) };
@@ -485,7 +679,7 @@ function openSheet(title, content, cls = '', { ref = detailRequest, restore = nu
   ++ui.sheetEpoch; ui.detail = null;
   const detail = Boolean(sheetCardOrigin) || Boolean(ref && !['schedule', 'note'].includes(ref)) || Boolean(ref?.includes(':')) || (wasOpen && sheetTrail.some(entry => entry.detail)) || (wasOpen && previousRef?.startsWith('document:'));
   const cardHero = sheetCardOrigin && (ref === sheetCardOrigin.ref || !ref && !sheetTrail.length) ? cardDetailHero() : '';
-  sheetCurrent = { title, content, cls, detail, restore };
+  sheetCurrent = { title, content, cls, detail, restore, ref };
   $('#sheet-title').textContent = title;
   $('#sheet-content').innerHTML = sheetCardOrigin ? `${cardHero}<section class="card-detail-body" data-card-reveal>${cardDetailBody(content, ref, Boolean(cardHero))}</section>` : content;
   // One native form-associated submit lives in the fixed action area. Keeping
@@ -495,6 +689,7 @@ function openSheet(title, content, cls = '', { ref = detailRequest, restore = nu
   const headerActions = $('#sheet-header-actions');
   headerActions.replaceChildren();
   const form = scroller.querySelector('form');
+  if (form) form.noValidate = true;
   const submit = form?.querySelector('button[type="submit"]');
   const pagePresentation = sheetPresentation({ screen: cls, formId: form?.id, hasCardHero: Boolean(cardHero), parent: sheetTrail.length ? parentPresentation : '' });
   if (submit && form.id) {
@@ -510,7 +705,7 @@ function openSheet(title, content, cls = '', { ref = detailRequest, restore = nu
   }
   actions.hidden = !actions.children.length;
   if (formDrafts.restore(draftForm())) {
-    draftForm().insertAdjacentHTML('afterbegin', `<div class="draft-notice"><span>저장하지 않은 내용을 이어서 작성해요.</span>${button('discard-form-draft', '초안 지우기', 'text-button')}</div>`);
+    draftForm().insertAdjacentHTML('afterbegin', `<div class="draft-notice"><span>이 기기에 보관한 초안을 이어서 작성해요.</span>${button('discard-form-draft', '초안 지우기', 'text-button')}</div>`);
     syncDraftForm();
   }
   dialog.className = `sheet ${cls} ${detail ? 'detail-page' : ''} ${ref === 'parking' ? 'parking-story' : ''} ${cardHero ? 'card-page has-card-hero' : ''}`;
@@ -535,8 +730,10 @@ function openSheet(title, content, cls = '', { ref = detailRequest, restore = nu
   }
   if (refreshing) resolveControl(scroller, focusedControl, { visible: true })?.focus({ preventScroll: true });
   else if (wasOpen && source && !source.isConnected) $('#sheet-title').focus({ preventScroll: true });
+  syncNavigation();
 }
 function backSheet() {
+  captureDraft();
   const previous = sheetTrail.pop();
   if (!previous) return closeSheet();
   returningSheet = true;
@@ -548,14 +745,25 @@ function backSheet() {
     $('#sheet-content').scrollTop = previous.scroll;
     (resolveControl($('#sheet-content'), previous.control, { visible: true }) || $('#sheet-title')).focus({ preventScroll: true });
   } finally { returningSheet = false; }
+  return syncNavigation();
 }
-function closeSheet(dragOffset = 0) { formDrafts.capture(draftForm()); ++ui.sheetEpoch; ui.detail = null; sheetTrail = []; const closed = presentations.dismiss($('#sheet'), { dragOffset }); moveToast(); return closed; }
+function closeSheet(dragOffset = 0) {
+  captureDraft(); ++ui.sheetEpoch; ui.detail = null; sheetTrail = [];
+  const closed = presentations.dismiss($('#sheet'), { dragOffset }); moveToast();
+  return Promise.all([closed, syncNavigation()]);
+}
+function closeChat(dragOffset = 0) {
+  suspendVoice(); persistDraft();
+  const closed = presentations.dismiss($('#chat-panel'), { dragOffset });
+  return Promise.all([closed, syncNavigation()]);
+}
 function syncDraftForm() {
   const form = draftForm(); if (!form) return;
   form.querySelectorAll('[data-choice]').forEach(choice => setChoice(choice, choice.querySelector('input').value));
-  if (form.id === 'event-form') updateEventPreview();
-  if (form.id === 'custom-form') updateCustomPreview();
+  if (form.id === 'event-form') { syncPickerFields(form); updateEventPreview(); }
+  if (form.id === 'custom-form') { syncCustomSchedule(form); updateCustomPreview(); }
   if (form.id === 'note-form') $('#note-length').textContent = `${form.elements.body.value.length.toLocaleString()}자`;
+  if (form.id === 'parking-form') updateParkingPreview();
 }
 const field = (label, name, value = '', type = 'text', extra = '') => `<label class="field"><span>${label}</span><input type="${type}" name="${name}" value="${esc(value)}" ${extra}></label>`;
 const textArea = (label, name, value = '', extra = '') => `<label class="field"><span>${label}</span><textarea name="${name}" rows="4" ${extra}>${esc(value)}</textarea></label>`;
@@ -582,11 +790,11 @@ function noteForm(id) { const n = data.notes.find(n => n.id === id); openSheet(n
 function eventForm(id, date = ui.date, startTime = '14:00') {
   const event = data.events.find(event => event.id === id);
   const duration = event ? eventDuration(event) : 60;
-  const durations = [...new Set([30, 60, 90, 120, 180, duration])].sort((a, b) => a - b).map(value => ({ value, label: `${Math.floor(value / 60) ? Math.floor(value / 60) + '시간' : ''}${value % 60 ? ' ' + value % 60 + '분' : ''}`.trim() }));
+  const durations = [...new Set([15, 30, 45, 60, 90, 120, 180, 240, 480, duration])].sort((a, b) => a - b).map(value => ({ value, label: `${Math.floor(value / 60) ? Math.floor(value / 60) + '시간' : ''}${value % 60 ? ' ' + value % 60 + '분' : ''}`.trim() }));
   openSheet(event ? '일정 편집' : '일정 추가', `<form id="event-form" data-id="${event?.id || ''}" data-draft-key="${event?.id || `${date}:${startTime}`}">
     ${field('어떤 약속인가요?', 'title', event?.title || '', 'text', 'required maxlength="80" placeholder="예: 모리 디자인 미팅"')}
-    ${field('날짜', 'date', event?.date || date, 'date', 'required')}
-    <div class="field-pair">${field('시작 시간', 'time', event?.time || startTime, 'time', 'required')}${choiceField('소요 시간', 'duration', duration, durations)}</div>
+    ${pickerField('날짜', 'date', event?.date || date, 'date', { required: true })}
+    <div class="field-pair">${pickerField('시작 시간', 'time', event?.time || startTime, 'time', { required: true })}${pickerField('소요 시간', 'duration', duration, 'duration', { options: durations })}</div>
     ${choiceField('일정 종류', 'color', event?.color || 'green', EVENT_KINDS)}
     ${field('장소 · 선택', 'place', event?.place || '', 'text', 'maxlength="120" placeholder="장소나 온라인 링크"')}
     ${textArea('메모 · 선택', 'memo', event?.memo || '', 'maxlength="1000" placeholder="미리 챙길 준비물이나 기억할 내용"')}
@@ -606,13 +814,27 @@ function updateEventPreview() {
 }
 function customForm(id) {
   const f = data.customs.find(f => f.id === id);
-  openSheet(f ? '내 기능 편집' : '나만의 기능 만들기', `<div class="form-intro compact-intro">${mark('spark', 'purple')}<h3>반복하는 부탁을 기억해요.</h3><p>반복할 일과 실행 시간을 입력하세요.</p></div>${!f ? button('custom-example', '메모 정리 기능으로 시작하기 ' + arrow, 'example-request') : ''}<form id="custom-form" data-id="${f?.id || ''}"><fieldset class="icon-picker"><legend>카드 아이콘</legend>${[['spark', '반짝임'], ['note', '메모'], ['leaf', '일상'], ['news', '정보'], ['bell', '알림'], ['compass', '여행']].map(([v, label]) => `<label><input type="radio" name="icon" aria-label="${label}" value="${v}" ${(f?.icon || 'spark') === v ? 'checked' : ''}><span>${icon(v)}<span class="sr-only">${label}</span></span></label>`).join('')}</fieldset>${field('기능 이름', 'title', f?.title || '', 'text', 'maxlength="60" placeholder="예: 퇴근 정리"')}${textArea('어떤 일을 하면 좋을까요?', 'work', f?.work || '', 'maxlength="2000" placeholder="오늘 저장한 메모를 모아서 할 일을 정리해줘"')}${field('짧은 설명 · 선택', 'description', f?.description || '', 'text', 'maxlength="180" placeholder="카드에 보여줄 한 줄"')}<div class="field-pair">${field('실행 시간 · 선택', 'time', f?.time || '', 'time')}${choiceField('반복', 'repeat', f?.repeat || '필요할 때', ['필요할 때', '매일', '평일', '한 번'])}</div><details class="support-details"><summary>참고할 내용 추가하기</summary>${textArea('참고 자료 · 선택', 'content', f?.content || '', 'maxlength="6000" placeholder="함께 확인할 내용을 남겨주세요"')}</details><p class="field-help">시간을 지정하지 않으면 필요할 때 직접 실행해요.${developerPreview ? '<br>체험에서는 앱이 열려 있을 때 저장한 메모를 정리해요.' : ''}</p><details class="support-details custom-preview-disclosure"><summary>대시보드 카드 미리보기</summary><div id="custom-preview" class="custom-preview" aria-label="기능 카드 미리보기"></div></details><p class="form-error" role="alert"></p><button class="primary-button" type="submit">${f ? '변경 저장' : '내 기능으로 저장'} ${icon('check')}</button></form>`);
+  openSheet(f ? '내 기능 편집' : '나만의 기능 만들기', `<div class="form-intro compact-intro">${mark('spark', 'purple')}<h3>반복하는 부탁을 기억해요.</h3><p>반복할 일과 실행 시간을 입력하세요.</p></div>${!f ? button('custom-example', '메모 정리 기능으로 시작하기 ' + arrow, 'example-request') : ''}<form id="custom-form" data-id="${f?.id || ''}"><fieldset class="icon-picker"><legend>카드 아이콘</legend>${[['spark', '반짝임'], ['note', '메모'], ['leaf', '일상'], ['news', '정보'], ['bell', '알림'], ['compass', '여행']].map(([v, label]) => `<label><input type="radio" name="icon" aria-label="${label}" value="${v}" ${(f?.icon || 'spark') === v ? 'checked' : ''}><span>${icon(v)}<span class="sr-only">${label}</span></span></label>`).join('')}</fieldset>${field('기능 이름', 'title', f?.title || '', 'text', 'maxlength="60" placeholder="예: 퇴근 정리"')}${textArea('어떤 일을 하면 좋을까요?', 'work', f?.work || '', 'maxlength="2000" placeholder="오늘 저장한 메모를 모아서 할 일을 정리해줘"')}${field('짧은 설명 · 선택', 'description', f?.description || '', 'text', 'maxlength="180" placeholder="카드에 보여줄 한 줄"')}<div class="field-pair">${field('실행 시간 · 선택', 'time', f?.time || '', 'time', 'aria-describedby="custom-schedule-help"')}${choiceField('반복', 'repeat', f?.time ? f.repeat : '필요할 때', ['필요할 때', '매일', '평일', '한 번'])}</div><details class="support-details"><summary>참고할 내용 추가하기</summary>${textArea('참고 자료 · 선택', 'content', f?.content || '', 'maxlength="6000" placeholder="함께 확인할 내용을 남겨주세요"')}</details><p id="custom-schedule-help" class="field-help" role="status">필요할 때 직접 실행해요.</p><p class="field-help">시간을 입력하면 반복이 ‘매일’로 선택돼요.${developerPreview ? '<br>체험에서는 앱이 열려 있을 때 저장한 메모를 정리해요.' : ''}</p><details class="support-details custom-preview-disclosure"><summary>대시보드 카드 미리보기</summary><div id="custom-preview" class="custom-preview" aria-label="기능 카드 미리보기"></div></details><p class="form-error" role="alert"></p><button class="primary-button" type="submit">${f ? '변경 저장' : '내 기능으로 저장'} ${icon('check')}</button></form>`);
+  syncCustomSchedule($('#custom-form'));
   updateCustomPreview();
+}
+function syncCustomSchedule(form, changedName) {
+  const { time, repeat } = form.elements;
+  if (changedName === 'time' && time.value && repeat.value === '필요할 때') setChoice(repeat.closest('[data-choice]'), '매일');
+  if (changedName === 'repeat' && repeat.value === '필요할 때') time.value = '';
+  const scheduled = repeat.value !== '필요할 때';
+  time.required = scheduled;
+  time.closest('.field').querySelector('span').textContent = scheduled ? '실행 시간' : '실행 시간 · 선택';
+  const help = form.querySelector('#custom-schedule-help');
+  const message = scheduled
+    ? time.value ? `${repeat.value} ${clockLabel(time.value)}에 실행해요.` : '예약 실행할 시간을 선택해 주세요.'
+    : '필요할 때 직접 실행해요.';
+  if (help.textContent !== message) help.textContent = message;
 }
 function updateCustomPreview() {
   const form = $('#custom-form'); if (!form) return;
   const f = customPreview(Object.fromEntries(new FormData(form)));
-  $('#custom-preview').innerHTML = `<div class="preview-label">카드 미리보기 ${tag(f.work ? '준비됨' : '초안', 'purple')}</div><div class="preview-content">${mark(f.icon, 'purple')}<div><strong>${esc(f.title)}</strong><p>${esc(f.description)}</p></div></div><div class="preview-time">${icon(f.time ? 'clock' : 'spark')}${f.time ? `${f.repeat} ${clockLabel(f.time)}` : '필요할 때 직접 실행'}</div>`;
+  $('#custom-preview').innerHTML = `<div class="preview-label">카드 미리보기 ${tag(f.work ? '준비됨' : '초안', 'purple')}</div><div class="preview-content">${mark(f.icon, 'purple')}<div><strong>${esc(f.title)}</strong><p>${esc(f.description)}</p></div></div><div class="preview-time">${icon(f.time ? 'clock' : 'spark')}${f.time ? `${f.repeat} ${clockLabel(f.time)}` : f.repeat === '필요할 때' ? '필요할 때 직접 실행' : `${f.repeat} · 실행 시간 선택 필요`}</div>`;
 }
 function remaining(target) { const total = Math.max(0, Math.ceil((target - current()) / 1000)); return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`; }
 const articleTitles = ['개인 비서 AI의 일정 관리 기능', '음성 인식, 어디까지 왔을까', '업무 도구에 추가되는 자동화 기능'];
@@ -628,7 +850,7 @@ function renderDetail(ref) {
   if (kind === 'parking') { if (!data.parking) return parkingForm(); const p = parkingConfig(data.parking, data.profile); openSheet('주차 기록', `<div class="detail-hero parking-detail">${mark('car')}<p>${parkingPurpose(p)} · 잘 기억하고 있어요</p><h2>${esc(p.floor)}<br><strong>${esc(p.spot || '내 차가 있는 곳')}</strong></h2>${mapArt()}</div><div class="detail-facts"><div><span>기억한 시간</span><strong>${shortDate(p.at)} ${time(p.at)}</strong></div><div><span>표시 방식</span><strong>${p.display_mode === 'always' ? '시간 지정 없음' : '정한 시간에 표시'}</strong></div><div><span>대시보드</span><strong>${esc(p.display_mode === 'always' ? '표시 시간 미설정' : parkingDescription(p))}</strong></div></div><p class="field-help">정한 시간에는 ‘지금 챙길 것’에 표시해요. 기록은 기능 탭에서 언제든 확인할 수 있어요.<br>다른 곳에 주차하면 가장 최근 위치로 바뀌어요. 기기 알림은 별도로 예약해야 해요.</p>${button('edit-parking', '위치 · 표시 설정 바꾸기 ' + icon('car'), 'primary-button')}`); }
   else if (kind === 'news') openSheet('뉴스 브리핑', `<div class="detail-title">${mark('news', 'blue')}<p>${esc(data.news.topic)} · ${clockLabel(data.news.time)}</p><h2>${esc(data.news.topic)} 브리핑</h2>${tag('샘플 브리핑', 'blue')}</div>${data.news.status === 'loading' ? `<div class="loading-news"><span class="loading-orb"></span><h3>관심 있는 이야기를 모으고 있어요.</h3><p>요약과 출처를 함께 정리할게요.</p><div class="skeleton"></div><div class="skeleton short"></div></div>` : data.news.status === 'failed' ? `<div class="error-card">${icon('cloud')}<h3>브리핑이 조금 늦어지고 있어요.</h3><p>마지막 결과: ${shortDate(data.news.at)} ${time(data.news.at)}<br>새 결과가 도착하면 갱신할게요.</p>${button('refresh-news', '다시 수집하기', 'secondary-button')}</div>` : `<p class="updated-at">${shortDate(data.news.at)} ${time(data.news.at)} 기준 · 기사 3개</p><div class="article-list">${articleTitles.map((title, i) => button('article', `<span class="article-number">0${i + 1}</span><span><h3>${title}</h3><p>${['작은 일을 맡기며 달라지는 일상의 모습.', '기술과 함께 더 명확하게 생각하는 방법.', '정보를 줄이고 해야 할 일에 집중하기.'][i]}</p><small>모리 테크 레터</small></span>${arrow}`, 'article', `data-index="${i}"`)).join('')}</div>`}<div class="detail-actions">${button('news-settings', '관심사 · 시간 설정', 'secondary-button')}${button('refresh-news', icon('repeat') + ' 새로 수집', 'secondary-button', data.news.status === 'loading' ? 'disabled' : '')}</div>${developerPreview ? `<details class="support-details"><summary>브리핑 상태별 화면 체험</summary><div class="state-picker">${[['loading', '수집 중'], ['ready', '완료'], ['failed', '실패']].map(([v, title]) => button('news-state', title, data.news.status === v ? 'selected' : '', `data-value="${v}" aria-pressed="${data.news.status === v}"`)).join('')}</div><p class="field-help">실제 수집 요청 없이 화면 상태를 바꿔보는 옵션이에요.</p></details>` : ''}`);
   else if (kind === 'stock') openSheet('관심 주가', `<div class="detail-title">${mark('chart', 'rose')}<p>관심 종목 · 샘플 시세</p><h2>${esc(data.stock.symbol)}</h2><div class="stock-price">${data.stock.symbol === '코스피' ? '2,650.24' : data.stock.symbol === '애플' ? '228.40' : '72,400'}<small>${data.stock.symbol === '코스피' ? ' pt' : data.stock.symbol === '애플' ? ' USD' : '원'}</small></div><p class="positive">+1.82% <span>등락</span></p></div><div class="stock-chart">${stockCandlestickChart(ui.chart)}<div class="chart-labels">${(ui.chart === '1일' ? ['09:00', '12:00', '15:30'] : ui.chart === '1주' ? ['월', '수', '금'] : ['1일', '15일', '30일']).map(v => `<span>${v}</span>`).join('')}</div></div><div class="segmented">${['1일', '1주', '1달'].map(v => button('chart-range', v, ui.chart === v ? 'selected' : '', `data-value="${v}"`)).join('')}</div><p class="field-help">${ui.chart} 예시 차트 · 빨간 봉은 상승, 파란 봉은 하락을 나타내요.<br>실시간 가격과 투자 정보가 아니에요.</p><div class="detail-facts"><div><span>시장 · 통화</span><strong>${data.stock.symbol === '애플' ? 'NASDAQ · USD' : 'KRX · KRW'}</strong></div><div><span>기준 시각</span><strong>${shortDate(data.stock.at)} ${time(data.stock.at)}</strong></div><div><span>데이터 출처</span><strong>샘플 데이터</strong></div></div>${button('stock-settings', '관심 종목 바꾸기', 'primary-button')}`);
-  else if (kind === 'note' && id) { const n = data.notes.find(n => n.id === id); if (!n) return; openSheet('메모', `<div class="detail-title">${mark('note', 'amber')}<p>${shortDate(n.at)} ${time(n.at)}</p><h2>${esc(n.title)}</h2></div><div class="note-body">${esc(n.body)}</div><div class="detail-actions">${button('edit-note', icon('compose') + ' 편집하기', 'secondary-button', `data-id="${id}"`)}${button('delete-note', icon('trash') + ' 삭제', 'secondary-button', `data-id="${id}"`)}</div>`); }
+  else if (kind === 'note' && id) { const n = data.notes.find(n => n.id === id); if (!n) return; openSheet('메모', `<div class="detail-title">${mark('note', 'amber')}<p>${shortDate(n.at)} ${time(n.at)}</p><h2>${esc(n.title)}</h2></div><div class="note-body">${esc(n.body)}</div><div class="detail-actions">${button('edit-note', icon('compose') + ' 편집하기', 'secondary-button', `data-id="${id}"`)}${button('delete-note', icon('trash') + ' 삭제', 'danger-button', `data-id="${id}"`)}</div>`); }
   else if (kind === 'note') { if (!data.notes.length) return noteForm(); ui.recordSearch = ''; recordsSheet('note'); }
   else if (kind === 'schedule') {
     if (!sheetCardOrigin && !presentationSource?.matches('.brief-card')) return closeSheet().then(() => go('schedule'));
@@ -678,6 +900,7 @@ function syncComposer() {
   $('#chat-send').disabled = !input.value.trim() || input.value.length > 4000 || busy.has(ui.chatId) || voiceActive();
 }
 function openChat(id = null, returnSource = null, presentation = 'composer') {
+  syncNavigation();
   const dialog = $('#chat-panel');
   if (dialog.open) persistDraft();
   // Keep the original return direction when starting another conversation
@@ -688,7 +911,9 @@ function openChat(id = null, returnSource = null, presentation = 'composer') {
   ui.chatId = id; $('#chat-input').value = data.drafts[id || 'new'] || '';
   $('#chat-announcement').textContent = '';
   const source = [returnSource, presentationSource, $('#main [data-action=new-chat]'), $('#main [data-action=guide]'), $('#quick-composer [data-action=new-chat]'), $('#tabs [aria-current=page]')].find(isAvailableControl);
+  if (!dialog.open) chatOrigin = { root: source?.closest('dialog') || document, control: captureControl(source) };
   renderChat(true); presentations.show(dialog, { source, kind: 'chat' }); syncComposer(); moveToast();
+  syncNavigation();
 }
 function renderChat(forceScroll = false) {
   if ($('#chat-panel').dataset.closing) return;
@@ -713,13 +938,23 @@ async function send(raw, { preserveDraft = false } = {}) {
   }
   stopVoice();
   const retainedDraft = preserveDraft ? $('#chat-input').value : '';
-  const wasNew = !ui.chatId; let c = data.conversations.find(c => c.id === ui.chatId); if (!c) { c = { id: uid(), title: text.slice(0, 26), at: current(), messages: [] }; data.conversations.unshift(c); ui.chatId = c.id; }
-  const request = c.awaiting && !preserveDraft ? `${c.awaiting === 'parking' ? '주차 ' : '알림 '}${text}` : text; c.awaiting = null;
-  c.messages.push({ role: 'user', text }); c.at = current(); const id = c.id; busy.add(id); delete data.drafts[id]; if (wasNew) delete data.drafts.new; if (retainedDraft) data.drafts[id] = retainedDraft; $('#chat-input').value = retainedDraft; save(); renderChat(true);
+  const wasNew = !ui.chatId;
+  let c, request;
+  if (!changeState(state => {
+    c = state.conversations.find(c => c.id === ui.chatId);
+    if (!c) { c = { id: uid(), title: text.slice(0, 26), at: current(), messages: [] }; state.conversations.unshift(c); }
+    request = c.awaiting && !preserveDraft ? `${c.awaiting === 'parking' ? '주차 ' : '알림 '}${text}` : text;
+    c.awaiting = null; c.messages.push({ role: 'user', text }); c.at = current();
+    delete state.drafts[c.id]; if (wasNew) delete state.drafts.new; if (retainedDraft) state.drafts[c.id] = retainedDraft;
+  })) return;
+  ui.chatId = c.id; const id = c.id; busy.add(id); $('#chat-input').value = retainedDraft; renderChat(true); syncNavigation();
   announceChat('요청을 확인하고 있어요.', id);
   await new Promise(resolve => setTimeout(resolve, 650));
-  if (!data.conversations.includes(c)) { busy.delete(id); return; }
-  const reply = applyRequest(data, request); c.messages.push({ role: 'assistant', ...reply }); c.awaiting = reply.followup; busy.delete(id); save(); render(); if (ui.chatId === id) renderChat();
+  if (!data.conversations.includes(c)) { busy.delete(id); if (ui.chatId === id) renderChat(); return; }
+  let reply;
+  const saved = changeState(state => { reply = applyRequest(state, request); c.messages.push({ role: 'assistant', ...reply }); c.awaiting = reply.followup; });
+  busy.delete(id); render({ background: true }); if (ui.chatId === id) renderChat();
+  if (!saved) return announceChat('요청 결과를 저장하지 못했어요. 저장 공간을 확보한 뒤 다시 시도해 주세요.', id);
   announceChat(reply.text, id);
   if (reply.ref?.startsWith('reminder:') && $('#chat-panel').open && !$('#chat-panel').dataset.closing && ui.chatId === id && !$('#sheet').open && !voiceExpanded) openDetail(reply.ref);
 }
@@ -907,16 +1142,57 @@ async function documentDetail(id) {
   try {
     const source = await readOriginal(d); if (epoch !== ui.sheetEpoch || !$('#sheet').open) return;
     const bytes = d.size_bytes ?? new TextEncoder().encode(source).length;
-    openSheet('문서', `<div class="detail-title">${mark('file', 'blue')}<h2>${esc(d.title)}</h2></div><div class="document-meta">${tag(d.filename.split('.').at(-1).toUpperCase(), 'blue')}<span>${formatBytes(bytes)}</span><span>원문 보관</span></div><div class="work-card"><span class="tiny-label">원문 미리보기</span><pre class="document-source">${esc(source.slice(0, 12000))}</pre></div>${source.length > 12000 ? '<p class="field-help">앞부분 12,000자만 보여드려요. 내려받으면 원문 전체를 확인할 수 있어요.</p>' : ''}<div class="file-result">${icon('file')}<div><strong>${esc(d.filename)}</strong><small>${shortDate(d.at)} 보관 · ${formatBytes(bytes)}</small></div></div>${button('download', icon('download') + ' 원문 다운로드', 'primary-button', `data-id="${id}"`)}`, '', { ref }); ui.detail = ref;
-  } catch (err) { if (epoch === ui.sheetEpoch && $('#sheet').open) openSheet('문서를 열지 못했어요', `<p class="sheet-description">${esc(err.message || '저장소를 확인해 주세요.')}</p>${button('document', '파일 다시 불러오기', 'primary-button')}`, '', { ref }); }
+    openSheet('문서', `<div class="detail-title">${mark('file', 'blue')}<h2>${esc(d.title)}</h2></div><div class="document-meta">${tag(d.filename.split('.').at(-1).toUpperCase(), 'blue')}<span>${formatBytes(bytes)}</span><span>원문 보관</span></div><div class="work-card"><span class="tiny-label">원문 미리보기</span><pre class="document-source">${esc(source.slice(0, 12000))}</pre></div>${source.length > 12000 ? '<p class="field-help">앞부분 12,000자만 보여드려요. 내려받으면 원문 전체를 확인할 수 있어요.</p>' : ''}<div class="file-result">${icon('file')}<div><strong>${esc(d.filename)}</strong><small>${shortDate(d.at)} 보관 · ${formatBytes(bytes)}</small></div></div><div class="detail-actions">${button('download', icon('download') + ' 원문 다운로드', 'secondary-button', `data-id="${id}"`)}${button('delete-document', icon('trash') + ' 삭제', 'danger-button', `data-id="${id}"`)}</div>`, '', { ref }); ui.detail = ref;
+  } catch (err) { if (epoch === ui.sheetEpoch && $('#sheet').open) openSheet('문서를 열지 못했어요', `<p class="sheet-description">${esc(err.message || '저장소를 확인해 주세요.')}</p><div class="detail-actions">${button('document', '파일 다시 불러오기', 'secondary-button')}${button('delete-document', icon('trash') + ' 목록에서 삭제', 'danger-button', `data-id="${id}"`)}</div>`, '', { ref }); }
 }
 async function saveDocument(name, content, sheetEpoch = ui.sheetEpoch) {
   const d = documentRecord(uid(), name, content, current());
   await storeOriginal(d.id, content);
   data.documents.unshift(d);
-  if (!save()) { data.documents.shift(); throw new Error('보관함 저장 공간이 부족해요. 다른 기록을 정리한 뒤 다시 불러와 주세요.'); }
+  if (!save()) { data.documents.shift(); await removeOriginal(d.id); throw new Error('보관함 저장 공간이 부족해요. 다른 기록을 정리한 뒤 다시 불러와 주세요.'); }
   render(); if (sheetEpoch === ui.sheetEpoch && $('#sheet').open && !$('#sheet').hasAttribute('data-closing')) await openDetail(`document:${d.id}`);
   else toast('파일을 기록 보관함에 저장했어요.');
+}
+async function returnToRecords() {
+  render();
+  const index = sheetTrail.findLastIndex(entry => entry.cls === 'library-sheet');
+  if (index >= 0) { sheetTrail = sheetTrail.slice(0, index + 1); await backSheet(); }
+  else await closeSheet();
+}
+async function deleteDocument(id) {
+  const record = data.documents.find(document => document.id === id);
+  if (!record || busy.has(`document:${id}`)) return;
+  busy.add(`document:${id}`);
+  const epoch = ui.sheetEpoch;
+  try {
+    // Retain the original for the same Undo window used by notes and events.
+    // A missing original must still allow the broken list entry to be removed.
+    let source;
+    try { source = await readOriginal(record); } catch { source = null; }
+    if (!changeState(state => { state.documents = state.documents.filter(document => document.id !== id); })) return;
+    try { await removeOriginal(id); }
+    catch {
+      data.documents.push(record); save();
+      return toast('문서를 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
+    deletedDocument = { record, source };
+    if (epoch === ui.sheetEpoch && activeDialog('#sheet')) await returnToRecords();
+    else { render(); refreshRecords(); }
+    toast('문서를 삭제했어요.', 'undo-document');
+  } finally { busy.delete(`document:${id}`); }
+}
+async function undoDocument() {
+  const removed = deletedDocument;
+  if (!removed || busy.has(`document:${removed.record.id}`)) return;
+  busy.add(`document:${removed.record.id}`);
+  try {
+    if (removed.source !== null) await storeOriginal(removed.record.id, removed.source);
+    if (!changeState(state => { state.documents.push(removed.record); })) {
+      await removeOriginal(removed.record.id); return;
+    }
+    deletedDocument = null; render(); refreshRecords(); toast('문서를 다시 가져왔어요.');
+  } catch { toast('문서를 복원하지 못했어요. 잠시 후 다시 시도해 주세요.', 'undo-document'); }
+  finally { busy.delete(`document:${removed.record.id}`); }
 }
 function profileDetails() {
   const user = ui.liveUser;
@@ -933,6 +1209,9 @@ async function accountSheet() {
     const providers = await api('/providers'); if (epoch !== ui.sheetEpoch || !$('#sheet').open) return;
     openSheet('로그인', `<div class="form-intro">${mark('user')}<h3>계정 연결</h3><p>네이버 또는 카카오 계정으로 로그인하세요.</p></div><div class="social-login-options">${providers.map(p => button('login', `${p.provider === 'naver' ? '네이버' : '카카오'}로 계속하기`, `social-login ${p.provider}`, `data-provider="${p.provider}" ${p.enabled ? '' : 'disabled'}`)).join('')}</div>${providers.some(p => !p.enabled) ? '<p class="field-help center">사용할 수 없는 로그인 연결은 준비 중이에요.</p>' : ''}`, 'login-sheet');
   } catch { if (epoch === ui.sheetEpoch && $('#sheet').open) openSheet('로그인', empty('cloud', '로그인 정보를 불러오지 못했어요', '잠시 후 다시 시도해 주세요.', button('account', '다시 시도', 'primary-button')), 'login-sheet'); }
+}
+function newsSettings() {
+  openSheet('브리핑 설정', `<form id="news-form">${field('관심 주제', 'topic', data.news.topic, 'text', 'required maxlength="60"')}${field('매일 수집할 시간', 'time', data.news.time, 'time', 'required')}<p class="field-help">설정 시각은 수집을 시작하는 시간이에요.</p><div class="form-actions"><button class="primary-button" type="submit">설정 저장</button></div></form>`, 'plans-sheet');
 }
 function themeSheet() {
   openSheet('테마', `<p class="sheet-description">시스템 설정을 선택하면 기기에 맞춰 자동으로 바뀌어요.</p><form id="theme-form"><fieldset class="theme-options"><legend class="sr-only">화면 테마</legend>${[['system', '시스템 설정', '기기 설정에 맞춰 자동으로'], ['light', '라이트', '밝고 산뜻한 화면'], ['dark', '다크', '차분하고 편안한 화면']].map(([value, label, copy]) => `<label class="theme-option"><input type="radio" name="theme" value="${value}" ${selectedTheme === value ? 'checked' : ''}><span class="theme-preview ${value}" aria-hidden="true"><i></i><i></i></span><span><strong>${label}</strong><small>${copy}</small></span>${icon('check')}</label>`).join('')}</fieldset><p class="form-error" role="alert"></p><button type="submit" class="primary-button full">적용하기</button><p class="field-help center">${ui.liveUser ? '내 계정에 저장해요.' : '로그인 전에는 이 기기에 적용해요.'}</p></form>`, 'theme-sheet');
@@ -954,7 +1233,7 @@ document.addEventListener('click', async event => {
   if (a.startsWith('go-')) { await closeSheet(); return go(a.slice(3)); }
   if (a === 'close') return closeSheet();
   if (a === 'sheet-back') return backSheet();
-  if (a === 'discard-form-draft') { const form = draftForm(); formDrafts.discard(form); form?.querySelector('.draft-notice')?.remove(); const error = form?.querySelector('.form-error'); if (error) error.textContent = ''; syncDraftForm(); form?.querySelector('input:not([type=hidden]):not([type=radio]):not([type=checkbox]), textarea')?.focus(); return; }
+  if (a === 'discard-form-draft') { const form = draftForm(); formDrafts.discard(form); form?.querySelector('.draft-notice')?.remove(); clearFormError(form); syncDraftForm(); form?.querySelector('input:not([type=hidden]):not([type=radio]):not([type=checkbox]), textarea')?.focus(); return; }
   if (a === 'toggle-window') return toggleWindowMenu();
   if (a === 'set-window') {
     const hours = Number(el.dataset.hours); if (!DASHBOARD_WINDOWS.some(w => w.hours === hours)) return;
@@ -968,7 +1247,14 @@ document.addEventListener('click', async event => {
     return;
   }
   if (a === 'records') { ui.recordSearch = ''; return recordsSheet(el.closest('.dashboard-records') ? 'all' : ui.recordFilter); }
-  if (a === 'record-filter') return recordsSheet(el.dataset.value);
+  if (a === 'record-filter') {
+    ui.recordFilter = el.dataset.value;
+    for (const control of $('.library-sheet .filter-chips').children) {
+      const selected = control.dataset.value === ui.recordFilter;
+      control.classList.toggle('selected', selected); control.setAttribute('aria-pressed', String(selected));
+    }
+    refreshRecords(); syncNavigation(); return;
+  }
   if (a === 'clear-search' || a === 'clear-record-search') {
     const input = $(a === 'clear-search' ? '#conversation-search' : '#record-search');
     if (!input) return;
@@ -976,7 +1262,7 @@ document.addEventListener('click', async event => {
     return input.focus({ preventScroll: true });
   }
   if (a === 'chat-options') return conversationOptions();
-  if (a === 'pin-conversation') { const c = data.conversations.find(c => c.id === id); c.pinned = !c.pinned; save(); closeSheet(); render(); return toast(c.pinned ? '대화를 목록 위에 고정했어요.' : '고정을 해제했어요.'); }
+  if (a === 'pin-conversation') { if (!changeState(state => { const c = state.conversations.find(c => c.id === id); c.pinned = !c.pinned; })) return; const c = data.conversations.find(c => c.id === id); closeSheet(); render(); return toast(c.pinned ? '대화를 목록 위에 고정했어요.' : '고정을 해제했어요.'); }
   if (a === 'undo-note') {
     if (!deletedNote) return;
     const previous = data.notes; data.notes = [...previous, deletedNote];
@@ -993,10 +1279,10 @@ document.addEventListener('click', async event => {
   }
   if (a === 'guide') return guide();
   if (a === 'day-preview') { closeWindowMenu(); return dayPreview(); }
-  if (a === 'set-clock') { setClock(data, Number(el.dataset.hour), Number(el.dataset.minute)); tickScheduled(data); save(); closeSheet(); go('dashboard'); render(); return toast('체험 시간을 바꿨어요. 지금 필요한 카드를 살펴보세요.'); }
+  if (a === 'set-clock') { if (!changeState(state => { setClock(state, Number(el.dataset.hour), Number(el.dataset.minute)); tickScheduled(state); })) return; await closeSheet(); await go('dashboard'); render(); return toast('체험 시간을 바꿨어요. 지금 필요한 카드를 살펴보세요.'); }
   if (a === 'new-chat') return openChat(null, el, ui.view === 'conversations' && el.closest('#main') ? 'page' : 'composer');
   if (a === 'open-conversation') return openChat(id, el, 'page');
-  if (a === 'close-chat') { suspendVoice(); return presentations.dismiss($('#chat-panel')); }
+  if (a === 'close-chat') return closeChat();
   if (a === 'prompt') return prompt(el.dataset.prompt);
   if (a === 'chat-example') { if (voiceActive()) return toast('녹음을 마치거나 취소한 뒤 예시를 골라 주세요.'); if ($('#chat-input').value.trim()) { $('#chat-input').focus(); return toast('작성 중인 메시지를 먼저 보내거나 지워 주세요.'); } $('#chat-input').value = el.dataset.prompt; persistDraft(); syncComposer(); return $('#chat-input').focus(); }
   if (a === 'voice') return openVoice();
@@ -1011,38 +1297,43 @@ document.addEventListener('click', async event => {
     const n = data.notes.find(n => n.id === id); if (!n) return;
     const previous = data.notes; data.notes = previous.filter(note => note.id !== id);
     if (!save()) { data.notes = previous; return; }
-    deletedNote = n; render();
-    const libraryIndex = sheetTrail.findLastIndex(entry => entry.cls === 'library-sheet');
-    if (libraryIndex >= 0) { sheetTrail = sheetTrail.slice(0, libraryIndex + 1); backSheet(); }
-    else await closeSheet();
+    deletedNote = n; formDrafts.remove('note-form', id); await returnToRecords();
     return toast('메모를 삭제했어요.', 'undo-note');
   }
   if (a === 'new-event' || a === 'edit-event') return eventForm(id, el.dataset.date || ui.date, el.dataset.time || '14:00');
-  if (a === 'delete-event') { deletedEvent = data.events.find(event => event.id === id); data.events = data.events.filter(event => event.id !== id); save(); closeSheet(); render(); return toast('약속을 삭제했어요.', 'undo-event'); }
-  if (a === 'undo-event') { if (!deletedEvent) return; data.events.push(deletedEvent); deletedEvent = null; save(); render(); return toast('약속을 다시 가져왔어요.'); }
-  if (a === 'select-date') { ui.date = el.dataset.date; ui.month = dayDate(ui.date); render(); document.querySelector(`[data-date="${ui.date}"][aria-pressed]`)?.focus({ preventScroll: true }); return; }
-  if (a === 'calendar-mode') { ui.calendar = el.dataset.value; render(); document.querySelector(`[data-action=calendar-mode][data-value=${ui.calendar}]`)?.focus({ preventScroll: true }); return; }
-  if (a === 'calendar-today') { ui.date = dateKey(current()); ui.month = new Date(current()); ui.month.setDate(1); render(); document.querySelector('[data-action=calendar-today]')?.focus({ preventScroll: true }); return; }
-  if (a === 'month-prev' || a === 'month-next') { ui.date = moveDate(ui.date, a === 'month-prev' ? -1 : 1, ui.calendar); ui.month = dayDate(ui.date); render(); document.querySelector(`[data-action=${a}]`)?.focus({ preventScroll: true }); return; }
+  if (a === 'delete-event') { const record = data.events.find(event => event.id === id); if (!record || !changeState(state => { state.events = state.events.filter(event => event.id !== id); })) return; deletedEvent = record; formDrafts.commit(draftForm()); formDrafts.remove('event-form', id); await closeSheet(); render(); return toast('약속을 삭제했어요.', 'undo-event'); }
+  if (a === 'undo-event') { if (!deletedEvent || !changeState(state => { state.events.push(deletedEvent); })) return; deletedEvent = null; render(); return toast('약속을 다시 가져왔어요.'); }
+  if (a === 'select-date') return selectScheduleDate(el.dataset.date);
+  if (a === 'calendar-mode') return switchViewContent('calendar', el.dataset.value);
+  if (a === 'calendar-today') return selectScheduleDate(dateKey(current()), '[data-action=calendar-today]');
+  if (a === 'month-prev' || a === 'month-next') return selectScheduleDate(moveDate(ui.date, a === 'month-prev' ? -1 : 1, ui.calendar), `[data-action=${a}]`);
   if (a === 'calendar-jump') return calendarJump();
   if (a === 'jump-year') return calendarJump(ui.jumpYear + Number(el.dataset.delta));
-  if (a === 'jump-month') { const selected = dayDate(ui.date); ui.date = moveDate(ui.date, (ui.jumpYear - selected.getFullYear()) * 12 + Number(el.dataset.month) - selected.getMonth(), 'month'); ui.month = dayDate(ui.date); closeSheet(); return render(); }
-  if (a === 'feature-filter') { ui.filter = el.dataset.value; render(); return document.querySelector(`[data-action=feature-filter][data-value=${ui.filter}]`)?.focus({ preventScroll: true }); }
+  if (a === 'jump-month') { const selected = dayDate(ui.date), nextDate = moveDate(ui.date, (ui.jumpYear - selected.getFullYear()) * 12 + Number(el.dataset.month) - selected.getMonth(), 'month'); await closeSheet(); return selectScheduleDate(nextDate, '[data-action=calendar-jump]'); }
+  if (a === 'feature-filter') return switchViewContent('filter', el.dataset.value);
   if (a === 'new-custom' || a === 'edit-custom') return customForm(id);
-  if (a === 'custom-example') { const form = $('#custom-form'); form.elements.title.value = '하루 마무리'; form.elements.work.value = '오늘 저장한 메모를 모아서 할 일을 정리하기'; form.elements.description.value = '오늘 메모에서 할 일을 정리해요'; form.elements.time.value = '19:00'; setChoice(form.querySelector('[name=repeat]').closest('[data-choice]'), '평일'); updateCustomPreview(); return; }
-  if (a === 'toggle-custom') { const f = data.customs.find(f => f.id === id); if (!f.work) return toast('편집에서 어떤 일을 할지 먼저 추가해 주세요.'); f.active = !f.active; save(); render(); return openDetail(`custom:${id}`); }
-  if (a === 'run-custom') { const f = runCustom(data, id); if (!f) return; save(); render(); openDetail(`custom:${id}`); return toast('저장된 메모로 실행 결과를 만들었어요.'); }
-  if (a === 'check-item') { const f = data.customs.find(f => f.id === id); f.result.items[Number(el.dataset.index)].done = !f.result.items[Number(el.dataset.index)].done; save(); render(); return openDetail(`custom:${id}`); }
+  if (a === 'custom-example') { const form = $('#custom-form'); form.elements.title.value = '하루 마무리'; form.elements.work.value = '오늘 저장한 메모를 모아서 할 일을 정리하기'; form.elements.description.value = '오늘 메모에서 할 일을 정리해요'; form.elements.time.value = '19:00'; setChoice(form.querySelector('[name=repeat]').closest('[data-choice]'), '평일'); syncCustomSchedule(form); clearFormError(form); updateCustomPreview(); captureDraft(form); return; }
+  if (a === 'toggle-custom') { const f = data.customs.find(f => f.id === id); if (!f.work) return toast('편집에서 어떤 일을 할지 먼저 추가해 주세요.'); if (!changeState(() => { f.active = !f.active; })) return; render(); return openDetail(`custom:${id}`); }
+  if (a === 'run-custom') { let result; if (!changeState(state => { result = runCustom(state, id); }) || !result) return; render(); openDetail(`custom:${id}`); return toast('저장된 메모로 실행 결과를 만들었어요.'); }
+  if (a === 'check-item') { const f = data.customs.find(f => f.id === id); if (!changeState(() => { f.result.items[Number(el.dataset.index)].done = !f.result.items[Number(el.dataset.index)].done; })) return; render(); return openDetail(`custom:${id}`); }
   if (a === 'preset-reminder') { const previous = data.reminders.slice(); const reply = applyRequest(data, `${el.dataset.minutes}분 뒤에 알림 줘`); if (!save()) { data.reminders = previous; return; } render(); return openDetail(reply.ref); }
-  if (a === 'timer-extend') { const r = data.reminders.find(r => r.id === id); r.target = Math.max(current(), r.target) + 300000; r.cancelled = false; r.notified = false; save(); render(); return openDetail(`reminder:${id}`); }
-  if (a === 'timer-cancel') { const r = data.reminders.find(r => r.id === id); if (r.cancelled) { r.target = current() + 1800000; r.created = current(); r.notified = false; } r.cancelled = !r.cancelled; save(); render(); return openDetail(`reminder:${id}`); }
-  if (a === 'timer-finish') { const r = data.reminders.find(r => r.id === id); if (r.cancelled) return toast('취소된 알림이에요. 다시 시작한 뒤 체험해 주세요.'); data.clock = { real: Date.now(), virtual: r.target }; save(); render(); return openDetail(`reminder:${id}`); }
-  if (a === 'news-state') { ++data.news.generation; data.news.readyAt = null; data.news.status = el.dataset.value; save(); render(); return openDetail('news'); }
-  if (a === 'refresh-news') { data.news.readyAt = null; data.news.status = 'loading'; const generation = ++data.news.generation; save(); render(); openDetail('news'); setTimeout(() => { if (generation !== data.news.generation) return; data.news.status = 'ready'; data.news.at = current(); save(); render(); if (ui.detail === 'news' && $('#sheet').open) openDetail('news'); }, 1700); return; }
+  if (a === 'timer-extend') { if (!changeState(state => { const r = state.reminders.find(r => r.id === id); r.target = Math.max(current(), r.target) + 300000; r.cancelled = false; r.notified = false; })) return; render(); return openDetail(`reminder:${id}`); }
+  if (a === 'timer-cancel') { if (!changeState(state => { const r = state.reminders.find(r => r.id === id); if (r.cancelled) { r.target = current() + 1800000; r.created = current(); r.notified = false; } r.cancelled = !r.cancelled; })) return; render(); return openDetail(`reminder:${id}`); }
+  if (a === 'timer-finish') { const r = data.reminders.find(r => r.id === id); if (r.cancelled) return toast('취소된 알림이에요. 다시 시작한 뒤 체험해 주세요.'); if (!changeState(state => { state.clock = { real: Date.now(), virtual: r.target }; })) return; render(); return openDetail(`reminder:${id}`); }
+  if (a === 'news-state') { if (!changeState(state => { ++state.news.generation; state.news.readyAt = null; state.news.status = el.dataset.value; })) return; render(); return openDetail('news'); }
+  if (a === 'refresh-news') {
+    if (!changeState(state => { state.news.readyAt = current() + 1700; state.news.status = 'loading'; ++state.news.generation; })) return;
+    const generation = data.news.generation; render(); openDetail('news');
+    setTimeout(() => {
+      if (generation !== data.news.generation) return;
+      if (!changeState(state => { state.news.status = 'ready'; state.news.readyAt = null; state.news.at = current(); })) data.news.status = 'failed';
+      render({ background: true }); if (ui.detail === 'news' && activeDialog('#sheet')) openDetail('news');
+    }, 1700); return;
+  }
   if (a === 'article') { const index = Number(el.dataset.index); return openSheet('뉴스 요약', `<div class="detail-title"><p>브리핑 · ${index + 1}번째 기사</p><h2>${articleTitles[index]}</h2></div><p class="detail-notice">실제 뉴스가 아닌 화면 구성 예시입니다.</p><div class="note-body">${['일정 관리 기능은 요청한 날짜와 시간을 확인하고, 등록한 뒤 결과를 보여줍니다.\n\n모리에서는 등록 결과에서 일정 상세로 이동해 시간과 장소를 다시 확인할 수 있습니다.', '음성으로 입력한 내용은 전송 전에 확인하고 수정할 수 있습니다.\n\n대화 중에도 마이크와 키보드를 바꿔가며 같은 대화를 이어갈 수 있습니다.', '반복할 작업에는 실행할 시간과 요일을 정합니다. 실행 결과는 대시보드와 기능 상세에서 확인합니다.\n\n설정을 바꾸거나 잠시 중지할 때는 기능 상세의 편집 메뉴를 사용합니다.'][index]}</div><p class="field-help">실제 뉴스 연결 후에는 수집 시각과 원문 링크가 함께 표시됩니다.</p>`, 'plans-sheet'); }
-  if (a === 'news-settings') return openSheet('브리핑 설정', `<form id="news-form">${field('관심 주제', 'topic', data.news.topic, 'text', 'required maxlength="60"')}${field('매일 수집할 시간', 'time', data.news.time, 'time', 'required')}<p class="field-help">설정 시각은 수집을 시작하는 시간이에요.</p><div class="form-actions"><button class="primary-button" type="submit">설정 저장</button></div></form>`, 'plans-sheet');
+  if (a === 'news-settings') return newsSettings();
   if (a === 'stock-settings') return openSheet('관심 종목 변경', `<div class="stock-options">${['삼성전자', '코스피', '애플'].map(name => button('select-stock', `${mark('chart', 'rose')}<strong>${name}</strong>${data.stock.symbol === name ? icon('check') : arrow}`, `setting-row ${data.stock.symbol === name ? 'selected' : ''}`, `data-value="${name}" aria-pressed="${data.stock.symbol === name}"`)).join('')}</div><p class="field-help">가격은 샘플 데이터로 표시돼요.</p>`, 'stock-choice-sheet');
-  if (a === 'select-stock') { data.stock.symbol = el.dataset.value; save(); render(); return openDetail('stock'); }
+  if (a === 'select-stock') { if (!changeState(state => { state.stock.symbol = el.dataset.value; })) return; render(); return openDetail('stock'); }
   if (a === 'chart-range') { ui.chart = el.dataset.value; return openDetail('stock'); }
   if (a === 'edit-profile') {
     if (!ui.liveUser) return accountSheet();
@@ -1052,6 +1343,8 @@ document.addEventListener('click', async event => {
   if (a === 'license') return subscriptionSheet();
   if (a === 'document') return documentSheet();
   if (a === 'sample-document') { if (fileBusy) return; fileBusy = true; try { await saveDocument('모리 회의 메모.txt', '모리 화면 회의\n대시보드는 지금 필요한 정보부터 보여주기\n채팅과 음성을 자연스럽게 이어주기\n기본 기능과 내 기능의 화면을 통일하기\n다음 회의 전 주차와 알림 시나리오 확인하기'); } catch (err) { toast(err.message || '문서를 보관하지 못했어요.'); } finally { fileBusy = false; } return; }
+  if (a === 'delete-document') return deleteDocument(id);
+  if (a === 'undo-document') return undoDocument();
   if (a === 'download') { const d = data.documents.find(d => d.id === id); if (!d || busy.has(`download:${id}`)) return; busy.add(`download:${id}`); try { const source = await readOriginal(d), url = URL.createObjectURL(new Blob([source], { type: 'text/plain;charset=utf-8' })); const link = document.createElement('a'); link.href = url; link.download = d.filename; link.hidden = true; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); toast('원문 다운로드를 요청했어요.'); } catch { toast('원문을 불러오지 못했어요. 파일을 다시 확인해 주세요.'); } finally { busy.delete(`download:${id}`); } return; }
   if (a === 'account') return accountSheet();
   if (a === 'live-parking-form') return parkingForm(true);
@@ -1069,13 +1362,19 @@ document.addEventListener('click', async event => {
 });
 for (const type of ['input', 'change']) document.addEventListener(type, event => {
   const form = event.target.form || event.target.closest('form');
-  if (form) clearFormError(form, form.id === 'note-form' ? null : event.target);
+  if (form) clearFormError(form, form.id === 'note-form' || form.id === 'custom-form' && ['time', 'repeat'].includes(event.target.name) ? null : event.target);
+  if (form?.id === 'custom-form') {
+    if (['time', 'repeat'].includes(event.target.name)) syncCustomSchedule(form, event.target.name);
+    updateCustomPreview();
+  }
+  if (form && form === draftForm()) captureDraft(form);
 });
+window.addEventListener('pagehide', () => { captureDraft(); if ($('#chat-panel').open) persistDraft(); });
 document.addEventListener('submit', async event => {
-  event.preventDefault(); const form = event.target, v = Object.fromEntries(new FormData(form)), id = form.dataset.id;
-  if (form.id === 'conversation-form') { const c = data.conversations.find(c => c.id === id); if (!c || !v.title.trim()) return; c.title = v.title.trim(); save(); closeSheet(); render(); renderChat(); return toast('대화 이름을 바꿨어요.'); }
+  event.preventDefault(); const form = event.target; if (!validateForm(form)) return; const v = Object.fromEntries(new FormData(form)), id = form.dataset.id;
+  if (form.id === 'conversation-form') { const c = data.conversations.find(c => c.id === id); if (!c || !changeState(() => { c.title = v.title.trim(); }, form)) return; closeSheet(); render(); renderChat(); return toast('대화 이름을 바꿨어요.'); }
   if (form.id === 'chat-form') return send(v.message || '');
-  if (form.id === 'parking-form') { try { const payload = parkingAttempt(null, parkingValues(form)).payload; data.parking = { ...payload, at: current() }; save(); render(); openDetail('parking'); return toast('위치와 표시 방식을 기억했어요.'); } catch (err) { showFormError(form, err.message); } return; }
+  if (form.id === 'parking-form') { try { const payload = parkingAttempt(null, parkingValues(form)).payload; if (!changeState(state => { state.parking = { ...payload, at: current() }; }, form)) return; formDrafts.commit(form); render(); openDetail('parking'); return toast('위치와 표시 방식을 기억했어요.'); } catch (err) { showFormError(form, err.message, { field: err.field || 'spot', relatedFields: err.field === 'spot' ? ['floor'] : [] }); } return; }
   if (form.id === 'note-form') {
     if (!v.title.trim() && !v.body.trim()) { showFormError(form, '제목이나 내용을 한 줄 남겨주세요.', { field: 'title' }); return; }
     const n = { id: id || uid(), title: v.title.trim() || v.body.slice(0, 28), body: v.body.trim(), at: current() }, previous = data.notes;
@@ -1092,14 +1391,17 @@ document.addEventListener('submit', async event => {
     formDrafts.commit(form); render(); openDetail(`event:${e.id}`); return toast('약속을 저장했어요.');
   }
   if (form.id === 'custom-form') {
+    let scheduling;
+    try { scheduling = normalizeCustomSchedule(v); }
+    catch (err) { showFormError(form, err.message, { field: err.field }); return; }
     const existing = data.customs.find(f => f.id === id), previous = data.customs;
-    const f = { ...existing, id: id || uid(), title: v.title.trim() || v.work.trim().slice(0, 24) || '새로운 내 기능', work: v.work.trim(), description: v.description.trim(), time: v.time, repeat: v.time ? (v.repeat === '필요할 때' ? '매일' : v.repeat) : '필요할 때', icon: customPreview(v).icon, active: Boolean(v.work.trim()) && (existing?.work?.trim() ? existing.active : true), content: v.content.trim(), version: (existing?.version || 0) + 1, runs: existing?.runs || 0, result: existing?.result || null };
+    const f = { ...existing, id: id || uid(), title: v.title.trim() || v.work.trim().slice(0, 24) || '새로운 내 기능', work: v.work.trim(), description: v.description.trim(), ...scheduling, icon: customPreview(v).icon, active: Boolean(v.work.trim()) && (existing?.work?.trim() ? existing.active : true), content: v.content.trim(), version: (existing?.version || 0) + 1, runs: existing?.runs || 0, result: existing?.result || null };
     if (existing && (existing.time !== f.time || existing.repeat !== f.repeat)) delete f.occurrence;
     data.customs = existing ? previous.map(custom => custom.id === id ? f : custom) : [...previous, f];
     if (!save()) { data.customs = previous; showFormError(form, '저장하지 못했어요. 작성한 내용을 확인하고 다시 시도해 주세요.'); return; }
     formDrafts.commit(form); render(); openDetail(`custom:${f.id}`); return toast(f.work ? '내 기능으로 저장했어요.' : '기능 초안을 저장했어요.');
   }
-  if (form.id === 'news-form') { data.news.topic = v.topic.trim(); data.news.time = v.time; save(); render(); openDetail('news'); return toast('브리핑 설정을 저장했어요.'); }
+  if (form.id === 'news-form') { if (!changeState(state => { state.news.topic = v.topic.trim(); state.news.time = v.time; }, form)) return; formDrafts.commit(form); render(); openDetail('news'); return toast('브리핑 설정을 저장했어요.'); }
   if (form.id === 'profile-form' || form.id === 'theme-form') {
     const submit = [...form.elements].find(element => element.type === 'submit'); if (submit.disabled) return;
     submit.disabled = true;
@@ -1144,28 +1446,37 @@ document.addEventListener('submit', async event => {
       if (epoch === ui.sheetEpoch && form.isConnected) closeSheet();
       toast('계정에 위치와 표시 방식을 저장했어요.');
     } catch (err) {
-      if (epoch === ui.sheetEpoch && form.isConnected) showFormError(form, err.message);
+      if (epoch === ui.sheetEpoch && form.isConnected) showFormError(form, err.message, { field: err.field, relatedFields: err.field === 'spot' ? ['floor'] : [] });
       else toast(err.message);
     } finally { submit.disabled = false; }
   }
 });
-document.addEventListener('input', event => {
-  if (event.target.id === 'record-search') {
-    // Keep the input node alive so Korean IME composition and the caret are preserved.
-    ui.recordSearch = event.target.value;
-    refreshRecords();
-    const list = $('.library-sheet .record-list');
-    if (!event.isComposing) motion.result(list);
+function queueSearchUpdate(input, composing = false) {
+  if (input.isConnected === false) return;
+  if (input.id === 'record-search') {
+    ui.recordSearch = input.value;
+    $('.library-sheet .search-clear').hidden = !input.value;
+    searchUpdates.schedule(input, () => refreshRecords({ animate: true }), { composing });
+  } else if (input.id === 'conversation-search') {
+    ui.search = input.value;
+    $('#main .search-clear').hidden = !input.value;
+    searchUpdates.schedule(input, () => updateSearchResults($('#conversation-content'), conversationContent(), true), { composing });
   }
-  if (event.target.id === 'note-content') $('#note-length').textContent = `${event.target.value.length.toLocaleString()}자`;
+}
+document.addEventListener('compositionstart', event => {
+  composingInputs.add(event.target);
+  searchUpdates.cancel(event.target);
+});
+document.addEventListener('compositionend', event => {
+  composingInputs.delete(event.target);
+  queueSearchUpdate(event.target);
+  // The final input event follows compositionend on some IMEs. Let it commit
+  // before a waiting background refresh reads the search text.
+  requestAnimationFrame(() => { if (pendingBackgroundRender) render({ background: true }); });
 });
 document.addEventListener('input', event => {
-  if (event.target.id !== 'conversation-search') return;
-  ui.search = event.target.value;
-  $('#main .search-clear').hidden = !ui.search;
-  const list = $('#conversation-content');
-  list.innerHTML = conversationContent();
-  if (!event.isComposing) motion.result(list);
+  queueSearchUpdate(event.target, event.isComposing || composingInputs.has(event.target));
+  if (event.target.id === 'note-content') $('#note-length').textContent = `${event.target.value.length.toLocaleString()}자`;
 });
 document.addEventListener('input', event => { if (event.target.closest('#event-form')) updateEventPreview(); });
 document.addEventListener('change', event => { if (event.target.closest('#event-form')) updateEventPreview(); });
@@ -1216,13 +1527,12 @@ $('#voice-examples-toggle').addEventListener('click', () => {
   motion.disclosure($('#voice-example-list'), expanded, { inFlow: true });
 });
 $('#sheet-content').addEventListener('scroll', () => { $('#sheet').dataset.scrolled = String($('#sheet-content').scrollTop > 8); }, { passive: true });
-$('#sheet').addEventListener('close', () => { formDrafts.capture(draftForm()); if (!$('#sheet').open) { ui.detail = null; sheetCardOrigin = null; } });
+$('#sheet').addEventListener('close', () => { captureDraft(); if (!$('#sheet').open) { ui.detail = null; sheetCardOrigin = null; } });
 for (const dialog of document.querySelectorAll('dialog')) {
   dialog.addEventListener('close', moveToast);
   const dismiss = (dragOffset = 0) => {
     if (dialog.id === 'sheet') return closeSheet(dragOffset);
-    if (dialog.id === 'chat-panel') suspendVoice();
-    return presentations.dismiss(dialog, { dragOffset });
+    return closeChat(dragOffset);
   };
   dialog.addEventListener('cancel', event => { event.preventDefault(); if (dialog.id === 'chat-panel' && voiceExpanded) return closeVoice(); if (dialog.id === 'sheet' && sheetTrail.length) backSheet(); else dismiss(); });
   dialog.addEventListener('click', event => { if (event.target !== dialog) return; const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dismiss(); });
@@ -1251,11 +1561,11 @@ window.addEventListener('resize', () => {
     presentations.settle($('#chat-panel'));
     syncComposer();
   }
-  motion.render(ui.view);
+  motion.resize();
 });
 let lastMinute = '';
 setInterval(() => {
-  if (tickScheduled(data)) { save(); render(); if (ui.detail && $('#sheet').open) openDetail(ui.detail); }
+  if (tickScheduled(data)) { save(); render({ background: true }); if (ui.detail && $('#sheet').open) openDetail(ui.detail); }
   document.querySelectorAll('[data-countdown]').forEach(el => { const r = data.reminders.find(r => r.id === el.dataset.countdown); if (r) { el.textContent = r.cancelled ? '중지됨' : remaining(r.target); const ring = el.closest('.timer-ring'); if (ring) { const fraction = Math.max(0, Math.min(1, (r.target - current()) / Math.max(1, r.target - r.created))); ring.querySelector('.timer-progress').setAttribute('stroke-dashoffset', String(679 * (1 - fraction))); ring.querySelector('small').textContent = r.cancelled ? '다시 시작할 수 있어요' : current() >= r.target ? '목표 시각이 되었어요' : '남은 시간'; } } });
   document.querySelectorAll('[data-timer-preview]').forEach(el => {
     const r = data.reminders.find(r => r.id === el.dataset.timerPreview);
@@ -1268,7 +1578,7 @@ setInterval(() => {
     el.classList.toggle('is-extra-long', el.textContent.length > 7);
   });
   data.reminders.filter(r => !r.cancelled && !r.notified && r.target <= current()).forEach(r => { r.notified = true; save(); if (data.profile.notify) toast(`${r.title} · 목표 시각이 되었어요.`); });
-  const minute = Math.floor(current() / 60000); if (minute !== lastMinute) { lastMinute = minute; if (ui.view === 'dashboard' && !ui.windowMenu && !document.querySelector('dialog[open]')) render(); }
+  const minute = Math.floor(current() / 60000); if (minute !== lastMinute) { lastMinute = minute; if (['dashboard', 'schedule'].includes(ui.view) && !ui.windowMenu && !document.querySelector('dialog[open]')) render({ background: true }); }
 }, 1000);
 tickScheduled(data); save(); route();
 const login = new URLSearchParams(location.search).get('login'); if (login) { history.replaceState(null, '', location.pathname + location.hash); toast(login === 'success' ? '계정을 연결했어요.' : '로그인을 완료하지 못했어요.'); accountSheet(); } else { loadAccount(); }

@@ -22,6 +22,8 @@
 @use 'chat-return-motion';
 @use 'calendar';
 @use 'mobile-refinement';
+@use 'content-transitions';
+@use 'form-picker';
 @include flows.styles;
 @include inline-voice.styles;
 @include card-detail-page.styles;
@@ -38,3 +40,5 @@
 @include calendar.styles;
 
 @include mobile-refinement.styles;
+@include content-transitions.styles;
+@include form-picker.styles;

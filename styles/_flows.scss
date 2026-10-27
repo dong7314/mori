@@ -164,9 +164,6 @@
     .filter-chips, .state-picker { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.5rem; }
     .filter-chips button, .state-picker button { min-height: 2.75rem; padding: .625rem 1rem; border: 1px solid var(--line); border-radius: 1.5rem; font-size: .875rem; color: var(--secondary); }
     .filter-chips .selected, .state-picker .selected { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
-    .segmented { display: flex; gap: .25rem; padding: .25rem; border-radius: .875rem; background: var(--soft); margin-bottom: 1.25rem; }
-    .segmented button { flex: 1; min-height: 2.75rem; padding: .5rem; border-radius: .625rem; color: var(--secondary); font-size: .875rem; }
-    .segmented .selected { background: var(--surface); color: var(--ink); font-weight: 600; }
   }
 
   dialog {
@@ -361,7 +358,7 @@
   dialog[data-closing] { pointer-events: none; }
   dialog .draft-notice { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; padding: .75rem 1rem; margin-bottom: 1rem; border-radius: 1rem; background: var(--accent-soft); color: var(--secondary); font-size: .8125rem; > span { flex: 1; min-width: 0; } > button { min-height: 44px; color: var(--accent); font-weight: 550; } }
   dialog .form-actions, dialog .detail-toolbar { display: flex; align-items: stretch; flex-wrap: wrap; gap: .625rem; margin-top: 1.25rem; > button { flex: 1; min-width: 0; margin-top: 0; } > .form-error { flex-basis: 100%; } }
-  dialog .library-search { display: flex; align-items: center; gap: .625rem; min-height: 3.25rem; padding: .5rem 1rem; margin-bottom: 1rem; border-radius: 1rem; background: var(--soft); color: var(--secondary); > .icon { width: 1.125rem; height: 1.125rem; } input { flex: 1; width: 100%; min-width: 0; border: 0; background: transparent; padding-block: .5rem; font-size: 1rem; } }
+  dialog .library-search { margin-bottom: 1rem; }
   dialog .library-count { margin: .75rem 0 1rem; color: var(--secondary); font-size: .8125rem; }
   dialog .detail-notice { padding: .75rem 1rem; margin: .75rem 0 1.25rem; border-radius: .875rem; background: var(--soft); color: var(--secondary); font-size: .8125rem; line-height: 1.7; }
   dialog .feature-detail-header { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem; > div { min-width: 0; } h2 { font-size: 1.5rem; font-weight: 620; margin: .375rem 0; overflow-wrap: anywhere; } p { color: var(--secondary); font-size: .875rem; line-height: 1.7; } }

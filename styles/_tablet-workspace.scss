@@ -129,36 +129,10 @@
     .calendar-surface { max-width: none; width: 100%; margin: 0; }
     .calendar-legend { display: none; }
   }
-  .schedule-layout.week .week-day-group {
-    display: grid;
-    grid-template-columns: 160px minmax(0, 1fr);
-    column-gap: 22px;
-    align-items: start;
-    padding-block: 16px;
-    border-top: 1px solid var(--line);
-    > .agenda-event { grid-column: 2; margin: 0 0 10px; }
-    > .agenda-event:last-child { margin-bottom: 0; }
-    > .week-empty { display: none; }
-  }
-  .schedule-layout.week .week-day-heading {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 44px;
-    column-gap: 4px;
-    margin: 0;
-    > button:first-child { grid-column: 1 / -1; min-height: 44px; text-align: left; font-size: .9375rem; em { display: inline-block; white-space: nowrap; } }
-    > small { grid-column: 1; grid-row: 2; margin: 0; font-size: .75rem; }
-    > .small-icon { grid-column: 2; grid-row: 2; }
-  }
-  .schedule-layout.week .week-day-group:has(> .week-empty) {
-    padding-block: 9px;
-    > .week-day-heading { grid-column: 1 / -1; display: flex; gap: 12px; }
-    .week-day-heading > small { margin: 0 0 0 auto; }
-  }
   .schedule-layout.day .day-timeline { padding: 8px 22px; }
   .schedule-layout.day .timeline-slot { grid-template-columns: 58px minmax(0, 1fr); gap: 18px; padding-block: 14px; }
   .schedule-layout.day .hour-label { font-size: .8125rem; }
   .schedule-layout.day .empty-hour { min-height: 48px; font-size: .8125rem; }
-  .quiet-card { margin-top: 20px; padding: 18px 4px; }
 }
 
 @media (min-width: 1024px) {
@@ -172,7 +146,6 @@
   .schedule-layout.month { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 32px; }
   .schedule-layout.week, .schedule-layout.day { grid-template-columns: minmax(350px, .85fr) minmax(0, 1.15fr); gap: 28px; align-items: start; }
   .schedule-layout.week .calendar-surface, .schedule-layout.day .calendar-surface { position: sticky; top: 12px; }
-  .schedule-layout.week .week-day-group { grid-template-columns: 130px minmax(0, 1fr); column-gap: 14px; }
   .calendar-grid button { min-height: 60px; }
   .calendar-grid.week-strip button { min-height: 55px; }
   .feature-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }

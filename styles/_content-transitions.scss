@@ -1,0 +1,59 @@
+@mixin styles {
+  @property --calendar-fold {
+    syntax: '<number>';
+    inherits: true;
+    initial-value: 0;
+  }
+  // One live month grid folds to the selected week. Its row spacing, date
+  // discs and text never scale or fade; the viewport reveals existing rows.
+  .view-content { display: flow-root; }
+  #schedule-view-content { overflow-anchor: none; }
+  .calendar-grid-viewport {
+    // Inline style attributes are blocked by the app's CSP. Keep the finite
+    // month/week geometry in data attributes and the actual values in CSS.
+    --calendar-rows: 1; --calendar-offset: 0; --calendar-full-rows: 1;
+    --calendar-fold: 1;
+    @for $rows from 1 through 6 {
+      &[data-calendar-full-rows="#{$rows}"] { --calendar-full-rows: #{$rows}; }
+      @if $rows > 1 {
+        &[data-calendar-rows="#{$rows}"] { --calendar-fold: 0; }
+      }
+    }
+    @for $offset from 0 through 5 {
+      &[data-calendar-offset="#{$offset}"] { --calendar-offset: #{$offset}; }
+    }
+    // One progress value drives both edges, including interrupted reversals.
+    // Independent height/translate transitions can acquire different reversal
+    // durations and briefly clip the selected date.
+    height: calc((var(--calendar-full-rows) - (var(--calendar-full-rows) - 1) * var(--calendar-fold)) * (var(--calendar-cell-height) + 4px) - 4px);
+    overflow: clip; overflow-clip-margin: 4px;
+    transition: --calendar-fold 420ms cubic-bezier(.22, 1, .36, 1);
+    > .calendar-grid {
+      grid-auto-rows: var(--calendar-cell-height); row-gap: 4px;
+      translate: 0 calc(var(--calendar-offset) * var(--calendar-fold) * (var(--calendar-cell-height) + 4px) * -1);
+      > button { height: var(--calendar-cell-height); min-height: var(--calendar-cell-height); }
+      &.week-strip > button { height: var(--calendar-cell-height); min-height: var(--calendar-cell-height); }
+    }
+  }
+  // Keep the same calendar/agenda placement across modes at each breakpoint.
+  // On narrow screens the agenda follows the folding calendar in normal flow.
+  @media (min-width: 700px) {
+    .schedule-layout:is(.month, .week, .day) {
+      grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start;
+      .calendar-surface { max-width: none; width: 100%; margin: 0; position: static; }
+      .calendar-legend { display: flex; }
+    }
+  }
+  @media (min-width: 1024px) {
+    .schedule-layout:is(.month, .week, .day) {
+      grid-template-columns: minmax(350px, .85fr) minmax(0, 1.15fr); gap: 28px;
+      .calendar-surface { position: sticky; top: 12px; }
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .calendar-grid-viewport, .calendar-grid-viewport > .calendar-grid { transition: none; }
+  }
+  .reduce-motion {
+    .calendar-grid-viewport, .calendar-grid-viewport > .calendar-grid { transition: none; }
+  }
+}

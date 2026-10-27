@@ -1,6 +1,20 @@
 // Mobile destinations use one compact header rhythm; task forms keep their
 // own navigation. These rules do not resize dashboard artwork or card heroes.
 @mixin styles {
+  #sheet .field :is(input:not([type=hidden]), textarea)[aria-invalid=true],
+  #sheet .choice-trigger[aria-invalid=true] {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 12%, transparent);
+  }
+  #sheet .parking-weekdays:has([aria-invalid=true]) {
+    outline: 2px solid color-mix(in srgb, var(--danger) 70%, transparent);
+    outline-offset: 6px;
+    border-radius: 8px;
+  }
+  #sheet[data-sheet-surface="sheet"][data-sheet-presentation="page"] #note-form :is(input, textarea)[aria-invalid=true] {
+    box-shadow: inset 0 -1px 0 var(--danger);
+    border-radius: 0;
+  }
   .search-box {
     > input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
     > .search-clear {
@@ -50,12 +64,6 @@
       .header-button { width: 44px; height: 44px; flex-basis: 44px; }
     }
 
-    #main .search-box {
-      min-height: 48px;
-      border-radius: 16px;
-      input { font-size: max(16px, 1rem); padding-block: 11px; line-height: 1.5; }
-    }
-
     #main[data-page=dashboard] {
       .home-top { margin-bottom: 18px; }
       .home-greeting {
@@ -102,7 +110,6 @@
         p { margin-top: 4px; font-size: .8125rem; line-height: 1.5; }
         .feature-status { margin-top: 9px; font-size: .75rem; line-height: 1.45; }
         .feature-art { --art-size: 116px; }
-        > .icon:last-child { top: 13px; right: 12px; width: 12px; height: 12px; }
       }
     }
 
@@ -114,7 +121,6 @@
     }
 
     #sheet[data-sheet-surface="sheet"] {
-      .library-search .search-box { min-height: 48px; padding-block: 0; input { padding-block: 12px; } }
       .filter-chips {
         flex-wrap: nowrap;
         overflow-x: auto;
@@ -126,11 +132,6 @@
         &::-webkit-scrollbar { display: none; }
       }
       .field textarea { resize: none; }
-      .field :is(input:not([type=hidden]), textarea)[aria-invalid=true],
-      .choice-trigger[aria-invalid=true] {
-        border-color: var(--danger);
-        box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 12%, transparent);
-      }
       .icon-picker {
         display: grid;
         grid-template-columns: repeat(6, minmax(44px, 1fr));
@@ -139,10 +140,6 @@
         > label { display: block; min-width: 44px; min-height: 44px; }
         > label > span { width: 100%; min-width: 44px; height: 44px; }
       }
-    }
-    #sheet[data-sheet-surface="sheet"][data-sheet-presentation="page"] #note-form :is(input, textarea)[aria-invalid=true] {
-      box-shadow: inset 0 -1px 0 var(--danger);
-      border-radius: 0;
     }
   }
 

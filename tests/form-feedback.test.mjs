@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { showFormError, clearFormError } from '../src/form-feedback.mjs';
+import { showFormError, clearFormError, validateForm } from '../src/form-feedback.mjs';
 
 function fixture(fields = [], sharedDocument = null) {
   const document = sharedDocument || { nodes: [], getElementById(id) { return this.nodes.find(node => node.id === id) || null; } };
@@ -14,6 +14,7 @@ function fixture(fields = [], sharedDocument = null) {
     const node = { id: '', name: '', type: 'text', hidden: false, disabled: false,
       className: '', textContent: '', willValidate: false, validity: { valid: true },
       getAttribute: key => attributes.get(key) ?? null,
+      hasAttribute: key => attributes.has(key),
       setAttribute: (key, value) => attributes.set(key, String(value)),
       removeAttribute: key => attributes.delete(key),
       closest(selector) { return selector.startsWith('[hidden]') ? this.hidden ? {} : null : this.wrapper || null; },
@@ -133,5 +134,50 @@ test('a form without an error element gets an alert, and editing another member 
   assert.equal(monday.getAttribute('aria-invalid'), 'true');
   assert.equal(clearFormError(form, tuesday), true);
   assert.equal(monday.getAttribute('aria-invalid'), null);
+  assert.equal(error.textContent, '');
+});
+
+test('required and whitespace-only fields use the same inline alert and focus', () => {
+  const { form, error, controls: [title] } = fixture([{ name: 'title', value: '', required: true, willValidate: true, validity: { valid: false, valueMissing: true } }]);
+  assert.equal(validateForm(form), false);
+  assert.equal(error.textContent, '제목을 입력해 주세요.');
+  assert.equal(title.getAttribute('aria-invalid'), 'true');
+  title.value = '  '; title.validity = { valid: true };
+  assert.equal(validateForm(form), false);
+  title.value = '회의'; clearFormError(form, title);
+  assert.equal(validateForm(form), true);
+});
+
+test('hidden choice values associate feedback with their visible trigger and clear on selection', () => {
+  const { form, element, error } = fixture();
+  const trigger = element(), wrapper = element({ querySelector: () => trigger });
+  const hidden = element({ name: 'duration_minutes', type: 'hidden', wrapper });
+  form.elements.push(hidden);
+  assert.equal(showFormError(form, '표시 기간을 확인해 주세요.', { field: 'duration_minutes' }), trigger);
+  assert.equal(trigger.getAttribute('aria-describedby'), error.id);
+  assert.equal(clearFormError(form, hidden), true);
+  assert.equal(trigger.getAttribute('aria-invalid'), null);
+});
+
+test('picker validation keeps native date constraints but focuses and clears the visible trigger', () => {
+  const { form, element, error } = fixture();
+  const trigger = element({ type: 'button' }), wrapper = element({ querySelector: () => trigger });
+  trigger.wrapper = wrapper;
+  const input = element({ name: 'date', type: 'date', wrapper, noLayout: true, value: '', required: true,
+    willValidate: true, validity: { valid: false, valueMissing: true } });
+  input.setAttribute('data-picker-input', '');
+  form.elements.push(input, trigger);
+  assert.equal(validateForm(form), false);
+  assert.equal(trigger.getAttribute('aria-invalid'), 'true'); assert.equal(input.focusOptions, undefined);
+  assert.match(error.textContent, /날짜/);
+  input.value = '2026-10-27'; input.validity = { valid: true };
+  assert.equal(clearFormError(form, input), true); assert.equal(trigger.getAttribute('aria-invalid'), null);
+  assert.equal(validateForm(form), true);
+});
+
+test('either parking location field can resolve a missing-location error', () => {
+  const { form, error, controls: [floor] } = fixture([{ name: 'floor' }, { name: 'spot' }]);
+  showFormError(form, '위치를 입력해 주세요.', { field: 'spot', relatedFields: ['floor'] });
+  assert.equal(clearFormError(form, floor), true);
   assert.equal(error.textContent, '');
 });

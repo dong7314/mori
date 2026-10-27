@@ -819,26 +819,38 @@ a {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
   padding: 0 16px;
-  min-height: 50px;
   border: 1px solid var(--glass-edge);
-  border-radius: 17px;
+  border-radius: 16px;
   background: var(--surface);
   box-shadow: var(--shadow);
   color: var(--muted);
 }
-.search-box .icon {
+.search-box > .icon {
   width: 19px;
   height: 19px;
 }
-.search-box input {
-  border: 0;
-  outline: none;
+.search-box > input {
+  flex: 1;
   min-width: 0;
   width: 100%;
+  padding: 11px 0;
+  border: 0;
+  outline: none;
   background: transparent;
-  padding: 13px 0;
-  font-size: 0.9375rem;
+  font-size: max(16px, 1rem);
+  line-height: 1.5;
+}
+.search-box > input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.search-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
 }
 
 .conversation-start {
@@ -1332,8 +1344,6 @@ a {
 .agenda-content {
   min-width: 0;
   flex: 1;
-  border-left: 3px solid #acbfa7;
-  padding-left: 12px;
 }
 .agenda-content > strong {
   display: block;
@@ -1344,14 +1354,6 @@ a {
 }
 .agenda-content .agenda-range {
   display: none;
-}
-
-.purple .agenda-content {
-  border-color: #b6a0cb;
-}
-
-.orange .agenda-content {
-  border-color: #d1b68e;
 }
 
 .agenda-event-top {
@@ -1398,37 +1400,6 @@ a {
 }
 .calendar-empty .secondary-button {
   margin-top: 16px;
-}
-
-.week-day-heading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 20px;
-}
-.week-day-heading > button:first-child {
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-.week-day-heading > button:first-child span {
-  margin-left: 5px;
-}
-.week-day-heading > button:first-child em {
-  color: var(--accent);
-  font-size: 0.6875rem;
-  margin-left: 7px;
-  font-style: normal;
-}
-.week-day-heading small {
-  font-size: 0.6875rem;
-  color: var(--secondary);
-  margin-left: auto;
-}
-
-.week-empty {
-  padding: 15px 0 10px;
-  color: var(--muted);
-  font-size: 0.75rem;
 }
 
 .day-timeline {
@@ -1478,32 +1449,6 @@ a {
 .empty-hour .icon {
   width: 14px;
   height: 14px;
-}
-
-.quiet-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 18px 3px;
-  margin-top: 13px;
-  color: var(--secondary);
-}
-.quiet-card > .icon {
-  width: 22px;
-  height: 22px;
-  color: var(--accent);
-}
-.quiet-card > div {
-  flex: 1;
-  min-width: 0;
-}
-.quiet-card strong {
-  font-size: 0.8125rem;
-  font-weight: 550;
-}
-.quiet-card p {
-  font-size: 0.6875rem;
-  margin-top: 3px;
 }
 
 .time-window-picker {
@@ -2480,14 +2425,6 @@ a {
   min-height: 9rem;
   padding: 1.125rem 1.25rem;
 }
-#main[data-page=features] .feature-tile > .icon:last-child {
-  position: absolute;
-  right: 1rem;
-  top: 1rem;
-  width: 0.875rem;
-  height: 0.875rem;
-  color: var(--muted);
-}
 #main[data-page=features] .feature-tile h3 {
   margin: 0;
   font-size: 1.0625rem;
@@ -2514,6 +2451,31 @@ a {
   display: block;
   flex: 1;
   min-width: 0;
+}
+
+#main[data-page=features] .feature-tile.feature-tile--custom > .feature-art--custom {
+  --art-size: 48px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+#main[data-page=features] .feature-tile.feature-tile--custom > .feature-art--custom > .feature-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--lavender) 55%, var(--surface));
+  border: 0;
+}
+#main[data-page=features] .feature-tile.feature-tile--custom > .feature-art--custom > .feature-icon .icon {
+  width: 22px;
+  height: 22px;
+}
+#main[data-page=features] .feature-status > .tag {
+  font-size: inherit;
+  line-height: 1.4;
+}
+#main[data-page=features] .custom-feature-grid > .empty-state {
+  grid-column: 1/-1;
 }
 
 .forecast-body {
@@ -3262,61 +3224,6 @@ a {
   .schedule-layout.week .calendar-legend, .schedule-layout.day .calendar-legend {
     display: none;
   }
-  .schedule-layout.week .week-day-group {
-    display: grid;
-    grid-template-columns: 160px minmax(0, 1fr);
-    column-gap: 22px;
-    align-items: start;
-    padding-block: 16px;
-    border-top: 1px solid var(--line);
-  }
-  .schedule-layout.week .week-day-group > .agenda-event {
-    grid-column: 2;
-    margin: 0 0 10px;
-  }
-  .schedule-layout.week .week-day-group > .agenda-event:last-child {
-    margin-bottom: 0;
-  }
-  .schedule-layout.week .week-day-group > .week-empty {
-    display: none;
-  }
-  .schedule-layout.week .week-day-heading {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 44px;
-    column-gap: 4px;
-    margin: 0;
-  }
-  .schedule-layout.week .week-day-heading > button:first-child {
-    grid-column: 1/-1;
-    min-height: 44px;
-    text-align: left;
-    font-size: 0.9375rem;
-  }
-  .schedule-layout.week .week-day-heading > button:first-child em {
-    display: inline-block;
-    white-space: nowrap;
-  }
-  .schedule-layout.week .week-day-heading > small {
-    grid-column: 1;
-    grid-row: 2;
-    margin: 0;
-    font-size: 0.75rem;
-  }
-  .schedule-layout.week .week-day-heading > .small-icon {
-    grid-column: 2;
-    grid-row: 2;
-  }
-  .schedule-layout.week .week-day-group:has(> .week-empty) {
-    padding-block: 9px;
-  }
-  .schedule-layout.week .week-day-group:has(> .week-empty) > .week-day-heading {
-    grid-column: 1/-1;
-    display: flex;
-    gap: 12px;
-  }
-  .schedule-layout.week .week-day-group:has(> .week-empty) .week-day-heading > small {
-    margin: 0 0 0 auto;
-  }
   .schedule-layout.day .day-timeline {
     padding: 8px 22px;
   }
@@ -3331,10 +3238,6 @@ a {
   .schedule-layout.day .empty-hour {
     min-height: 48px;
     font-size: 0.8125rem;
-  }
-  .quiet-card {
-    margin-top: 20px;
-    padding: 18px 4px;
   }
 }
 @media (min-width: 1024px) {
@@ -3372,10 +3275,6 @@ a {
   .schedule-layout.week .calendar-surface, .schedule-layout.day .calendar-surface {
     position: sticky;
     top: 12px;
-  }
-  .schedule-layout.week .week-day-group {
-    grid-template-columns: 130px minmax(0, 1fr);
-    column-gap: 14px;
   }
   .calendar-grid button {
     min-height: 60px;
@@ -4059,27 +3958,6 @@ dialog .filter-chips .selected, dialog .state-picker .selected {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-soft);
-}
-dialog .segmented {
-  display: flex;
-  gap: 0.25rem;
-  padding: 0.25rem;
-  border-radius: 0.875rem;
-  background: var(--soft);
-  margin-bottom: 1.25rem;
-}
-dialog .segmented button {
-  flex: 1;
-  min-height: 2.75rem;
-  padding: 0.5rem;
-  border-radius: 0.625rem;
-  color: var(--secondary);
-  font-size: 0.875rem;
-}
-dialog .segmented .selected {
-  background: var(--surface);
-  color: var(--ink);
-  font-weight: 600;
 }
 
 dialog .detail-title {
@@ -5500,28 +5378,7 @@ dialog .form-actions > .form-error, dialog .detail-toolbar > .form-error {
 }
 
 dialog .library-search {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  min-height: 3.25rem;
-  padding: 0.5rem 1rem;
   margin-bottom: 1rem;
-  border-radius: 1rem;
-  background: var(--soft);
-  color: var(--secondary);
-}
-dialog .library-search > .icon {
-  width: 1.125rem;
-  height: 1.125rem;
-}
-dialog .library-search input {
-  flex: 1;
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  padding-block: 0.5rem;
-  font-size: 1rem;
 }
 
 dialog .library-count {
@@ -6417,9 +6274,6 @@ dialog .stock-options .setting-row[aria-pressed=true] {
 #sheet.card-page .card-detail-body .parking-detail-body {
   padding: 0;
 }
-#sheet.card-page .card-detail-body .detail-actions, #sheet.card-page .card-detail-body .detail-toolbar {
-  margin-top: 1.5rem;
-}
 #sheet.card-page .card-detail-body .detail-facts {
   margin-top: 0;
 }
@@ -7054,6 +6908,22 @@ dialog .stock-options .setting-row[aria-pressed=true] {
     forced-color-adjust: none;
   }
 }
+.forecast-rail {
+  --rail-fade-width: clamp(24px, 7vw, 40px);
+  --rail-fade-start: 0px;
+  --rail-fade-end: 0px;
+}
+.forecast-rail[data-fade-start=true] {
+  --rail-fade-start: var(--rail-fade-width);
+}
+.forecast-rail[data-fade-end=true] {
+  --rail-fade-end: var(--rail-fade-width);
+}
+.forecast-rail:is([data-fade-start=true], [data-fade-end=true]) {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--rail-fade-start), #000 calc(100% - var(--rail-fade-end)), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 var(--rail-fade-start), #000 calc(100% - var(--rail-fade-end)), transparent);
+}
+
 #main[data-page=dashboard] :is(.window-trigger, .section-view-button) {
   font-size: 0.8125rem;
   font-weight: 500;
@@ -7512,17 +7382,6 @@ dialog .stock-options .setting-row[aria-pressed=true] {
     transition: none;
   }
 }
-#sheet[data-sheet-surface=sheet] {
-  --sheet-paper: var(--surface);
-  --sheet-canvas: var(--canvas);
-}
-#sheet[data-sheet-surface=sheet] > #sheet-content {
-  background: var(--sheet-canvas);
-  color: var(--ink);
-}
-#sheet[data-sheet-surface=sheet] > #sheet-content > :last-child {
-  margin-bottom: 0;
-}
 #sheet[data-sheet-surface=sheet] .card-detail-body {
   width: 100%;
   max-width: none;
@@ -7532,7 +7391,19 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   border: 0;
   border-radius: 0;
 }
-#sheet[data-sheet-surface=sheet] :is(.sheet-description, .form-caption, .form-intro > p) {
+
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) {
+  --sheet-paper: var(--surface);
+  --sheet-canvas: var(--canvas);
+}
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) > #sheet-content {
+  background: var(--sheet-canvas);
+  color: var(--ink);
+}
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) > #sheet-content > :last-child {
+  margin-bottom: 0;
+}
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.sheet-description, .form-caption, .form-intro > p) {
   margin: 0 0 24px;
   color: var(--secondary);
   font-size: 0.875rem;
@@ -7542,32 +7413,32 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
-#sheet[data-sheet-surface=sheet] .form-intro {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .form-intro {
   margin: 0;
   padding: 0;
 }
-#sheet[data-sheet-surface=sheet] .form-intro > .feature-icon, #sheet[data-sheet-surface=sheet] .form-intro > h3 {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .form-intro > .feature-icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .form-intro > h3 {
   display: none;
 }
-#sheet[data-sheet-surface=sheet] .form-intro > p:empty {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .form-intro > p:empty {
   display: none;
 }
-#sheet[data-sheet-surface=sheet] form {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) form {
   min-width: 0;
 }
-#sheet[data-sheet-surface=sheet] .field {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field {
   display: block;
   min-width: 0;
   margin: 0 0 20px;
 }
-#sheet[data-sheet-surface=sheet] .field > span {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field > span {
   margin-bottom: 8px;
   font-size: 0.8125rem;
   font-weight: 550;
   line-height: 1.5;
   color: var(--secondary);
 }
-#sheet[data-sheet-surface=sheet] .field input:not([type=hidden]), #sheet[data-sheet-surface=sheet] .field textarea {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field input:not([type=hidden]), #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field textarea {
   min-width: 0;
   min-height: 52px;
   width: 100%;
@@ -7581,42 +7452,42 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   line-height: 1.5;
   box-shadow: none;
 }
-#sheet[data-sheet-surface=sheet] .field input:not([type=hidden])::placeholder, #sheet[data-sheet-surface=sheet] .field textarea::placeholder {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field input:not([type=hidden])::placeholder, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field textarea::placeholder {
   color: var(--muted);
   font-size: 0.9375rem;
 }
-#sheet[data-sheet-surface=sheet] .field input:not([type=hidden]):focus, #sheet[data-sheet-surface=sheet] .field textarea:focus {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field input:not([type=hidden]):focus, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field textarea:focus {
   outline: none;
   background: var(--sheet-paper);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
 }
-#sheet[data-sheet-surface=sheet] .field textarea {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field textarea {
   min-height: 144px;
   resize: vertical;
 }
-#sheet[data-sheet-surface=sheet] .field-pair {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field-pair {
   gap: 12px;
   align-items: start;
 }
-#sheet[data-sheet-surface=sheet] fieldset > legend {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) fieldset > legend {
   margin: 0 0 8px;
   color: var(--secondary);
   font-size: 0.8125rem;
   font-weight: 550;
   line-height: 1.5;
 }
-#sheet[data-sheet-surface=sheet] .field-help, #sheet[data-sheet-surface=sheet] .document-storage-note, #sheet[data-sheet-surface=sheet] .guide-footnote {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field-help, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .document-storage-note, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .guide-footnote {
   color: var(--secondary);
   font-size: 0.75rem;
   line-height: 1.6;
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
-#sheet[data-sheet-surface=sheet] .field-help {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field-help {
   margin: 12px 0 20px;
 }
-#sheet[data-sheet-surface=sheet] .form-error:not(:empty) {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .form-error:not(:empty) {
   margin: 12px 0;
   padding: 12px 14px;
   border: 0;
@@ -7628,7 +7499,7 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
-#sheet[data-sheet-surface=sheet] .choice-trigger {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .choice-trigger {
   min-height: 52px;
   padding: 13px 15px;
   border: 1px solid color-mix(in srgb, var(--line) 76%, var(--sheet-paper));
@@ -7638,33 +7509,33 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   line-height: 1.5;
   color: var(--ink);
 }
-#sheet[data-sheet-surface=sheet] .choice-trigger > .icon {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .choice-trigger > .icon {
   flex: 0 0 16px;
   width: 16px;
   height: 16px;
 }
-#sheet[data-sheet-surface=sheet] .choice-trigger[aria-expanded=true] {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .choice-trigger[aria-expanded=true] {
   border-color: var(--accent);
   background: var(--sheet-paper);
 }
-#sheet[data-sheet-surface=sheet] .choice-options {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .choice-options {
   margin-top: 6px;
   padding: 6px;
   border-radius: 14px;
   background: var(--sheet-paper);
   box-shadow: none;
 }
-#sheet[data-sheet-surface=sheet] .choice-options button {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .choice-options button {
   min-height: 44px;
   padding: 10px 12px;
   font-size: 0.9375rem;
   line-height: 1.5;
 }
-#sheet[data-sheet-surface=sheet] .choice-options [aria-selected=true] {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .choice-options [aria-selected=true] {
   background: var(--accent-soft);
   color: var(--accent);
 }
-#sheet[data-sheet-surface=sheet] :is(.theme-options, .stock-options, .time-choices, .guide-options) {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-options, .stock-options, .time-choices, .guide-options) {
   display: block;
   margin: 0 0 20px;
   padding: 0 14px;
@@ -7674,7 +7545,7 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   box-shadow: none;
   overflow: hidden;
 }
-#sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option) {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option) {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -7689,21 +7560,21 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   box-shadow: none;
   text-align: left;
 }
-#sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option) + label, #sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option) + button {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option) + label, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option) + button {
   border-top: 1px solid var(--line);
 }
-#sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option) > span:not(.feature-icon):not(.theme-preview), #sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option) > strong {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option) > span:not(.feature-icon):not(.theme-preview), #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option) > strong {
   flex: 1;
   min-width: 0;
 }
-#sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option) strong {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option) strong {
   display: block;
   font-size: 0.9375rem;
   font-weight: 550;
   line-height: 1.45;
   color: var(--ink);
 }
-#sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option) small {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option) small {
   display: block;
   margin-top: 3px;
   font-size: 0.75rem;
@@ -7711,48 +7582,48 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   line-height: 1.5;
   color: var(--secondary);
 }
-#sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option) strong, #sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option) small {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option) strong, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option) small {
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
-#sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option) > .feature-icon {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option) > .feature-icon {
   flex: 0 0 32px;
   width: 32px;
   height: 32px;
   border-radius: 10px;
 }
-#sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option) > .feature-icon .icon {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option) > .feature-icon .icon {
   width: 18px;
   height: 18px;
 }
-#sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option) > .icon {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option) > .icon {
   flex: 0 0 16px;
   width: 16px;
   height: 16px;
   color: var(--muted);
 }
-#sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option):active {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option):active {
   transform: none;
   background: color-mix(in srgb, var(--soft) 50%, transparent);
 }
-#sheet[data-sheet-surface=sheet] :is(.theme-option, .stock-options > button, .time-choice, .guide-option):focus-visible {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.theme-option, .stock-options > button, .time-choice, .guide-option):focus-visible {
   outline-offset: -3px;
   border-radius: 10px;
 }
-#sheet[data-sheet-surface=sheet] .theme-option:has(input:checked) {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .theme-option:has(input:checked) {
   border-color: var(--line);
   background: transparent;
 }
-#sheet[data-sheet-surface=sheet] .theme-option:has(input:checked) > .icon {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .theme-option:has(input:checked) > .icon {
   color: var(--accent);
   visibility: visible;
 }
-#sheet[data-sheet-surface=sheet] .theme-option:has(input:focus-visible) {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .theme-option:has(input:focus-visible) {
   outline: 3px solid var(--accent);
   outline-offset: -3px;
   border-radius: 10px;
 }
-#sheet[data-sheet-surface=sheet] .theme-option > .theme-preview {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .theme-option > .theme-preview {
   flex: 0 0 30px;
   width: 30px;
   height: 36px;
@@ -7760,76 +7631,76 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   padding: 6px 4px;
   border-radius: 7px;
 }
-#sheet[data-sheet-surface=sheet] .theme-option > .theme-preview i {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .theme-option > .theme-preview i {
   border-radius: 2px;
 }
-#sheet[data-sheet-surface=sheet] .stock-options > .selected {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .stock-options > .selected {
   background: transparent;
 }
-#sheet[data-sheet-surface=sheet] .stock-options > .selected > .icon {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .stock-options > .selected > .icon {
   color: var(--accent);
 }
-#sheet[data-sheet-surface=sheet] .time-choice > time {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .time-choice > time {
   flex: 0 0 auto;
   font-size: 0.9375rem;
   font-weight: 550;
   line-height: 1.5;
   color: var(--accent);
 }
-#sheet[data-sheet-surface=sheet] .guide-summary {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .guide-summary {
   margin-top: 0;
 }
-#sheet[data-sheet-surface=sheet] .guide-section {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .guide-section {
   margin: 24px 0 0;
 }
-#sheet[data-sheet-surface=sheet] .guide-section > h3 {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .guide-section > h3 {
   margin: 0 14px 8px;
   color: var(--secondary);
   font-size: 0.75rem;
   font-weight: 550;
   line-height: 1.5;
 }
-#sheet[data-sheet-surface=sheet] .guide-section > .guide-options {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .guide-section > .guide-options {
   margin-bottom: 0;
 }
-#sheet[data-sheet-surface=sheet] .parking-options {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options {
   margin: 0 0 20px;
 }
-#sheet[data-sheet-surface=sheet] .parking-options > div {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options > div {
   display: block;
   border-radius: 16px;
   background: var(--sheet-paper);
   overflow: hidden;
 }
-#sheet[data-sheet-surface=sheet] .parking-options label {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options label {
   position: relative;
   display: block;
 }
-#sheet[data-sheet-surface=sheet] .parking-options label + label {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options label + label {
   border-top: 1px solid var(--line);
 }
-#sheet[data-sheet-surface=sheet] .parking-options label > span {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options label > span {
   min-height: 68px;
   padding: 13px 46px 13px 15px;
   border: 0;
   border-radius: 0;
   background: transparent;
 }
-#sheet[data-sheet-surface=sheet] .parking-options strong {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options strong {
   font-size: 0.9375rem;
   font-weight: 550;
   line-height: 1.45;
 }
-#sheet[data-sheet-surface=sheet] .parking-options small {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options small {
   margin-top: 3px;
   font-size: 0.75rem;
   line-height: 1.5;
 }
-#sheet[data-sheet-surface=sheet] .parking-options strong, #sheet[data-sheet-surface=sheet] .parking-options small {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options strong, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options small {
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
-#sheet[data-sheet-surface=sheet] .parking-options label::before {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options label::before {
   content: "";
   position: absolute;
   top: calc(50% - 10px);
@@ -7840,11 +7711,11 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   border-radius: 50%;
   pointer-events: none;
 }
-#sheet[data-sheet-surface=sheet] .parking-options label:has(input:checked)::before {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options label:has(input:checked)::before {
   border-color: var(--accent);
   background: var(--accent);
 }
-#sheet[data-sheet-surface=sheet] .parking-options label:has(input:checked)::after {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options label:has(input:checked)::after {
   content: "✓";
   position: absolute;
   top: calc(50% - 10px);
@@ -7859,24 +7730,24 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   line-height: 1;
   pointer-events: none;
 }
-#sheet[data-sheet-surface=sheet] .parking-options input:checked + span {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options input:checked + span {
   color: var(--ink);
   background: transparent;
 }
-#sheet[data-sheet-surface=sheet] .parking-options input:focus-visible + span {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-options input:focus-visible + span {
   outline-offset: -3px;
   border-radius: 12px;
 }
-#sheet[data-sheet-surface=sheet] .parking-weekdays {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-weekdays {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
   gap: 6px;
   margin: 0 0 20px;
 }
-#sheet[data-sheet-surface=sheet] .parking-weekdays > legend {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-weekdays > legend {
   grid-column: 1/-1;
 }
-#sheet[data-sheet-surface=sheet] .parking-weekdays label > span {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-weekdays label > span {
   min-height: 44px;
   padding: 8px 2px;
   border-radius: 12px;
@@ -7884,12 +7755,12 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   font-size: 0.875rem;
   line-height: 1.4;
 }
-#sheet[data-sheet-surface=sheet] .parking-weekdays input:checked + span {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-weekdays input:checked + span {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-soft);
 }
-#sheet[data-sheet-surface=sheet] .parking-preview, #sheet[data-sheet-surface=sheet] .custom-preview, #sheet[data-sheet-surface=sheet] .event-preview, #sheet[data-sheet-surface=sheet] .inline-info {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-preview, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .custom-preview, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .event-preview, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .inline-info {
   margin: 0 0 20px;
   padding: 16px;
   border: 0;
@@ -7897,53 +7768,53 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   background: var(--sheet-paper);
   box-shadow: none;
 }
-#sheet[data-sheet-surface=sheet] .parking-preview strong, #sheet[data-sheet-surface=sheet] .custom-preview strong, #sheet[data-sheet-surface=sheet] .event-preview strong, #sheet[data-sheet-surface=sheet] .inline-info strong {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-preview strong, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .custom-preview strong, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .event-preview strong, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .inline-info strong {
   font-size: 1.0625rem;
   font-weight: 600;
   line-height: 1.5;
 }
-#sheet[data-sheet-surface=sheet] .parking-preview p, #sheet[data-sheet-surface=sheet] .custom-preview p, #sheet[data-sheet-surface=sheet] .event-preview p, #sheet[data-sheet-surface=sheet] .inline-info p {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-preview p, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .custom-preview p, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .event-preview p, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .inline-info p {
   font-size: 0.8125rem;
   line-height: 1.65;
 }
-#sheet[data-sheet-surface=sheet] .parking-preview > strong {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-preview > strong {
   margin: 8px 0 4px;
 }
-#sheet[data-sheet-surface=sheet] .parking-preview > span, #sheet[data-sheet-surface=sheet] .preview-label, #sheet[data-sheet-surface=sheet] .preview-time {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-preview > span, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .preview-label, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .preview-time {
   font-size: 0.75rem;
   line-height: 1.5;
   color: var(--secondary);
 }
-#sheet[data-sheet-surface=sheet] .preview-content {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .preview-content {
   gap: 12px;
 }
-#sheet[data-sheet-surface=sheet] .preview-content > .feature-icon {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .preview-content > .feature-icon {
   flex: 0 0 36px;
   width: 36px;
   height: 36px;
   border-radius: 11px;
 }
-#sheet[data-sheet-surface=sheet] .preview-content strong {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .preview-content strong {
   font-size: 1rem;
 }
-#sheet[data-sheet-surface=sheet] .preview-content p {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .preview-content p {
   margin-top: 4px;
 }
-#sheet[data-sheet-surface=sheet] .preview-time {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .preview-time {
   margin-top: 12px;
   padding-top: 12px;
 }
-#sheet[data-sheet-surface=sheet] .icon-picker {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .icon-picker {
   margin-bottom: 20px;
   gap: 8px;
 }
-#sheet[data-sheet-surface=sheet] .icon-picker label > span {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .icon-picker label > span {
   width: 44px;
   height: 44px;
   border-radius: 12px;
   background: var(--sheet-paper);
 }
-#sheet[data-sheet-surface=sheet] .example-request {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .example-request {
   margin-bottom: 20px;
   min-height: 48px;
   padding: 12px 15px;
@@ -7952,74 +7823,57 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   font-size: 0.8125rem;
   line-height: 1.6;
 }
-#sheet[data-sheet-surface=sheet] .surface, #sheet[data-sheet-surface=sheet] .record-list, #sheet[data-sheet-surface=sheet] .settings-list {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .surface, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .record-list, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .settings-list {
   padding: 0 14px;
   border: 0;
   border-radius: 18px;
   background: var(--sheet-paper);
   box-shadow: none;
 }
-#sheet[data-sheet-surface=sheet] .surface > :is(.record-row, .setting-row, .event-row), #sheet[data-sheet-surface=sheet] .record-list > :is(.record-row, .setting-row, .event-row), #sheet[data-sheet-surface=sheet] .settings-list > :is(.record-row, .setting-row, .event-row) {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .surface > :is(.record-row, .setting-row, .event-row), #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .record-list > :is(.record-row, .setting-row, .event-row), #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .settings-list > :is(.record-row, .setting-row, .event-row) {
   min-height: 68px;
   padding: 14px 0;
   margin: 0;
   border-radius: 0;
 }
-#sheet[data-sheet-surface=sheet] .surface .record-row > .feature-icon, #sheet[data-sheet-surface=sheet] .surface .setting-row > .feature-icon, #sheet[data-sheet-surface=sheet] .record-list .record-row > .feature-icon, #sheet[data-sheet-surface=sheet] .record-list .setting-row > .feature-icon, #sheet[data-sheet-surface=sheet] .settings-list .record-row > .feature-icon, #sheet[data-sheet-surface=sheet] .settings-list .setting-row > .feature-icon {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .surface .record-row > .feature-icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .surface .setting-row > .feature-icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .record-list .record-row > .feature-icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .record-list .setting-row > .feature-icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .settings-list .record-row > .feature-icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .settings-list .setting-row > .feature-icon {
   width: 34px;
   height: 34px;
   flex-basis: 34px;
   border-radius: 11px;
 }
-#sheet[data-sheet-surface=sheet] .surface .record-row > .feature-icon .icon, #sheet[data-sheet-surface=sheet] .surface .setting-row > .feature-icon .icon, #sheet[data-sheet-surface=sheet] .record-list .record-row > .feature-icon .icon, #sheet[data-sheet-surface=sheet] .record-list .setting-row > .feature-icon .icon, #sheet[data-sheet-surface=sheet] .settings-list .record-row > .feature-icon .icon, #sheet[data-sheet-surface=sheet] .settings-list .setting-row > .feature-icon .icon {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .surface .record-row > .feature-icon .icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .surface .setting-row > .feature-icon .icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .record-list .record-row > .feature-icon .icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .record-list .setting-row > .feature-icon .icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .settings-list .record-row > .feature-icon .icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .settings-list .setting-row > .feature-icon .icon {
   width: 19px;
   height: 19px;
 }
-#sheet[data-sheet-surface=sheet] .surface .row-content strong, #sheet[data-sheet-surface=sheet] .record-list .row-content strong, #sheet[data-sheet-surface=sheet] .settings-list .row-content strong {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .surface .row-content strong, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .record-list .row-content strong, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .settings-list .row-content strong {
   font-size: 0.9375rem;
   line-height: 1.5;
 }
-#sheet[data-sheet-surface=sheet] .surface .row-content small, #sheet[data-sheet-surface=sheet] .record-list .row-content small, #sheet[data-sheet-surface=sheet] .settings-list .row-content small {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .surface .row-content small, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .record-list .row-content small, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .settings-list .row-content small {
   font-size: 0.75rem;
   line-height: 1.55;
 }
-#sheet[data-sheet-surface=sheet] .surface > button:active, #sheet[data-sheet-surface=sheet] .record-list > button:active, #sheet[data-sheet-surface=sheet] .settings-list > button:active {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .surface > button:active, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .record-list > button:active, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .settings-list > button:active {
   transform: none;
   background: var(--soft);
 }
-#sheet[data-sheet-surface=sheet] .search-box {
-  min-height: 48px;
-  padding: 10px 14px;
-  border: 0;
-  border-radius: 14px;
-  background: var(--sheet-paper);
-  box-shadow: none;
-}
-#sheet[data-sheet-surface=sheet] .search-box input {
-  min-width: 0;
-  font-size: max(16px, 1rem);
-  line-height: 1.5;
-  background: transparent;
-}
-#sheet[data-sheet-surface=sheet] .library-search {
-  margin-bottom: 16px;
-}
-#sheet[data-sheet-surface=sheet] .library-count {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .library-count {
   margin: 4px 0 12px;
   padding-inline: 2px;
   font-size: 0.75rem;
   line-height: 1.5;
   color: var(--secondary);
 }
-#sheet[data-sheet-surface=sheet] .library-count strong {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .library-count strong {
   font-weight: 550;
   color: var(--ink);
 }
-#sheet[data-sheet-surface=sheet] .filter-chips {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .filter-chips {
   gap: 6px;
   margin: 0 0 16px;
 }
-#sheet[data-sheet-surface=sheet] .filter-chips button {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .filter-chips button {
   min-height: 44px;
   padding: 8px 13px;
   border: 0;
@@ -8027,18 +7881,18 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   font-size: 0.8125rem;
   background: transparent;
 }
-#sheet[data-sheet-surface=sheet] .filter-chips .selected {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .filter-chips .selected {
   color: var(--accent);
   background: var(--accent-soft);
 }
-#sheet[data-sheet-surface=sheet] .library-actions {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .library-actions {
   position: static;
   margin: 20px 0 0;
   padding: 0;
   background: transparent;
   box-shadow: none;
 }
-#sheet[data-sheet-surface=sheet] .primary-button, #sheet[data-sheet-surface=sheet] .secondary-button, #sheet[data-sheet-surface=sheet] .danger-button, #sheet[data-sheet-surface=sheet] .social-login {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .primary-button, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .secondary-button, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .danger-button, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .social-login {
   min-height: 50px;
   padding: 13px 16px;
   border-radius: 15px;
@@ -8049,73 +7903,73 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
-#sheet[data-sheet-surface=sheet] .primary-button .icon, #sheet[data-sheet-surface=sheet] .secondary-button .icon, #sheet[data-sheet-surface=sheet] .danger-button .icon, #sheet[data-sheet-surface=sheet] .social-login .icon {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .primary-button .icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .secondary-button .icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .danger-button .icon, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .social-login .icon {
   flex: 0 0 18px;
   width: 18px;
   height: 18px;
 }
-#sheet[data-sheet-surface=sheet] .primary-button:active, #sheet[data-sheet-surface=sheet] .secondary-button:active, #sheet[data-sheet-surface=sheet] .danger-button:active, #sheet[data-sheet-surface=sheet] .social-login:active {
-  transform: scale(0.99);
-}
-#sheet[data-sheet-surface=sheet] .primary-button:disabled, #sheet[data-sheet-surface=sheet] .secondary-button:disabled, #sheet[data-sheet-surface=sheet] .danger-button:disabled, #sheet[data-sheet-surface=sheet] .social-login:disabled {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .primary-button:active, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .secondary-button:active, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .danger-button:active, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .social-login:active {
   transform: none;
 }
-#sheet[data-sheet-surface=sheet] .primary-button {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .primary-button:disabled, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .secondary-button:disabled, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .danger-button:disabled, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .social-login:disabled {
+  transform: none;
+}
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .primary-button {
   background: var(--accent);
   color: var(--canvas);
 }
-#sheet[data-sheet-surface=sheet] .secondary-button {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .secondary-button {
   background: var(--sheet-paper);
   border: 1px solid var(--line);
   color: var(--ink);
 }
-#sheet[data-sheet-surface=sheet] .danger-button {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .danger-button {
   color: var(--danger);
   background: transparent;
   border: 0;
 }
-#sheet[data-sheet-surface=sheet] .detail-actions, #sheet[data-sheet-surface=sheet] .detail-toolbar {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .detail-actions, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .detail-toolbar {
   gap: 10px;
   margin: 20px 0 0;
 }
-#sheet[data-sheet-surface=sheet] .detail-actions > button, #sheet[data-sheet-surface=sheet] .detail-toolbar > button {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .detail-actions > button, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .detail-toolbar > button {
   margin-top: 0;
 }
-#sheet[data-sheet-surface=sheet] .form-actions, #sheet[data-sheet-surface=sheet] .form-footer {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .form-actions, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .form-footer {
   position: static;
   margin: 20px 0 0;
   padding: 0;
   background: transparent;
   box-shadow: none;
 }
-#sheet[data-sheet-surface=sheet] .form-actions:empty, #sheet[data-sheet-surface=sheet] .form-footer:empty {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .form-actions:empty, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .form-footer:empty {
   display: none;
 }
-#sheet[data-sheet-surface=sheet] .social-login-options {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .social-login-options {
   gap: 10px;
   margin: 0;
 }
-#sheet[data-sheet-surface=sheet] .social-login {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .social-login {
   display: flex;
   align-items: center;
   justify-content: center;
   border: 0;
   background: var(--sheet-paper);
 }
-#sheet[data-sheet-surface=sheet] .social-login.naver {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .social-login.naver {
   background: #03c75a;
   color: #fff;
 }
-#sheet[data-sheet-surface=sheet] .social-login.kakao {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .social-login.kakao {
   background: #fee500;
   color: #191919;
 }
-#sheet[data-sheet-surface=sheet] .account-plan-options {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .account-plan-options {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
-#sheet[data-sheet-surface=sheet] .account-plan-option {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .account-plan-option {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px 16px;
@@ -8125,79 +7979,79 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   background: var(--sheet-paper);
   box-shadow: none;
 }
-#sheet[data-sheet-surface=sheet] .account-plan-option.selected {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .account-plan-option.selected {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--sheet-paper));
 }
-#sheet[data-sheet-surface=sheet] .account-plan-option > header {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .account-plan-option > header {
   grid-column: 1/-1;
   font-size: 0.875rem;
   line-height: 1.5;
 }
-#sheet[data-sheet-surface=sheet] .account-plan-option > h3 {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .account-plan-option > h3 {
   grid-column: 1/-1;
   margin: 0;
   font-size: 1.375rem;
   font-weight: 600;
   line-height: 1.5;
 }
-#sheet[data-sheet-surface=sheet] .account-plan-option > p {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .account-plan-option > p {
   grid-column: 1/-1;
   margin: 0 0 8px;
   font-size: 0.8125rem;
   line-height: 1.65;
 }
-#sheet[data-sheet-surface=sheet] .account-plan-option > button {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .account-plan-option > button {
   grid-column: 1/-1;
   margin: 0;
   font-size: 0.875rem;
 }
-#sheet[data-sheet-surface=sheet] .subscription-cancel {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .subscription-cancel {
   margin-top: 24px;
   padding: 20px 0 0;
 }
-#sheet[data-sheet-surface=sheet] .subscription-cancel strong {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .subscription-cancel strong {
   font-size: 0.875rem;
   line-height: 1.5;
 }
-#sheet[data-sheet-surface=sheet] .subscription-cancel p {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .subscription-cancel p {
   margin: 8px 0 14px;
   font-size: 0.8125rem;
   line-height: 1.65;
 }
-#sheet[data-sheet-surface=sheet] .account-facts {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .account-facts {
   margin: 0 0 20px;
   padding: 0 15px;
   border-radius: 18px;
   background: var(--sheet-paper);
 }
-#sheet[data-sheet-surface=sheet] .account-facts > div {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .account-facts > div {
   gap: 16px;
   padding: 15px 0;
   font-size: 0.875rem;
   line-height: 1.6;
 }
-#sheet[data-sheet-surface=sheet] .account-facts > div:last-child {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .account-facts > div:last-child {
   border-bottom: 0;
 }
-#sheet[data-sheet-surface=sheet] .account-facts dt {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .account-facts dt {
   flex: 0 1 auto;
   min-width: 0;
 }
-#sheet[data-sheet-surface=sheet] .account-facts dd {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .account-facts dd {
   flex: 1;
   min-width: 0;
   max-width: none;
 }
-#sheet[data-sheet-surface=sheet] .support-details {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .support-details {
   margin: 20px 0;
 }
-#sheet[data-sheet-surface=sheet] .support-details summary {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .support-details summary {
   min-height: 48px;
   padding-block: 12px;
   font-size: 0.8125rem;
   line-height: 1.6;
 }
-#sheet[data-sheet-surface=sheet] .draft-notice {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .draft-notice {
   margin-bottom: 20px;
   padding: 12px 14px;
   border-radius: 14px;
@@ -8206,15 +8060,15 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   font-size: 0.75rem;
   line-height: 1.6;
 }
-#sheet[data-sheet-surface=sheet] .draft-notice > span {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .draft-notice > span {
   min-width: 0;
   flex-basis: 160px;
 }
-#sheet[data-sheet-surface=sheet] > #sheet-actions .primary-button, #sheet[data-sheet-surface=sheet] > #sheet-actions .secondary-button {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) > #sheet-actions .primary-button, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) > #sheet-actions .secondary-button {
   width: 100%;
   margin: 0;
 }
-#sheet[data-sheet-surface=sheet] > #sheet-actions .sheet-action-note {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) > #sheet-actions .sheet-action-note {
   margin: 8px 0 0;
   color: var(--secondary);
   font-size: 0.75rem;
@@ -8223,28 +8077,35 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   word-break: keep-all;
   overflow-wrap: anywhere;
 }
-#sheet[data-sheet-surface=sheet] > #sheet-actions .form-error {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) > #sheet-actions .form-error {
   margin: 0 0 10px;
 }
 
+#sheet[data-sheet-surface=card] .card-detail-body {
+  --detail-body-gutter: clamp(20px, 5vw, 32px);
+  max-width: calc(760px + var(--detail-body-gutter) * 2);
+  padding: 24px var(--detail-body-gutter) calc(40px + env(safe-area-inset-bottom));
+  background: var(--sheet-canvas);
+}
+
 @media (max-width: 360px) {
-  #sheet[data-sheet-surface=sheet] .field-pair {
+  #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .field-pair {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
   }
-  #sheet[data-sheet-surface=sheet] .detail-actions, #sheet[data-sheet-surface=sheet] .detail-toolbar {
+  #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .detail-actions, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .detail-toolbar {
     flex-direction: column;
   }
-  #sheet[data-sheet-surface=sheet] .detail-actions > button, #sheet[data-sheet-surface=sheet] .detail-toolbar > button {
+  #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .detail-actions > button, #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .detail-toolbar > button {
     flex: 0 0 auto;
     width: 100%;
   }
-  #sheet[data-sheet-surface=sheet] .parking-weekdays {
+  #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .parking-weekdays {
     grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  #sheet[data-sheet-surface=sheet] :is(.primary-button, .secondary-button, .danger-button, .social-login, .choice-trigger, .field input, .field textarea) {
+  #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.primary-button, .secondary-button, .danger-button, .social-login, .choice-trigger, .field input, .field textarea) {
     transition: none;
   }
 }
@@ -8474,6 +8335,8 @@ dialog .stock-options .setting-row[aria-pressed=true] {
   --motion-control-ease: cubic-bezier(.2, .7, .2, 1);
   --control-hover: color-mix(in srgb, var(--accent) 5%, var(--surface));
   --control-pressed: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  --control-hover-tint: color-mix(in srgb, var(--accent) 5%, transparent);
+  --control-pressed-tint: color-mix(in srgb, var(--accent) 10%, transparent);
   --control-focus: color-mix(in srgb, var(--accent) 70%, var(--surface));
 }
 
@@ -8499,16 +8362,34 @@ dialog .stock-options .setting-row[aria-pressed=true] {
 }
 
 button:is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .article, .guide-option, .time-choice, .document-sample-row, .message-result):not(:disabled):active,
-#sheet[data-sheet-surface=sheet] button:is(.record-row, .setting-row, .event-row, .article, .guide-option, .time-choice, .document-sample-row):not(:disabled):active {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) button:is(.record-row, .setting-row, .event-row, .article, .guide-option, .time-choice, .document-sample-row):not(:disabled):active {
   transform: none;
   opacity: 1;
   background-color: var(--control-pressed);
 }
 
+button:is(.brief-card, .forecast-card, .feature-tile) {
+  isolation: isolate;
+}
+button:is(.brief-card, .forecast-card, .feature-tile)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background-color: transparent;
+  transition: background-color var(--motion-release) var(--motion-control-ease);
+}
+
 button:is(.brief-card, .forecast-card, .feature-tile):not(:disabled):active {
   transform: none;
-  opacity: 0.92;
+  opacity: 1;
   filter: none;
+}
+button:is(.brief-card, .forecast-card, .feature-tile):not(:disabled):active::before {
+  background-color: var(--control-pressed-tint);
+  transition-duration: var(--motion-feedback);
 }
 
 .quick-composer > button:first-child {
@@ -8540,7 +8421,7 @@ button:is(.text-button, .section-view-button, .window-trigger, .preview-pill):no
 }
 
 button:is(.primary-button, .social-login, .send-button, .quick-mic):not(:disabled):active,
-#sheet[data-sheet-surface=sheet] .primary-button:not(:disabled):active {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .primary-button:not(:disabled):active {
   transform: none;
   opacity: 0.83;
 }
@@ -8552,7 +8433,7 @@ button:is(.primary-button, .social-login, .send-button, .quick-mic):not(:disable
 }
 
 .choice-trigger:not(:disabled):active,
-#sheet[data-sheet-surface=sheet] .choice-trigger:not(:disabled):active {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .choice-trigger:not(:disabled):active {
   transform: none;
   opacity: 1;
   border-color: var(--accent);
@@ -8599,13 +8480,15 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
 }
 @media (hover: hover) and (pointer: fine) {
   button:is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .article, .guide-option, .time-choice, .document-sample-row, .message-result):not(:disabled):hover:not(:active),
-  #sheet[data-sheet-surface=sheet] button:is(.record-row, .setting-row, .event-row, .article, .guide-option, .time-choice, .document-sample-row):not(:disabled):hover:not(:active) {
+  #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) button:is(.record-row, .setting-row, .event-row, .article, .guide-option, .time-choice, .document-sample-row):not(:disabled):hover:not(:active) {
     background-color: var(--control-hover);
   }
   button:is(.brief-card, .forecast-card, .feature-tile):not(:disabled):hover:not(:active) {
     transform: none;
     filter: none;
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+  }
+  button:is(.brief-card, .forecast-card, .feature-tile):not(:disabled):hover:not(:active)::before {
+    background-color: var(--control-hover-tint);
   }
   button:is(.header-button, .small-icon, .close-button, .month-title, .today-button, .secondary-button, .create-feature):not(:disabled):hover:not(:active),
   .quick-composer > button:first-child:not(:disabled):hover:not(:active),
@@ -8621,7 +8504,7 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
     color: color-mix(in srgb, var(--accent) 76%, var(--ink));
   }
   button:is(.primary-button, .social-login, .send-button, .quick-mic):not(:disabled):hover:not(:active),
-  #sheet[data-sheet-surface=sheet] .primary-button:not(:disabled):hover:not(:active) {
+  #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .primary-button:not(:disabled):hover:not(:active) {
     opacity: 0.9;
   }
   :is(.segmented, .filter-chips, .state-picker) > button:not(.selected):not(:disabled):hover:not(:active),
@@ -8631,7 +8514,7 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
     background-color: var(--control-hover);
   }
   .choice-trigger:not(:disabled):hover:not(:active),
-  #sheet[data-sheet-surface=sheet] .choice-trigger:not(:disabled):hover:not(:active) {
+  #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .choice-trigger:not(:disabled):hover:not(:active) {
     border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
   }
   .theme-option:hover {
@@ -8645,6 +8528,9 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   :is(.app-frame, dialog) button {
     transition-duration: 0ms !important;
   }
+  button:is(.brief-card, .forecast-card, .feature-tile)::before {
+    transition: none;
+  }
   :is(.sheet, .chat-panel) :is(input, textarea), :is(.parking-weekdays, .icon-picker) label > span,
   .parking-options label::before, .theme-option {
     transition: none !important;
@@ -8655,6 +8541,10 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
 }
 .reduce-motion :is(.app-frame, dialog) button {
   transition-duration: 0ms !important;
+}
+
+.reduce-motion button:is(.brief-card, .forecast-card, .feature-tile)::before {
+  transition: none;
 }
 
 .reduce-motion :is(.sheet, .chat-panel) :is(input, textarea), .reduce-motion :is(.parking-weekdays, .icon-picker) label > span,
@@ -8727,39 +8617,39 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
     --list-surface-inset: 22px;
   }
 }
-#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list, .guide-options, .time-choices, .stock-options, .theme-options) {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.surface, .record-list, .settings-list, .guide-options, .time-choices, .stock-options, .theme-options) {
   --list-surface-inset: 14px;
 }
-#sheet[data-sheet-surface=sheet] .theme-options > .theme-option:not(:has(input:disabled)):active {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .theme-options > .theme-option:not(:has(input:disabled)):active {
   background-color: var(--control-pressed);
 }
 
 :is(.surface, .record-list, .custom-list, .settings-list):has(> :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row)),
-#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list):has(> :is(.record-row, .setting-row, .event-row)),
-#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.surface, .record-list, .settings-list):has(> :is(.record-row, .setting-row, .event-row)),
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.guide-options, .time-choices, .stock-options, .theme-options) {
   padding-inline: 0;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  #sheet[data-sheet-surface=sheet] .theme-options > .theme-option:not(:has(input:disabled)):hover:not(:active) {
+  #sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) .theme-options > .theme-option:not(:has(input:disabled)):hover:not(:active) {
     background-color: var(--control-hover);
   }
 }
 :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row),
-#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row),
-#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row),
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) {
   position: relative;
   padding-inline: var(--list-surface-inset);
   border-block-start: 0;
 }
 :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row)::before,
-#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row)::before,
-#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option)::before {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row)::before,
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option)::before {
   content: none;
 }
 :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row) + :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .guide-option, .time-choice, .theme-option)::after,
-#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row) + :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .guide-option, .time-choice, .theme-option)::after,
-#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) + :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .guide-option, .time-choice, .theme-option)::after {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row) + :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .guide-option, .time-choice, .theme-option)::after,
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) + :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row, .guide-option, .time-choice, .theme-option)::after {
   content: "";
   position: absolute;
   inset: 0 var(--list-surface-inset) auto;
@@ -8768,23 +8658,23 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   pointer-events: none;
 }
 :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row) > .feature-icon,
-#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row) > .feature-icon,
-#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) > .feature-icon {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row) > .feature-icon,
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) > .feature-icon {
   display: inline-grid;
   place-items: center;
   align-self: center;
 }
 :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row) > .feature-icon > .icon,
-#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row) > .feature-icon > .icon,
-#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) > .feature-icon > .icon {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row) > .feature-icon > .icon,
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) > .feature-icon > .icon {
   margin: 0;
   flex: none;
 }
 :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row):focus-visible, :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row):has(input:focus-visible),
-#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row):focus-visible,
-#sheet[data-sheet-surface=sheet] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row):has(input:focus-visible),
-#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option):focus-visible,
-#sheet[data-sheet-surface=sheet] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option):has(input:focus-visible) {
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row):focus-visible,
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row):has(input:focus-visible),
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option):focus-visible,
+#sheet:is([data-sheet-surface=sheet], [data-sheet-surface=card]) :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option):has(input:focus-visible) {
   outline: 2px solid var(--control-focus, var(--accent));
   outline-offset: -3px;
 }
@@ -8917,27 +8807,36 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
-  min-height: 64px;
-  padding: 0 2px 8px;
+  min-height: 60px;
+  margin-bottom: 6px;
+  padding: 0 2px 12px;
   align-items: center;
+  border-bottom: 0;
 }
 .month-header .month-title {
   justify-self: start;
   min-width: 0;
-  min-height: 56px;
-  padding: 3px 8px;
-  gap: 8px;
-  border-radius: 14px;
+  min-height: 44px;
+  padding: 6px;
+  gap: 7px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
   text-align: left;
+  white-space: nowrap;
 }
 .month-header .month-title > .icon {
-  width: 14px;
-  height: 14px;
-  color: var(--muted);
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+  color: var(--secondary);
+  rotate: 90deg;
 }
 .month-header .calendar-title-copy {
-  display: grid;
-  gap: 1px;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
   min-width: 0;
 }
 .month-header .calendar-title-copy small {
@@ -8947,10 +8846,10 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   line-height: 1.5;
 }
 .month-header .calendar-title-copy strong {
-  font-size: 1.375rem;
+  font-size: 1.125rem;
   font-weight: 650;
-  letter-spacing: -0.04em;
-  line-height: 1.35;
+  letter-spacing: -0.035em;
+  line-height: 1.4;
 }
 .month-header .calendar-navigation {
   display: flex;
@@ -8960,8 +8859,8 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
 .month-header .today-button {
   min-height: 44px;
   min-width: 44px;
-  padding: 8px 11px;
-  border-radius: 22px;
+  padding: 8px;
+  border-radius: 12px;
   background: var(--accent-soft);
   font-size: 0.75rem;
   font-weight: 550;
@@ -8969,19 +8868,22 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
 .month-header .calendar-period-nav {
   display: inline-flex;
   align-items: center;
-  border-radius: 24px;
-  background: color-mix(in srgb, var(--soft) 65%, transparent);
+  gap: 4px;
+  border-radius: 0;
+  background: transparent;
 }
 .month-header .calendar-period-nav .small-icon {
   width: 44px;
   height: 44px;
   flex-basis: 44px;
   padding: 0;
-  border-radius: 50%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
 }
 .month-header .calendar-period-nav .small-icon .icon {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
 }
 
 .weekdays {
@@ -9164,7 +9066,37 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
 }
 
 .agenda-event {
+  --event-accent: #8ca28a;
   border-radius: 18px;
+  border-inline-start: 3px solid var(--event-accent);
+}
+.agenda-event.orange {
+  --event-accent: #b59b6d;
+}
+.agenda-event.purple {
+  --event-accent: #a890bd;
+}
+.agenda-event .agenda-event-top {
+  align-items: center;
+}
+.agenda-event .event-kind {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--event-accent) 13%, var(--surface));
+  color: color-mix(in srgb, var(--event-accent) 45%, var(--ink));
+  font-weight: 550;
+  line-height: 1.5;
+}
+
+.agenda-event, .timeline-slot .agenda-event {
+  background-color: color-mix(in srgb, var(--event-accent) 5%, var(--surface));
+}
+
+.agenda-event.is-next {
+  background-color: color-mix(in srgb, var(--event-accent) 10%, var(--surface));
 }
 
 .agenda-event:not(:disabled):active, .empty-hour:not(:disabled):active {
@@ -9177,28 +9109,99 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   border: 1px solid var(--glass-edge);
   border-radius: 18px;
   background: var(--surface);
+  transition: border-color 220ms ease, background-color 220ms ease;
 }
 
 .week-day-group.is-selected {
   border-color: color-mix(in srgb, var(--accent) 24%, var(--surface));
+  background-color: color-mix(in srgb, var(--accent) 3%, var(--surface));
 }
 
 .week-day-heading {
-  margin-top: 0;
-  gap: 8px;
-}
-.week-day-heading > button:first-child {
-  min-height: 44px;
-}
-.week-day-heading > .small-icon {
-  border-radius: 50%;
-  background: var(--soft);
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.week-empty {
-  padding: 6px 0 4px;
+.week-date-button {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
+  min-height: 48px;
+  padding: 3px 4px;
+  gap: 4px;
+  border-radius: 10px;
+  text-align: left;
+}
+.week-date-button small {
+  color: var(--secondary);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.week-date-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.week-date-label em {
+  margin-left: 3px;
+  color: var(--accent);
+  font-size: 0.625rem;
+  font-weight: 550;
+  font-style: normal;
+}
+
+.week-add-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 58px;
+  min-height: 44px;
+  padding: 8px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--accent);
   font-size: 0.75rem;
-  line-height: 1.6;
+  font-weight: 550;
+  white-space: nowrap;
+}
+.week-add-button .icon {
+  width: 16px;
+  height: 16px;
+}
+
+.week-day-group > .agenda-event {
+  margin: 10px 0 0;
+}
+
+.week-day-group[data-empty=true] {
+  padding-block: 9px;
+}
+
+.week-date-button:not(:disabled):active, .week-add-button:not(:disabled):active {
+  background: var(--control-pressed);
+  transform: none;
+  opacity: 1;
+}
+
+.week-day-heading > button:focus-visible {
+  outline-offset: 1px;
+}
+
+.agenda-clock, .hour-label {
+  font-variant-numeric: tabular-nums;
 }
 
 .empty-hour {
@@ -9234,6 +9237,9 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   .agenda-event:not(:disabled):hover:not(:active) {
     background-color: var(--control-hover);
   }
+  .week-date-button:not(:disabled):hover:not(:active), .week-add-button:not(:disabled):hover:not(:active) {
+    background-color: var(--control-hover);
+  }
 }
 @media (min-width: 700px) {
   #main[data-page=schedule] {
@@ -9255,10 +9261,9 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
   }
   .schedule-layout.week .week-day-group {
     padding: 12px 16px;
-    border-top: 1px solid var(--glass-edge);
   }
-  .schedule-layout.week .week-day-group:has(> .week-empty) {
-    padding: 8px 16px;
+  .schedule-layout.week .week-day-group[data-empty=true] {
+    padding-block: 9px;
   }
 }
 @media (min-width: 1024px) {
@@ -9266,6 +9271,15 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
     --calendar-cell-height: 60px;
     --calendar-date-size: 38px;
   }
+}
+[data-theme=dark] .agenda-event {
+  --event-accent: #a4bfa5;
+}
+[data-theme=dark] .agenda-event.orange {
+  --event-accent: #d1b68e;
+}
+[data-theme=dark] .agenda-event.purple {
+  --event-accent: #bba5d0;
 }
 [data-theme=dark] .weekdays > span:first-child, [data-theme=dark] .calendar-grid > button.sunday {
   color: #d8a4af;
@@ -9275,12 +9289,41 @@ button:is(.danger-button, .logout-button):not(:disabled):active {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .calendar-date-number {
+  .calendar-date-number, .week-day-group {
     transition: none;
   }
 }
-.reduce-motion .calendar-date-number {
+.reduce-motion :is(.calendar-date-number, .week-day-group) {
   transition: none;
+}
+
+@media (max-width: 359px) {
+  .month-header {
+    gap: 6px;
+  }
+  .month-header .month-title {
+    padding-inline: 4px;
+    gap: 5px;
+  }
+  .month-header .calendar-title-copy, .month-header .calendar-navigation {
+    gap: 4px;
+  }
+}
+#sheet .field :is(input:not([type=hidden]), textarea)[aria-invalid=true],
+#sheet .choice-trigger[aria-invalid=true] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+#sheet .parking-weekdays:has([aria-invalid=true]) {
+  outline: 2px solid color-mix(in srgb, var(--danger) 70%, transparent);
+  outline-offset: 6px;
+  border-radius: 8px;
+}
+
+#sheet[data-sheet-surface=sheet][data-sheet-presentation=page] #note-form :is(input, textarea)[aria-invalid=true] {
+  box-shadow: inset 0 -1px 0 var(--danger);
+  border-radius: 0;
 }
 
 .search-box > input[type=search]::-webkit-search-cancel-button {
@@ -9380,15 +9423,6 @@ button:is(.search-clear, .conversation-draft, .create-feature-row):not(:disabled
     width: 44px;
     height: 44px;
     flex-basis: 44px;
-  }
-  #main .search-box {
-    min-height: 48px;
-    border-radius: 16px;
-  }
-  #main .search-box input {
-    font-size: max(16px, 1rem);
-    padding-block: 11px;
-    line-height: 1.5;
   }
   #main[data-page=dashboard] .home-top {
     margin-bottom: 18px;
@@ -9500,12 +9534,6 @@ button:is(.search-clear, .conversation-draft, .create-feature-row):not(:disabled
   #main[data-page=features] .feature-tile .feature-art {
     --art-size: 116px;
   }
-  #main[data-page=features] .feature-tile > .icon:last-child {
-    top: 13px;
-    right: 12px;
-    width: 12px;
-    height: 12px;
-  }
   #main[data-page=my] .profile-summary {
     padding: 12px 4px 20px;
     margin-bottom: 4px;
@@ -9523,13 +9551,6 @@ button:is(.search-clear, .conversation-draft, .create-feature-row):not(:disabled
   }
   #main[data-page=my] .profile-summary h2 {
     font-size: 1.375rem;
-  }
-  #sheet[data-sheet-surface=sheet] .library-search .search-box {
-    min-height: 48px;
-    padding-block: 0;
-  }
-  #sheet[data-sheet-surface=sheet] .library-search .search-box input {
-    padding-block: 12px;
   }
   #sheet[data-sheet-surface=sheet] .filter-chips {
     flex-wrap: nowrap;
@@ -9549,11 +9570,6 @@ button:is(.search-clear, .conversation-draft, .create-feature-row):not(:disabled
   #sheet[data-sheet-surface=sheet] .field textarea {
     resize: none;
   }
-  #sheet[data-sheet-surface=sheet] .field :is(input:not([type=hidden]), textarea)[aria-invalid=true],
-  #sheet[data-sheet-surface=sheet] .choice-trigger[aria-invalid=true] {
-    border-color: var(--danger);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 12%, transparent);
-  }
   #sheet[data-sheet-surface=sheet] .icon-picker {
     display: grid;
     grid-template-columns: repeat(6, minmax(44px, 1fr));
@@ -9571,10 +9587,6 @@ button:is(.search-clear, .conversation-draft, .create-feature-row):not(:disabled
     width: 100%;
     min-width: 44px;
     height: 44px;
-  }
-  #sheet[data-sheet-surface=sheet][data-sheet-presentation=page] #note-form :is(input, textarea)[aria-invalid=true] {
-    box-shadow: inset 0 -1px 0 var(--danger);
-    border-radius: 0;
   }
 }
 @media (max-width: 359px) {
@@ -9611,5 +9623,457 @@ button:is(.search-clear, .conversation-draft, .create-feature-row):not(:disabled
   }
   #sheet.timer-sheet .timer-scene h2 {
     margin-top: 16px;
+  }
+}
+@property --calendar-fold {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+.view-content {
+  display: flow-root;
+}
+
+#schedule-view-content {
+  overflow-anchor: none;
+}
+
+.calendar-grid-viewport {
+  --calendar-rows: 1;
+  --calendar-offset: 0;
+  --calendar-full-rows: 1;
+  --calendar-fold: 1;
+}
+.calendar-grid-viewport[data-calendar-full-rows="1"] {
+  --calendar-full-rows: 1;
+}
+.calendar-grid-viewport[data-calendar-full-rows="2"] {
+  --calendar-full-rows: 2;
+}
+.calendar-grid-viewport[data-calendar-rows="2"] {
+  --calendar-fold: 0;
+}
+.calendar-grid-viewport[data-calendar-full-rows="3"] {
+  --calendar-full-rows: 3;
+}
+.calendar-grid-viewport[data-calendar-rows="3"] {
+  --calendar-fold: 0;
+}
+.calendar-grid-viewport[data-calendar-full-rows="4"] {
+  --calendar-full-rows: 4;
+}
+.calendar-grid-viewport[data-calendar-rows="4"] {
+  --calendar-fold: 0;
+}
+.calendar-grid-viewport[data-calendar-full-rows="5"] {
+  --calendar-full-rows: 5;
+}
+.calendar-grid-viewport[data-calendar-rows="5"] {
+  --calendar-fold: 0;
+}
+.calendar-grid-viewport[data-calendar-full-rows="6"] {
+  --calendar-full-rows: 6;
+}
+.calendar-grid-viewport[data-calendar-rows="6"] {
+  --calendar-fold: 0;
+}
+.calendar-grid-viewport[data-calendar-offset="0"] {
+  --calendar-offset: 0;
+}
+.calendar-grid-viewport[data-calendar-offset="1"] {
+  --calendar-offset: 1;
+}
+.calendar-grid-viewport[data-calendar-offset="2"] {
+  --calendar-offset: 2;
+}
+.calendar-grid-viewport[data-calendar-offset="3"] {
+  --calendar-offset: 3;
+}
+.calendar-grid-viewport[data-calendar-offset="4"] {
+  --calendar-offset: 4;
+}
+.calendar-grid-viewport[data-calendar-offset="5"] {
+  --calendar-offset: 5;
+}
+.calendar-grid-viewport {
+  height: calc((var(--calendar-full-rows) - (var(--calendar-full-rows) - 1) * var(--calendar-fold)) * (var(--calendar-cell-height) + 4px) - 4px);
+  overflow: clip;
+  overflow-clip-margin: 4px;
+  transition: --calendar-fold 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.calendar-grid-viewport > .calendar-grid {
+  grid-auto-rows: var(--calendar-cell-height);
+  row-gap: 4px;
+  translate: 0 calc(var(--calendar-offset) * var(--calendar-fold) * (var(--calendar-cell-height) + 4px) * -1);
+}
+.calendar-grid-viewport > .calendar-grid > button {
+  height: var(--calendar-cell-height);
+  min-height: var(--calendar-cell-height);
+}
+.calendar-grid-viewport > .calendar-grid.week-strip > button {
+  height: var(--calendar-cell-height);
+  min-height: var(--calendar-cell-height);
+}
+
+@media (min-width: 700px) {
+  .schedule-layout:is(.month, .week, .day) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  .schedule-layout:is(.month, .week, .day) .calendar-surface {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    position: static;
+  }
+  .schedule-layout:is(.month, .week, .day) .calendar-legend {
+    display: flex;
+  }
+}
+@media (min-width: 1024px) {
+  .schedule-layout:is(.month, .week, .day) {
+    grid-template-columns: minmax(350px, 0.85fr) minmax(0, 1.15fr);
+    gap: 28px;
+  }
+  .schedule-layout:is(.month, .week, .day) .calendar-surface {
+    position: sticky;
+    top: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .calendar-grid-viewport, .calendar-grid-viewport > .calendar-grid {
+    transition: none;
+  }
+}
+.reduce-motion .calendar-grid-viewport, .reduce-motion .calendar-grid-viewport > .calendar-grid {
+  transition: none;
+}
+
+#sheet .picker-field {
+  position: relative;
+  min-width: 0;
+}
+
+#sheet[data-sheet-surface] .field input.picker-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  max-width: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  clip-path: inset(50%);
+  pointer-events: none;
+}
+
+#sheet .picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  padding: 13px 14px;
+  border: 1px solid color-mix(in srgb, var(--line) 76%, var(--surface));
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1.5;
+  text-align: left;
+}
+#sheet .picker-trigger > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+#sheet .picker-trigger > .icon {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--secondary);
+}
+#sheet .picker-trigger[aria-expanded=true] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+#sheet .picker-trigger[aria-invalid=true] {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 12%, transparent);
+}
+#sheet .picker-trigger:focus-visible {
+  outline: 2px solid var(--control-focus);
+  outline-offset: 3px;
+}
+#sheet .picker-trigger:active {
+  background-color: var(--control-pressed);
+}
+
+dialog.form-picker {
+  --picker-wheel-height: min(220px, 36dvh);
+  position: fixed;
+  inset: auto 0 0;
+  width: min(100%, 440px);
+  max-width: 100%;
+  height: fit-content;
+  max-height: calc(100dvh - 20px);
+  margin: 0 auto;
+  padding: 0;
+  border: 1px solid var(--glass-edge);
+  border-bottom: 0;
+  border-radius: 28px 28px 0 0;
+  background: var(--canvas);
+  color: var(--ink);
+  box-shadow: 0 -12px 60px rgba(20, 37, 29, 0.1490196078);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+dialog.form-picker::backdrop {
+  background: rgba(16, 32, 27, 0.2509803922);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+dialog.form-picker > .sheet-handle {
+  width: 32px;
+  height: 4px;
+  margin: 9px auto 0;
+  border-radius: 4px;
+  background: var(--line);
+}
+dialog.form-picker .picker-header {
+  position: relative;
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 56px;
+  margin: 0;
+  padding: 4px 12px;
+  border: 0;
+  background: transparent;
+}
+dialog.form-picker .picker-header h2 {
+  margin: 0;
+  min-width: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.5;
+}
+dialog.form-picker .picker-header button {
+  min-height: 44px;
+  padding: 8px;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--secondary);
+  font-size: 0.9375rem;
+}
+dialog.form-picker .picker-header [data-picker-action=done] {
+  color: var(--accent);
+  font-weight: 650;
+}
+dialog.form-picker .picker-summary {
+  margin: 0;
+  padding: 4px 20px 16px;
+  min-height: 48px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+dialog.form-picker .picker-content {
+  max-height: calc(100dvh - 150px);
+  overflow: auto;
+  padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+  scrollbar-width: none;
+}
+dialog.form-picker button:focus-visible, dialog.form-picker .picker-wheel:focus-visible {
+  outline: 2px solid var(--control-focus);
+  outline-offset: -3px;
+}
+dialog.form-picker .picker-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+dialog.form-picker .picker-calendar-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.9375rem;
+  font-weight: 550;
+}
+dialog.form-picker .picker-calendar-header .icon {
+  width: 17px;
+  height: 17px;
+}
+dialog.form-picker .picker-calendar-header [data-picker-action=view] > .icon {
+  width: 12px;
+  height: 12px;
+  rotate: 90deg;
+}
+dialog.form-picker .picker-weekdays, dialog.form-picker .picker-date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  text-align: center;
+}
+dialog.form-picker .picker-weekdays {
+  padding-bottom: 6px;
+  color: var(--secondary);
+  font-size: 0.6875rem;
+}
+dialog.form-picker .picker-date-grid button {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  border-radius: 14px;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+dialog.form-picker .picker-date-grid button.outside {
+  color: var(--muted);
+}
+dialog.form-picker .picker-date-grid button[aria-current=date] {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+dialog.form-picker .picker-date-grid button[aria-pressed=true] {
+  background: var(--accent);
+  color: var(--canvas);
+  font-weight: 650;
+  box-shadow: none;
+}
+dialog.form-picker .picker-month-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+dialog.form-picker .picker-month-grid button {
+  min-height: 48px;
+  border-radius: 14px;
+  background: var(--surface);
+}
+dialog.form-picker .picker-month-grid [aria-pressed=true] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+dialog.form-picker .picker-shortcuts {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+dialog.form-picker .picker-shortcuts button {
+  min-width: 72px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 0.8125rem;
+}
+dialog.form-picker .picker-wheels {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  isolation: isolate;
+}
+dialog.form-picker .picker-wheels--time {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+dialog.form-picker .picker-wheels::before {
+  content: "";
+  position: absolute;
+  inset: calc(50% - 22px) 0 auto;
+  height: 44px;
+  z-index: -1;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+dialog.form-picker .picker-wheel {
+  height: var(--picker-wheel-height);
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-block: calc((var(--picker-wheel-height) - 44px) / 2);
+  scrollbar-width: none;
+  scroll-snap-type: y mandatory;
+  touch-action: pan-y;
+  border-radius: 14px;
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+}
+dialog.form-picker .picker-wheel::-webkit-scrollbar {
+  display: none;
+}
+dialog.form-picker .picker-wheel button {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+  padding: 8px;
+  scroll-snap-align: center;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--secondary);
+  font-size: 1.25rem;
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+}
+dialog.form-picker .picker-wheel [aria-selected=true] {
+  color: var(--accent);
+  font-weight: 650;
+}
+dialog.form-picker .picker-hint {
+  margin: 12px 0 0;
+  color: var(--secondary);
+  font-size: 0.75rem;
+  text-align: center;
+  line-height: 1.6;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  #sheet .picker-trigger:hover:not(:active) {
+    background-color: var(--control-hover);
+  }
+  .form-picker button:hover:not(:active):not([aria-pressed=true]) {
+    background-color: var(--control-hover);
+  }
+}
+@media (min-width: 700px) {
+  dialog.form-picker {
+    inset: 0;
+    margin: auto;
+    border-bottom: 1px solid var(--glass-edge);
+    border-radius: 28px;
+    box-shadow: 0 24px 80px rgba(20, 37, 29, 0.1725490196);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  dialog.form-picker::backdrop {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }

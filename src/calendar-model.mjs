@@ -47,6 +47,19 @@ export function eventDaySpan(event, key = event.date) {
   return { start, end: Math.min(1440, end), startLabel: format(start), endLabel: format(Math.min(1440, end)),
     continuation: event.date !== key ? '전날부터' : end > 1440 ? '다음 날까지' : '' };
 }
+// Keep the current appointment distinct from the next start. Clipped day
+// spans include overnight appointments; real starts break concurrent ties.
+export function calendarEventContext(events, key, now = Date.now()) {
+  const date = new Date(now), today = dateKey(date);
+  const minute = key < today ? 1440 : key > today ? -1
+    : date.getHours() * 60 + date.getMinutes() + date.getSeconds() / 60 + date.getMilliseconds() / 60000;
+  const rows = eventsOn(events, key).map((event, index) => ({ event, index, span: eventDaySpan(event, key),
+    started: minuteOf(event.time) - (event.date === key ? 0 : 1440) }));
+  const ongoing = rows.filter(({ span }) => span.start <= minute && minute < span.end)
+    .sort((a, b) => b.started - a.started || a.index - b.index)[0]?.event || null;
+  const next = rows.find(({ span }) => span.start > minute)?.event || null;
+  return { ongoing, next };
+}
 export function timelineHours(events, key) {
   const hours = events.map(event => Math.floor(eventDaySpan(event, key).start / 60));
   const first = Math.min(8, ...hours), last = Math.max(20, ...hours);

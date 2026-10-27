@@ -1,0 +1,84 @@
+@mixin styles {
+  #sheet .picker-field { position: relative; min-width: 0; }
+  #sheet[data-sheet-surface] .field input.picker-native {
+    position: absolute; width: 1px; height: 1px; min-height: 0; max-width: 1px;
+    margin: 0; padding: 0; border: 0; opacity: 0; clip-path: inset(50%); pointer-events: none;
+  }
+  #sheet .picker-trigger {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    width: 100%; min-width: 0; min-height: 52px; padding: 13px 14px;
+    border: 1px solid color-mix(in srgb, var(--line) 76%, var(--surface)); border-radius: 14px;
+    background: var(--surface); color: var(--ink); font-size: 1rem; line-height: 1.5; text-align: left;
+    > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    > .icon { flex: 0 0 18px; width: 18px; height: 18px; color: var(--secondary); }
+    &[aria-expanded=true] { border-color: var(--accent); background: var(--accent-soft); }
+    &[aria-invalid=true] { border-color: var(--danger); box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 12%, transparent); }
+    &:focus-visible { outline: 2px solid var(--control-focus); outline-offset: 3px; }
+    &:active { background-color: var(--control-pressed); }
+  }
+  dialog.form-picker {
+    --picker-wheel-height: min(220px, 36dvh);
+    position: fixed; inset: auto 0 0; width: min(100%, 440px); max-width: 100%;
+    height: fit-content; max-height: calc(100dvh - 20px); margin: 0 auto; padding: 0;
+    border: 1px solid var(--glass-edge); border-bottom: 0; border-radius: 28px 28px 0 0;
+    background: var(--canvas); color: var(--ink); box-shadow: 0 -12px 60px #14251d26;
+    overflow: hidden; overscroll-behavior: contain;
+    &::backdrop { background: #10201b40; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+    > .sheet-handle { width: 32px; height: 4px; margin: 9px auto 0; border-radius: 4px; background: var(--line); }
+    .picker-header {
+      position: relative; display: grid; grid-template-columns: 64px minmax(0, 1fr) 64px;
+      align-items: center; gap: 6px; width: 100%; min-height: 56px; margin: 0; padding: 4px 12px;
+      border: 0; background: transparent;
+      h2 { margin: 0; min-width: 0; font-size: 1rem; font-weight: 600; text-align: center; line-height: 1.5; }
+      button { min-height: 44px; padding: 8px; border-radius: 12px; background: transparent; color: var(--secondary); font-size: .9375rem; }
+      [data-picker-action=done] { color: var(--accent); font-weight: 650; }
+    }
+    .picker-summary { margin: 0; padding: 4px 20px 16px; min-height: 48px; font-size: 1.125rem; font-weight: 600; text-align: center; line-height: 1.5; font-variant-numeric: tabular-nums; }
+    .picker-content { max-height: calc(100dvh - 150px); overflow: auto; padding: 0 16px calc(20px + env(safe-area-inset-bottom)); scrollbar-width: none; }
+    button:focus-visible, .picker-wheel:focus-visible { outline: 2px solid var(--control-focus); outline-offset: -3px; }
+    .picker-calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+      button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 8px 12px; border-radius: 12px; font-size: .9375rem; font-weight: 550; }
+      .icon { width: 17px; height: 17px; }
+      [data-picker-action=view] > .icon { width: 12px; height: 12px; rotate: 90deg; }
+    }
+    .picker-weekdays, .picker-date-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; text-align: center; }
+    .picker-weekdays { padding-bottom: 6px; color: var(--secondary); font-size: .6875rem; }
+    .picker-date-grid button {
+      display: grid; place-items: center; width: 100%; min-width: 0; height: 44px; border-radius: 14px;
+      color: var(--ink); font-size: .9375rem; font-variant-numeric: tabular-nums;
+      &.outside { color: var(--muted); }
+      &[aria-current=date] { box-shadow: inset 0 0 0 1px var(--accent); }
+      &[aria-pressed=true] { background: var(--accent); color: var(--canvas); font-weight: 650; box-shadow: none; }
+    }
+    .picker-month-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+      button { min-height: 48px; border-radius: 14px; background: var(--surface); }
+      [aria-pressed=true] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    }
+    .picker-shortcuts { display: flex; justify-content: center; gap: 8px; margin-top: 12px;
+      button { min-width: 72px; min-height: 44px; padding: 10px 16px; border-radius: 14px; background: var(--surface); color: var(--accent); font-size: .8125rem; }
+    }
+    .picker-wheels { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; isolation: isolate;
+      &--time { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      &::before { content: ''; position: absolute; inset: calc(50% - 22px) 0 auto; height: 44px; z-index: -1; border-radius: 14px; background: var(--accent-soft); pointer-events: none; }
+    }
+    .picker-wheel {
+      height: var(--picker-wheel-height); min-width: 0; overflow: auto; overscroll-behavior: contain;
+      padding-block: calc((var(--picker-wheel-height) - 44px) / 2); scrollbar-width: none;
+      scroll-snap-type: y mandatory; touch-action: pan-y; border-radius: 14px;
+      -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+      mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+      &::-webkit-scrollbar { display: none; }
+      button { display: block; width: 100%; min-width: 0; height: 44px; min-height: 44px; padding: 8px; scroll-snap-align: center; border-radius: 12px; background: transparent; color: var(--secondary); font-size: 1.25rem; line-height: 28px; font-variant-numeric: tabular-nums; }
+      [aria-selected=true] { color: var(--accent); font-weight: 650; }
+    }
+    .picker-hint { margin: 12px 0 0; color: var(--secondary); font-size: .75rem; text-align: center; line-height: 1.6; }
+  }
+  @media (hover: hover) and (pointer: fine) {
+    #sheet .picker-trigger:hover:not(:active) { background-color: var(--control-hover); }
+    .form-picker button:hover:not(:active):not([aria-pressed=true]) { background-color: var(--control-hover); }
+  }
+  @media (min-width: 700px) {
+    dialog.form-picker { inset: 0; margin: auto; border-bottom: 1px solid var(--glass-edge); border-radius: 28px; box-shadow: 0 24px 80px #14251d2c; }
+  }
+  @media (prefers-reduced-transparency: reduce) { dialog.form-picker::backdrop { backdrop-filter: none; -webkit-backdrop-filter: none; } }
+}

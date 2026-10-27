@@ -1,15 +1,18 @@
+import { createContentTransitions } from './content-transition.mjs';
+
 // Motion follows a change of context. Clock refreshes stay still, and native
 // content and controls stay usable throughout a transition.
 export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#tabs') } = {}) {
   if (!main) throw new TypeError('createMotion requires the page content element.');
   const doc = main.ownerDocument, view = doc.defaultView;
   const preference = view.matchMedia('(prefers-reduced-motion: reduce)');
-  const active = new Set(), animations = new WeakMap(), messageStates = new WeakMap();
+  const active = new Set(), animations = new WeakMap(), messageStates = new WeakMap(), sceneAnimations = new Map();
   const opened = new WeakSet(), closing = new Map(), dialogListeners = new Map(), disclosures = new Map(), titleLayers = new Map();
   const ease = 'cubic-bezier(.22, 1, .36, 1)', spring = 'cubic-bezier(.22, .9, .28, 1)';
   let previous, navPosition, disposed = false;
   const reduced = element => disposed || preference.matches || doc.hidden ||
     doc.documentElement.classList.contains('reduce-motion') || Boolean(element?.closest('.reduce-motion'));
+  const contentTransitions = createContentTransitions({ view, reduced: () => reduced(main) });
 
   function play(element, frames, options = {}) {
     if (!element?.isConnected || reduced(element) || typeof element.animate !== 'function') return;
@@ -21,6 +24,7 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
     const release = () => {
       active.delete(animation);
       if (animations.get(element) === animation) animations.delete(element);
+      if (sceneAnimations.get(element) === animation) sceneAnimations.delete(element);
     };
     animation.addEventListener('finish', release, { once: true });
     animation.addEventListener('cancel', release, { once: true });
@@ -33,9 +37,11 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
       { delay: Math.min(Math.max(delay, 0), 180), duration, fill: 'backwards' });
   }
 
-  function reset() {
-    for (const animation of active) animation.cancel();
-    active.clear();
+  function reset({ preserveScene = false } = {}) {
+    contentTransitions.reset({ preserveConnected: preserveScene });
+    for (const [element] of sceneAnimations) if (!preserveScene || !element.isConnected) sceneAnimations.delete(element);
+    const preserved = new Set(sceneAnimations.values());
+    for (const animation of [...active]) if (!preserved.has(animation)) { animation.cancel(); active.delete(animation); }
     for (const cleanup of [...titleLayers.values()]) cleanup();
     main.querySelectorAll('.motion-pending').forEach(element => element.classList.remove('motion-pending'));
     for (const operation of [...closing.values()]) operation.finish();
@@ -96,7 +102,91 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
   }
 
   function result(container) {
-    return enter(container, 0, { distance: 3, duration: 160 });
+    let start = { opacity: .85, translate: '0 2px' };
+    if (container && animations.get(container)) {
+      try {
+        const painted = view.getComputedStyle?.(container);
+        if (painted) start = {
+          opacity: painted.opacity || .85,
+          translate: painted.translate && painted.translate !== 'none' ? painted.translate : '0 0',
+        };
+      } catch { /* Continuity is optional; search results stay visible. */ }
+    }
+    return play(container, [start, { opacity: 1, translate: '0 0' }], { duration: 160 });
+  }
+
+  function agendaResult(container) {
+    let opacity = .9;
+    if (container && animations.get(container)) {
+      try {
+        const painted = Number(view.getComputedStyle?.(container)?.opacity);
+        if (Number.isFinite(painted)) opacity = Math.max(.9, Math.min(1, painted));
+      } catch { /* Updated events stay readable if painted styles are unavailable. */ }
+    }
+    return play(container, [{ opacity }, { opacity: 1 }], { duration: 260 });
+  }
+
+  function updateSchedule(update, { animateAgenda = true } = {}) {
+    // Patch the live calendar instead of replaying a page/section entrance.
+    // A rapid selection continues the current brightness without moving rows.
+    update();
+    previous = capture('schedule', {});
+    if (animateAgenda) return agendaResult(main.querySelector('.agenda-body'));
+  }
+
+  function settleCalendarLayout() {
+    const viewport = main.querySelector('.calendar-grid-viewport');
+    const grid = viewport?.querySelector('.calendar-grid');
+    let settled = 0;
+    for (const [element, property] of [[viewport, 'height'], [grid, 'translate']]) {
+      let transitions;
+      try { transitions = element?.getAnimations?.({ subtree: false }) || []; }
+      catch { continue; }
+      for (const transition of transitions) {
+        if (transition.transitionProperty !== property && !(element === viewport && transition.transitionProperty === '--calendar-fold')) continue;
+        try { transition.finish(); ++settled; } catch { /* An inactive timeline cannot block a resize. */ }
+      }
+    }
+    return settled;
+  }
+
+  function resize() {
+    const settled = settleCalendarLayout();
+    moveNavigation(false, captureNavigation());
+    return settled;
+  }
+
+  function switchContent(container, update, { scene } = {}) {
+    // Update immediately, then reveal only the changing dates and cards. The
+    // calendar paper, toolbar and segmented-control background stay still.
+    animations.get(main)?.cancel();
+    for (const element of container?.querySelectorAll('*') || []) animations.get(element)?.cancel();
+    return contentTransitions.transition(container, () => {
+      update();
+      if (scene) previous = capture(scene, {});
+    }, { targets: () => contentTargets(container, scene) });
+  }
+
+  function contentTargets(container, scene) {
+    if (scene === 'schedule') {
+      const agenda = container.querySelector('.agenda-body');
+      // The live grid folds through CSS. The agenda follows its normal flow
+      // with a slight clarity change, without adding another positional effect.
+      return agenda && visible(agenda)
+        ? [{ element: agenda, duration: 280, opacity: .94, distance: 0, scale: '1', delay: 0 }] : [];
+    }
+    if (scene === 'features') {
+      return [...container.querySelectorAll([
+        ':scope > .section-heading', '.feature-grid > .feature-tile',
+        '.custom-feature-grid > .empty-state',
+      ].join(', '))].filter(element => visible(element)).map((element, index) => ({
+        element, delay: Math.min(index * 34, 180),
+        ...(element.classList.contains('section-heading')
+          ? { duration: 360, opacity: .25, distance: 8, scale: '1' }
+          : { duration: 460, opacity: 0, distance: 18, scale: '.98' }),
+      }));
+    }
+    return [{ element: container }];
   }
 
   function swapTitle(element, previousText, { back = false } = {}) {
@@ -141,6 +231,34 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
     let index = 0;
     for (const item of items) {
       if (visible(item)) enter(item, index++ * stagger, { distance, duration });
+    }
+  }
+
+  function revealScene(scene) {
+    if (reduced(main)) return;
+    const selectors = {
+      dashboard: [
+        '.home-top', '.home-greeting', '.now-section > .section-heading', '.brief-card',
+        '.forecast-summary', '.forecast-shelf > header', '.forecast-card',
+        '.now-section > .empty-state', '.forecast-shelves > .empty-state', '.home-lower > section',
+      ],
+      schedule: ['.page-heading', '.schedule-summary', '.calendar-modes', '.calendar-surface', '.agenda-panel', '.brand-footer'],
+      conversations: ['.page-heading', '.search-box', '.conversation-draft', '.conversation-groups > section', '.conversation-groups > .empty-state'],
+      features: ['.page-heading', ':scope > .segmented', '#feature-view-content > .section-heading', '.feature-grid > .feature-tile', '.custom-feature-grid > .empty-state'],
+      my: ['.page-heading', '.profile-summary', ':scope > .primary-button', '.license-card', ':scope > .section-heading', '.settings-list', '.logout-button', '.brand-footer'],
+    };
+    const candidates = [...new Set(main.querySelectorAll((selectors[scene] || ['[data-motion="reveal"]']).join(', ')))];
+    const items = candidates.filter(element => !candidates.some(parent => parent !== element && parent.contains(element)));
+    let index = 0;
+    for (const item of items) {
+      if (!visible(item)) continue;
+      // A short wave follows the reading order. Animate each surface once so
+      // text, artwork and its background arrive together without nested fades.
+      const animation = play(item, [
+        { opacity: 0, translate: '0 20px', scale: '.985' },
+        { opacity: 1, translate: '0 0', scale: '1' },
+      ], { duration: 520, delay: Math.min(index++ * 42, 252), fill: 'backwards' });
+      if (animation) sceneAnimations.set(item, animation);
     }
   }
 
@@ -196,13 +314,11 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
   function render(scene, state = {}) {
     const current = capture(scene, state), changed = previous?.scene !== scene;
     const paintedNav = captureNavigation();
-    const paintedScene = changed && animations.get(main) && view.getComputedStyle ? view.getComputedStyle(main) : null;
-    const sceneStart = { opacity: paintedScene?.opacity || .55, translate: paintedScene?.translate && paintedScene.translate !== 'none' ? paintedScene.translate : '0 5px' };
-    reset(); moveNavigation(changed && Boolean(previous), paintedNav);
+    reset({ preserveScene: !changed }); moveNavigation(changed && Boolean(previous), paintedNav);
     if (changed && previous) {
-      // A root tab changes the whole scene together. Individual cards don't
-      // queue behind one another, and scrolling never replays their entrance.
-      play(main, [sceneStart, { opacity: 1, translate: '0 0' }], { duration: 260 });
+      // Root navigation introduces whole sections; filters reveal only their
+      // changing dates and cards. Scrolling never replays either wave.
+      revealScene(scene);
     } else if (changed) {
       // Independent sections: never animate both a card and its parent.
       reveal(main.querySelectorAll([
@@ -211,26 +327,22 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
         '.now-section > .section-heading', '.brief-card', '.forecast-summary', '.forecast-shelf',
         '.home-lower > section', '.page-heading', '.search-box', '.conversation-start',
         '.conversation-groups > section', '.conversation-groups > .empty-state',
-        '.schedule-topbar', '.calendar-modes', '.schedule-layout > section', '.quiet-card',
-        '.feature-grid > .feature-tile', '.custom-list', '.create-feature',
+        '.schedule-topbar', '.calendar-modes', '.schedule-layout > section',
+        '.feature-grid > .feature-tile', '.custom-feature-grid > .empty-state', '.create-feature',
         '.profile-summary', '.license-card', '.settings-list', '.brand-footer',
       ].join(', ')), { stagger: 25, distance: 8, duration: 380 });
     } else if (current.horizon !== previous.horizon) {
       reveal(main.querySelectorAll('.brief-card, .forecast-summary, .forecast-shelf'), { stagger: 40, distance: 10, duration: 400 });
     } else if (current.calendar !== previous.calendar || current.month !== previous.month || current.period !== previous.period) {
-      // Keep the calendar paper, toolbar and hover targets still. Only the new
-      // date grid and agenda change; never animate a surface and its grid twice.
-      const distance = current.calendar !== previous.calendar ? 0 : current.date > previous.date ? 8 : -8;
-      play(main.querySelector('.calendar-grid'), [
-        { opacity: .6, translate: `${distance}px 0` }, { opacity: 1, translate: '0 0' },
-      ], { duration: 240 });
-      enter(main.querySelector('.agenda-body'), 0, { distance: 4, duration: 220 });
+      // The shared CSS fold owns calendar geometry. Results only gain clarity;
+      // no horizontal nudge or vertical list movement accompanies a selection.
+      agendaResult(main.querySelector('.agenda-body'));
     } else if (current.date !== previous.date) {
-      enter(main.querySelector('.agenda-body, .calendar-layout > section:last-child'), 0, { distance: 4, duration: 220 });
+      agendaResult(main.querySelector('.agenda-body, .calendar-layout > section:last-child'));
     } else if (current.filter !== previous.filter) {
-      reveal(main.querySelectorAll('.feature-grid > .feature-tile, .custom-list, .create-feature, .memory-grid > article'), { stagger: 35, distance: 8, duration: 360 });
+      reveal(main.querySelectorAll('.feature-grid > .feature-tile, .custom-feature-grid > .empty-state, .create-feature, .memory-grid > article'), { stagger: 35, distance: 8, duration: 360 });
     } else if (current.search !== previous.search) {
-      enter(main.querySelector('.conversation-groups'), 0, { distance: 4, duration: 220 });
+      result(main.querySelector('.conversation-groups'));
     }
     previous = current;
   }
@@ -333,5 +445,5 @@ export function createMotion(main, { nav = main?.ownerDocument?.querySelector('#
     dialogListeners.clear();
   }
 
-  return { render, enter, result, swapTitle, disclosure, messages, openDialog, closeDialog, reset, destroy };
+  return { render, enter, result, updateSchedule, settleCalendarLayout, resize, switchContent, swapTitle, disclosure, messages, openDialog, closeDialog, reset, destroy };
 }

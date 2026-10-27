@@ -37,7 +37,7 @@
     .home-lower :is(.surface, .record-list) { --list-surface-inset: 22px; }
   }
 
-  #sheet[data-sheet-surface="sheet"] {
+  #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) {
     :is(.surface, .record-list, .settings-list, .guide-options, .time-choices, .stock-options, .theme-options) {
       --list-surface-inset: 14px;
     }
@@ -45,19 +45,19 @@
   }
 
   :is(.surface, .record-list, .custom-list, .settings-list):has(> :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row)),
-  #sheet[data-sheet-surface="sheet"] :is(.surface, .record-list, .settings-list):has(> :is(.record-row, .setting-row, .event-row)),
-  #sheet[data-sheet-surface="sheet"] :is(.guide-options, .time-choices, .stock-options, .theme-options) {
+  #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) :is(.surface, .record-list, .settings-list):has(> :is(.record-row, .setting-row, .event-row)),
+  #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) :is(.guide-options, .time-choices, .stock-options, .theme-options) {
     padding-inline: 0;
   }
   @media (hover: hover) and (pointer: fine) {
-    #sheet[data-sheet-surface="sheet"] .theme-options > .theme-option:not(:has(input:disabled)):hover:not(:active) {
+    #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) .theme-options > .theme-option:not(:has(input:disabled)):hover:not(:active) {
       background-color: var(--control-hover);
     }
   }
 
   :is(.surface, .record-list, .custom-list, .settings-list) > :is(.record-row, .conversation-row, .custom-row, .event-row, .setting-row),
-  #sheet[data-sheet-surface="sheet"] :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row),
-  #sheet[data-sheet-surface="sheet"] :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) {
+  #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) :is(.surface, .record-list, .settings-list) > :is(.record-row, .setting-row, .event-row),
+  #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) :is(.guide-options, .time-choices, .stock-options, .theme-options) > :is(.guide-option, .time-choice, .setting-row, .theme-option) {
     position: relative;
     padding-inline: var(--list-surface-inset);
     border-block-start: 0;

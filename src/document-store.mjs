@@ -27,6 +27,16 @@ export async function storeOriginal(id, source) {
     transaction.onabort = () => reject(transaction.error);
   });
 }
+export async function removeOriginal(id) {
+  const db = await openDatabase();
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction('originals', 'readwrite');
+    transaction.objectStore('originals').delete(id);
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
 export async function readOriginal(record) {
   if (typeof record.source === 'string') return record.source;
   // Earlier demo files stored the entire generated text in summary.

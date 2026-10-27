@@ -1,5 +1,19 @@
 // Dashboard collections preview records; creation stays in each destination.
 @mixin styles {
+  // Fade the clipped edge into the actual page background. A mask follows
+  // the scroll viewport without covering cards or intercepting their input.
+  .forecast-rail {
+    --rail-fade-width: clamp(24px, 7vw, 40px);
+    --rail-fade-start: 0px;
+    --rail-fade-end: 0px;
+    &[data-fade-start="true"] { --rail-fade-start: var(--rail-fade-width); }
+    &[data-fade-end="true"] { --rail-fade-end: var(--rail-fade-width); }
+    &:is([data-fade-start="true"], [data-fade-end="true"]) {
+      -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--rail-fade-start), #000 calc(100% - var(--rail-fade-end)), transparent);
+      mask-image: linear-gradient(to right, transparent, #000 var(--rail-fade-start), #000 calc(100% - var(--rail-fade-end)), transparent);
+    }
+  }
+
   #main[data-page=dashboard] :is(.window-trigger, .section-view-button) {
     font-size: .8125rem;
     font-weight: 500;
