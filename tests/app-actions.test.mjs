@@ -519,6 +519,7 @@ test('custom scheduling synchronizes visible choices, required state, help and d
   time.form = form; repeat.form = form;
   const context = { clockLabel: value => value,
     setChoice(target, value) { assert.equal(target, choice); selected.push(value); repeat.value = value; },
+    syncPickerFields(target) { assert.equal(target, form); },
     clearFormError() {}, updateCustomPreview() {}, draftForm: () => form,
     captureDraft(target) { assert.equal(target, form); captured.push([time.value, repeat.value, time.required]); },
     document: { addEventListener: (type, callback) => { listeners[type] = callback; } },
@@ -540,6 +541,10 @@ test('custom scheduling synchronizes visible choices, required state, help and d
   assert.equal(time.required, true); assert.match(help.textContent, /평일 20:30/);
   assert.deepEqual(selected, ['매일', '평일']);
   assert.equal(time.value, '20:30'); assert.equal(repeat.value, '평일');
+  time.value = ''; listeners.input({ target: time });
+  assert.equal(repeat.value, '필요할 때'); assert.equal(time.required, false);
+  assert.equal(label.textContent, '실행 시간 · 선택');
+  assert.deepEqual(captured.at(-1), ['', '필요할 때', false]);
 });
 
 for (const [time, repeat, field] of [['19:00', '필요할 때', 'repeat'], ['', '매일', 'time']]) {

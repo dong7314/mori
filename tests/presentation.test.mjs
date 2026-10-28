@@ -692,6 +692,22 @@ test('a mobile task sheet enters from its lower edge while a tablet uses a cente
   assert.equal(tablet.animations[0].frames[0].opacity, 0);
 });
 
+test('a full-width picker keeps its bottom edge presentation on tablet and returns the same way', async () => {
+  globalThis.innerWidth = 1024;
+  const picker = dialog(), presentation = createPresentations();
+  picker.dataset.sheetSurface = 'sheet'; picker.dataset.pickerPresentation = 'bottom';
+  presentation.show(picker);
+  const entering = picker.animations.at(-1);
+  assert.equal(entering.frames[0].transform, 'translateY(832px)');
+  assert.equal(entering.frames[0].opacity, 1);
+  entering.finish(); await entering.finished; await Promise.resolve();
+  const dismissed = presentation.dismiss(picker);
+  const exiting = picker.animations.at(-1);
+  assert.equal(exiting.frames.at(-1).transform, 'translateY(832px)');
+  exiting.finish(); await dismissed;
+  assert.equal(picker.open, false);
+});
+
 test('cancelling a view animation also removes its outgoing layer', async () => {
   const { view, content } = replacementFixture(), presentation = createPresentations();
   view.open = true;

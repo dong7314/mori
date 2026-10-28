@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { pickerField, pickerValueLabel, validPickerValue, createFormPickers } from '../src/form-picker.mjs';
+import { pickerField, pickerValueLabel, validPickerValue, createFormPickers, syncPickerFields } from '../src/form-picker.mjs';
 
 test('picker values preserve leap dates, midnight, minute precision and existing custom durations', () => {
   assert.equal(validPickerValue('date', '2024-02-29'), true);
@@ -21,6 +21,12 @@ test('custom field controls retain original native types, required constraints a
   assert.match(date, /aria-haspopup="dialog"/); assert.match(date, /aria-describedby="picker-required-date"/);
   assert.doesNotMatch(date, /data-choice/);
   assert.match(pickerField('시작 시간', 'time', '23:59', 'time'), /type="time"/);
+  const optionalTime = pickerField('실행 시간 · 선택', 'time', '', 'time', { clearable: true, describedBy: 'custom-schedule-help' });
+  assert.match(optionalTime, /data-picker-clearable="true"/);
+  assert.match(optionalTime, /aria-describedby="custom-schedule-help"/);
+  assert.match(optionalTime, /data-picker-display>선택해 주세요</);
+  const scheduledTime = pickerField('실행 시간', 'time', '19:00', 'time', { required: true, clearable: true, describedBy: 'custom-schedule-help' });
+  assert.match(scheduledTime, /aria-describedby="picker-required-time custom-schedule-help"/);
   const duration = pickerField('소요 시간', 'duration', 60, 'duration', { options: [{ value: 60, label: '<img onerror=bad>' }] });
   assert.match(duration, /type="hidden" name="duration"/);
   assert.doesNotMatch(duration, /<img/); assert.match(duration, /&lt;img/);
@@ -28,29 +34,44 @@ test('custom field controls retain original native types, required constraints a
 
 // Exercise the actual controller's transaction/history contract without relying
 // on browser popup UI. Calendar/wheel geometry is a separate visual QA concern.
-function fixture(type = 'date', originalValue = '2026-10-27', options = []) {
-  const events = [], changes = [], focused = [], listeners = new Map();
-  const trigger = { isConnected: true, setAttribute() {}, focus: options => focused.push(options) };
+function fixture(type = 'date', originalValue = '2026-10-27', options = [], { required = false, clearable = false, describedBy = '', label = '날짜' } = {}) {
+  const events = [], changes = [], focused = [], listeners = new Map(), attributes = new Map();
+  if (describedBy) attributes.set('aria-describedby', describedBy);
+  const trigger = { isConnected: true, setAttribute: (name, value) => attributes.set(name, value),
+    getAttribute: name => attributes.get(name) ?? null, removeAttribute: name => attributes.delete(name), focus: options => focused.push(options) };
+  const name = type === 'date' ? 'date' : type === 'time' ? 'time' : 'duration';
   const display = { textContent: '' }, summary = { textContent: '' }, owner = { open: true };
-  const field = { isConnected: true, dataset: { formPicker: type, pickerOptions: JSON.stringify(options) },
+  const requiredLabel = { id: `picker-required-${name}`, textContent: '' };
+  const field = { isConnected: true, dataset: { formPicker: type, pickerOptions: JSON.stringify(options), pickerClearable: String(clearable) },
     closest: () => owner,
-    querySelector: selector => selector === '[data-picker-input]' ? input : selector === '[data-picker-trigger]' ? trigger : selector === '[data-picker-display]' ? display : { textContent: '날짜' },
+    querySelector: selector => ({ '[data-picker-input]': input, '[data-picker-trigger]': trigger,
+      '[data-picker-display]': display, '[data-picker-required]': requiredLabel, ':scope > span': { textContent: label } })[selector] || null,
   };
   const form = { id: 'event-form', isConnected: true, querySelectorAll: () => [field] };
-  const input = { name: type === 'date' ? 'date' : type === 'time' ? 'time' : 'duration', value: originalValue, isConnected: true, form, closest: () => field, dispatchEvent: event => events.push(event.type) };
+  const input = { name, value: originalValue, required, isConnected: true, form, closest: () => field, dispatchEvent: event => events.push(event.type) };
   form.elements = [input];
-  const makeWheel = (name, values, selected) => {
-    const callbacks = new Map(), wheel = { dataset: { pickerWheel: name }, scrollTop: 0, setAttribute() {}, focus() {} };
-    const items = values.map((value, index) => ({ id: `picker-${name}-${index}`, selected: String(value) === String(selected), dataset: { pickerValue: String(value), pickerIndex: String(index) },
-      setAttribute(_name, value) { this.selected = value === 'true'; } }));
-    wheel.querySelectorAll = () => items; wheel.querySelector = () => items.find(item => item.selected);
-    wheel.addEventListener = (name, fn) => callbacks.set(name, fn);
-    wheel.scrollTo = ({ top }) => { wheel.scrollTop = top; callbacks.get('scroll')?.(); };
-    return wheel;
-  };
-  const wheels = type === 'time' ? [makeWheel('hour', Array.from({ length: 24 }, (_, i) => i), Number(originalValue.split(':')[0])), makeWheel('minute', Array.from({ length: 60 }, (_, i) => i), Number(originalValue.split(':')[1]))]
-    : type === 'duration' ? [makeWheel('duration', options.map(option => option.value), originalValue)] : [];
-  const dialog = { open: false, dataset: {}, setAttribute() {}, innerHTML: '',
+  // Materialize only the scrollable option interface from the controller's
+  // rendered markup; business values and fallback selection come from production.
+  const wheels = [];
+  function readWheels(html) {
+    wheels.length = 0;
+    for (const [, attrs, body] of html.matchAll(/<div class="picker-wheel"([^>]*)>(.*?)<\/div>/gs)) {
+      const callbacks = new Map(), name = attrs.match(/data-picker-wheel="([^"]+)"/)[1];
+      const wheel = { dataset: { pickerWheel: name }, scrollTop: 0, setAttribute() {}, focus() {} };
+      const items = [...body.matchAll(/<button([^>]*)>(.*?)<\/button>/gs)].map(([, attrs, text]) => ({
+        id: attrs.match(/id="([^"]+)"/)[1], selected: attrs.includes('aria-selected="true"'), textContent: text,
+        dataset: { pickerValue: attrs.match(/data-picker-value="([^"]+)"/)[1], pickerIndex: attrs.match(/data-picker-index="([^"]+)"/)[1] },
+        setAttribute(_name, value) { this.selected = value === 'true'; },
+      }));
+      wheel.querySelectorAll = () => items; wheel.querySelector = () => items.find(item => item.selected);
+      wheel.addEventListener = (name, fn) => callbacks.set(name, fn);
+      wheel.scrollTo = ({ top }) => { wheel.scrollTop = top; callbacks.get('scroll')?.(); };
+      wheels.push(wheel);
+    }
+  }
+  let html = '';
+  const dialog = { open: false, dataset: {}, setAttribute() {},
+    get innerHTML() { return html; }, set innerHTML(value) { html = value; readWheels(value); },
     addEventListener: (type, fn) => listeners.set(type, fn),
     showModal() { this.open = true; }, close() { this.open = false; },
     querySelector: selector => selector === '[data-picker-summary]' ? summary : selector === '[data-picker-wheel]' ? wheels[0] : selector === '[aria-pressed=true]' ? trigger : null,
@@ -58,8 +79,13 @@ function fixture(type = 'date', originalValue = '2026-10-27', options = []) {
   };
   const doc = { body: { append() {} }, createElement: () => dialog, addEventListener() {}, getElementById: () => form };
   const picker = createFormPickers(doc, { now: () => new Date(2026, 9, 27).getTime(), onChange: () => changes.push(picker.snapshot()) });
-  const choose = date => listeners.get('click')({ target: { dataset: { pickerAction: 'date', date }, closest: selector => selector === '[data-picker-action]' ? { dataset: { pickerAction: 'date', date } } : null } });
-  return { picker, input, dialog, events, changes, choose, field, display, focused, wheels };
+  const action = (pickerAction, data = {}) => {
+    const target = { dataset: { pickerAction, ...data } };
+    target.closest = selector => selector === '[data-picker-action]' ? target : null;
+    return listeners.get('click')({ target });
+  };
+  const choose = date => action('date', { date });
+  return { picker, input, dialog, events, changes, choose, action, field, form, display, trigger, requiredLabel, focused, wheels };
 }
 
 test('calendar choices stay drafts until Done, while cancel preserves the form and emits no edits', async () => {
@@ -98,4 +124,70 @@ test('duration wheels preserve existing non-preset values and cancel without mod
   await picker.open(field); assert.equal(wheels[0].scrollTop, 44);
   wheels[0].scrollTo({ top: 0 }); assert.equal(picker.snapshot().value, '30');
   await picker.close(); assert.equal(input.value, '117'); assert.deepEqual(events, []);
+});
+
+
+test('an optional empty time remains empty on cancel and only Done publishes its selected value', async () => {
+  const { picker, field, input, action, events, wheels, display, dialog } = fixture('time', '', [], { clearable: true });
+  await picker.open(field);
+  assert.equal(input.value, '');
+  assert.ok(validPickerValue('time', picker.snapshot().value));
+  assert.equal(wheels[0].scrollTop, Number(picker.snapshot().value.slice(0, 2)) * 44);
+  wheels[0].scrollTo({ top: 17 * 44 }); wheels[1].scrollTo({ top: 42 * 44 });
+  await action('cancel');
+  assert.equal(dialog.open, false); assert.equal(input.value, ''); assert.deepEqual(events, []);
+  await picker.open(field);
+  wheels[0].scrollTo({ top: 17 * 44 }); wheels[1].scrollTo({ top: 42 * 44 });
+  assert.equal(input.value, '');
+  await action('done');
+  assert.equal(input.value, '17:42'); assert.equal(display.textContent, '오후 5:42');
+  assert.deepEqual(events, ['input', 'change']); assert.equal(picker.snapshot(), null);
+});
+
+test('clearing a scheduled time requires explicit support even when the field is currently required', async () => {
+  for (const required of [false, true]) {
+    const { picker, field, action, input, events, dialog } = fixture('time', '19:30', [], { required });
+    await picker.open(field); await action('clear');
+    assert.equal(input.value, '19:30'); assert.deepEqual(events, []); assert.equal(dialog.open, true);
+    await action('cancel');
+  }
+  const { picker, field, input, action, events, display, dialog } = fixture('time', '19:30', [], { required: true, clearable: true });
+  await picker.open(field); await action('clear');
+  assert.equal(input.value, ''); assert.equal(display.textContent, '선택해 주세요');
+  assert.equal(dialog.open, false); assert.equal(picker.snapshot(), null);
+  assert.deepEqual(events, ['input', 'change']);
+  // Form listeners own the corresponding repeat-mode/required change.
+  assert.equal(input.required, true);
+});
+
+test('required changes retain helper and error descriptions while keeping empty state accurate', () => {
+  const { form, input, trigger, requiredLabel, field, display } = fixture('time', '', [], {
+    describedBy: 'custom-schedule-help form-error-7',
+  });
+  const descriptions = () => new Set((trigger.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean));
+  syncPickerFields(form);
+  assert.equal(display.textContent, '선택해 주세요'); assert.equal(field.dataset.pickerEmpty, 'true');
+  input.required = true; syncPickerFields(form);
+  assert.equal(requiredLabel.textContent, '필수 항목');
+  assert.deepEqual(descriptions(), new Set(['custom-schedule-help', 'form-error-7', requiredLabel.id]));
+  input.value = '08:30'; syncPickerFields(form);
+  assert.equal(field.dataset.pickerEmpty, 'false'); assert.equal(display.textContent, '오전 8:30');
+  input.required = false; syncPickerFields(form);
+  assert.equal(requiredLabel.textContent, '');
+  assert.deepEqual(descriptions(), new Set(['custom-schedule-help', 'form-error-7']));
+
+  const plain = fixture('time', '09:00', [], { required: true });
+  syncPickerFields(plain.form); plain.input.required = false; syncPickerFields(plain.form);
+  assert.equal(plain.trigger.getAttribute('aria-describedby'), null);
+});
+
+test('parking duration announces its own field label and retains the full-day option', async () => {
+  const { picker, field, dialog, wheels, action, input } = fixture('duration', '90', [
+    { value: 90, label: '90분' }, { value: 1440, label: '24시간' },
+  ], { label: '표시 기간' });
+  await picker.open(field);
+  assert.match(dialog.innerHTML, /role="listbox"[^>]*aria-label="표시 기간"/);
+  assert.doesNotMatch(dialog.innerHTML, /aria-label="소요 시간"/);
+  wheels[0].scrollTo({ top: 44 }); await action('done');
+  assert.equal(input.value, '1440');
 });

@@ -281,7 +281,7 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
       return { frames: geometry.frames, parts, reveals, card: true };
     }
     const sheet = dialog.dataset.sheetSurface === 'sheet';
-    const bottomSheet = sheet && innerWidth < 700;
+    const bottomSheet = sheet && (innerWidth < 700 || dialog.dataset.pickerPresentation === 'bottom');
     return { frames: [
       { transform: bottomSheet ? `translateY(${target.height}px)` : sheet ? 'translateY(18px) scale(.98)' : state.kind === 'voice' ? 'translateY(28px) scale(.98)' : 'translateY(28px)', opacity: bottomSheet ? 1 : 0, '--detail-progress': '0' },
       { transform: 'translateY(0px)', opacity: 1, '--detail-progress': '1' },

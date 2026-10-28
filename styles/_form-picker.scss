@@ -1,5 +1,6 @@
 @mixin styles {
   #sheet .picker-field { position: relative; min-width: 0; }
+  #sheet .picker-field[data-picker-empty=true] [data-picker-display] { color: var(--secondary); }
   #sheet[data-sheet-surface] .field input.picker-native {
     position: absolute; width: 1px; height: 1px; min-height: 0; max-width: 1px;
     margin: 0; padding: 0; border: 0; opacity: 0; clip-path: inset(50%); pointer-events: none;
@@ -18,48 +19,55 @@
   }
   dialog.form-picker {
     --picker-wheel-height: min(220px, 36dvh);
-    position: fixed; inset: auto 0 0; width: min(100%, 440px); max-width: 100%;
-    height: fit-content; max-height: calc(100dvh - 20px); margin: 0 auto; padding: 0;
-    border: 1px solid var(--glass-edge); border-bottom: 0; border-radius: 28px 28px 0 0;
+    --picker-gutter: clamp(16px, 4vw, 28px);
+    --picker-secondary: color-mix(in srgb, var(--secondary) 80%, var(--ink));
+    --picker-accent: color-mix(in srgb, var(--accent) 85%, var(--ink));
+    position: fixed; inset: auto 0 0; width: min(100%, 816px); max-width: 100%;
+    height: fit-content; max-height: calc(100dvh - max(12px, env(safe-area-inset-top))); margin: 0 auto; padding: 0;
+    border: 0; border-top: 1px solid var(--glass-edge); border-radius: 28px 28px 0 0;
     background: var(--canvas); color: var(--ink); box-shadow: 0 -12px 60px #14251d26;
     overflow: hidden; overscroll-behavior: contain;
-    &::backdrop { background: #10201b40; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+    &::backdrop { background: #10201b38; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
     > .sheet-handle { width: 32px; height: 4px; margin: 9px auto 0; border-radius: 4px; background: var(--line); }
     .picker-header {
       position: relative; display: grid; grid-template-columns: 64px minmax(0, 1fr) 64px;
-      align-items: center; gap: 6px; width: 100%; min-height: 56px; margin: 0; padding: 4px 12px;
-      border: 0; background: transparent;
+      align-items: center; gap: 6px; width: 100%; min-height: 60px; margin: 0; padding: 4px max(8px, calc(var(--picker-gutter) - 8px));
+      border: 0; border-bottom: 1px solid var(--line); background: transparent;
       h2 { margin: 0; min-width: 0; font-size: 1rem; font-weight: 600; text-align: center; line-height: 1.5; }
-      button { min-height: 44px; padding: 8px; border-radius: 12px; background: transparent; color: var(--secondary); font-size: .9375rem; }
-      [data-picker-action=done] { color: var(--accent); font-weight: 650; }
+      button { min-height: 44px; padding: 8px; border-radius: 12px; background: transparent; color: var(--picker-secondary); font-size: .9375rem; }
+      [data-picker-action=done] { color: var(--picker-accent); font-weight: 650; }
     }
-    .picker-summary { margin: 0; padding: 4px 20px 16px; min-height: 48px; font-size: 1.125rem; font-weight: 600; text-align: center; line-height: 1.5; font-variant-numeric: tabular-nums; }
-    .picker-content { max-height: calc(100dvh - 150px); overflow: auto; padding: 0 16px calc(20px + env(safe-area-inset-bottom)); scrollbar-width: none; }
+    .picker-summary { margin: 0; padding: 22px 0 18px; min-height: 72px; font-size: 1.5rem; font-weight: 600; text-align: center; line-height: 1.5; font-variant-numeric: tabular-nums; }
+    .picker-content { max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - 74px); overflow: auto; overscroll-behavior: contain; padding: 0 var(--picker-gutter) calc(24px + env(safe-area-inset-bottom)); scrollbar-width: none; }
+    &[data-picker-type=date] .picker-summary { font-size: 1.125rem; min-height: 64px; }
     button:focus-visible, .picker-wheel:focus-visible { outline: 2px solid var(--control-focus); outline-offset: -3px; }
     .picker-calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
       button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; padding: 8px 12px; border-radius: 12px; font-size: .9375rem; font-weight: 550; }
       .icon { width: 17px; height: 17px; }
       [data-picker-action=view] > .icon { width: 12px; height: 12px; rotate: 90deg; }
     }
-    .picker-weekdays, .picker-date-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; text-align: center; }
-    .picker-weekdays { padding-bottom: 6px; color: var(--secondary); font-size: .6875rem; }
+    .picker-weekdays, .picker-date-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px 0; text-align: center; }
+    .picker-weekdays { padding-bottom: 6px; color: var(--picker-secondary); font-size: .75rem; }
     .picker-date-grid button {
-      display: grid; place-items: center; width: 100%; min-width: 0; height: 44px; border-radius: 14px;
+      position: relative; isolation: isolate;
+      display: grid; place-items: center; width: 100%; min-width: 0; height: 48px; border-radius: 14px;
       color: var(--ink); font-size: .9375rem; font-variant-numeric: tabular-nums;
-      &.outside { color: var(--muted); }
-      &[aria-current=date] { box-shadow: inset 0 0 0 1px var(--accent); }
-      &[aria-pressed=true] { background: var(--accent); color: var(--canvas); font-weight: 650; box-shadow: none; }
+      &::before { content: ''; position: absolute; z-index: -1; left: 50%; top: 50%; width: 40px; height: 40px; transform: translate(-50%, -50%); border-radius: 50%; }
+      &.outside { color: var(--picker-secondary); }
+      &[aria-current=date]::before { box-shadow: inset 0 0 0 1px var(--accent); }
+      &[aria-pressed=true] { background: transparent; color: var(--canvas); font-weight: 650; }
+      &[aria-pressed=true]::before { background: var(--picker-accent); box-shadow: none; }
     }
     .picker-month-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
       button { min-height: 48px; border-radius: 14px; background: var(--surface); }
-      [aria-pressed=true] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+      [aria-pressed=true] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
     }
     .picker-shortcuts { display: flex; justify-content: center; gap: 8px; margin-top: 12px;
-      button { min-width: 72px; min-height: 44px; padding: 10px 16px; border-radius: 14px; background: var(--surface); color: var(--accent); font-size: .8125rem; }
+      button { min-width: 72px; min-height: 44px; padding: 10px 16px; border-radius: 14px; background: var(--surface); color: var(--picker-accent); font-size: .8125rem; }
     }
     .picker-wheels { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; isolation: isolate;
       &--time { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      &::before { content: ''; position: absolute; inset: calc(50% - 22px) 0 auto; height: 44px; z-index: -1; border-radius: 14px; background: var(--accent-soft); pointer-events: none; }
+      &::before { content: ''; position: absolute; inset: calc(50% - 22px) 0 auto; height: 44px; z-index: -1; border-radius: 12px; background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent); pointer-events: none; }
     }
     .picker-wheel {
       height: var(--picker-wheel-height); min-width: 0; overflow: auto; overscroll-behavior: contain;
@@ -68,17 +76,30 @@
       -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
       mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
       &::-webkit-scrollbar { display: none; }
-      button { display: block; width: 100%; min-width: 0; height: 44px; min-height: 44px; padding: 8px; scroll-snap-align: center; border-radius: 12px; background: transparent; color: var(--secondary); font-size: 1.25rem; line-height: 28px; font-variant-numeric: tabular-nums; }
-      [aria-selected=true] { color: var(--accent); font-weight: 650; }
+      button { display: block; width: 100%; min-width: 0; height: 44px; min-height: 44px; padding: 8px; scroll-snap-align: center; border-radius: 12px; background: transparent; color: var(--secondary); font-size: 1.625rem; line-height: 28px; font-variant-numeric: tabular-nums; }
+      button:active { background: transparent; }
+      [aria-selected=true] { color: var(--ink); font-weight: 650; }
     }
-    .picker-hint { margin: 12px 0 0; color: var(--secondary); font-size: .75rem; text-align: center; line-height: 1.6; }
+    // A wheel's center band is its position indicator. Keep the ordinary
+    // content scrollbar only for compact screens where the whole body scrolls.
+    [data-overlay-scrollbar][data-scroll-for=picker-wheel] { display: none; }
+    .picker-clear { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 8px; text-align: center;
+      button { min-height: 44px; padding: 10px 20px; border-radius: 12px; color: var(--picker-accent); font-size: .9375rem; }
+    }
+    button { transition: background-color 160ms ease, color 160ms ease; }
+    button:active { background-color: var(--control-pressed); }
   }
   @media (hover: hover) and (pointer: fine) {
     #sheet .picker-trigger:hover:not(:active) { background-color: var(--control-hover); }
-    .form-picker button:hover:not(:active):not([aria-pressed=true]) { background-color: var(--control-hover); }
+    .form-picker button:hover:not(:active):not([aria-pressed=true]):not([role=option]) { background-color: var(--control-hover); }
+    .form-picker .picker-wheel button:hover { color: var(--ink); }
   }
   @media (min-width: 700px) {
-    dialog.form-picker { inset: 0; margin: auto; border-bottom: 1px solid var(--glass-edge); border-radius: 28px; box-shadow: 0 24px 80px #14251d2c; }
+    dialog.form-picker .picker-date-grid button { height: 52px; }
   }
+  @media (max-width: 359px) {
+    dialog.form-picker :is(.picker-weekdays, .picker-date-grid) { margin-inline: -10px; }
+  }
+  @media (prefers-reduced-motion: reduce) { dialog.form-picker button { transition: none; } }
   @media (prefers-reduced-transparency: reduce) { dialog.form-picker::backdrop { backdrop-filter: none; -webkit-backdrop-filter: none; } }
 }

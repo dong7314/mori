@@ -9755,6 +9755,10 @@ button:is(.search-clear, .conversation-draft, .create-feature-row):not(:disabled
   min-width: 0;
 }
 
+#sheet .picker-field[data-picker-empty=true] [data-picker-display] {
+  color: var(--secondary);
+}
+
 #sheet[data-sheet-surface] .field input.picker-native {
   position: absolute;
   width: 1px;
@@ -9818,16 +9822,19 @@ button:is(.search-clear, .conversation-draft, .create-feature-row):not(:disabled
 
 dialog.form-picker {
   --picker-wheel-height: min(220px, 36dvh);
+  --picker-gutter: clamp(16px, 4vw, 28px);
+  --picker-secondary: color-mix(in srgb, var(--secondary) 80%, var(--ink));
+  --picker-accent: color-mix(in srgb, var(--accent) 85%, var(--ink));
   position: fixed;
   inset: auto 0 0;
-  width: min(100%, 440px);
+  width: min(100%, 816px);
   max-width: 100%;
   height: fit-content;
-  max-height: calc(100dvh - 20px);
+  max-height: calc(100dvh - max(12px, env(safe-area-inset-top)));
   margin: 0 auto;
   padding: 0;
-  border: 1px solid var(--glass-edge);
-  border-bottom: 0;
+  border: 0;
+  border-top: 1px solid var(--glass-edge);
   border-radius: 28px 28px 0 0;
   background: var(--canvas);
   color: var(--ink);
@@ -9836,9 +9843,9 @@ dialog.form-picker {
   overscroll-behavior: contain;
 }
 dialog.form-picker::backdrop {
-  background: rgba(16, 32, 27, 0.2509803922);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(16, 32, 27, 0.2196078431);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 dialog.form-picker > .sheet-handle {
   width: 32px;
@@ -9854,10 +9861,11 @@ dialog.form-picker .picker-header {
   align-items: center;
   gap: 6px;
   width: 100%;
-  min-height: 56px;
+  min-height: 60px;
   margin: 0;
-  padding: 4px 12px;
+  padding: 4px max(8px, var(--picker-gutter) - 8px);
   border: 0;
+  border-bottom: 1px solid var(--line);
   background: transparent;
 }
 dialog.form-picker .picker-header h2 {
@@ -9873,28 +9881,33 @@ dialog.form-picker .picker-header button {
   padding: 8px;
   border-radius: 12px;
   background: transparent;
-  color: var(--secondary);
+  color: var(--picker-secondary);
   font-size: 0.9375rem;
 }
 dialog.form-picker .picker-header [data-picker-action=done] {
-  color: var(--accent);
+  color: var(--picker-accent);
   font-weight: 650;
 }
 dialog.form-picker .picker-summary {
   margin: 0;
-  padding: 4px 20px 16px;
-  min-height: 48px;
-  font-size: 1.125rem;
+  padding: 22px 0 18px;
+  min-height: 72px;
+  font-size: 1.5rem;
   font-weight: 600;
   text-align: center;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
 }
 dialog.form-picker .picker-content {
-  max-height: calc(100dvh - 150px);
+  max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - 74px);
   overflow: auto;
-  padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+  overscroll-behavior: contain;
+  padding: 0 var(--picker-gutter) calc(24px + env(safe-area-inset-bottom));
   scrollbar-width: none;
+}
+dialog.form-picker[data-picker-type=date] .picker-summary {
+  font-size: 1.125rem;
+  min-height: 64px;
 }
 dialog.form-picker button:focus-visible, dialog.form-picker .picker-wheel:focus-visible {
   outline: 2px solid var(--control-focus);
@@ -9930,35 +9943,51 @@ dialog.form-picker .picker-calendar-header [data-picker-action=view] > .icon {
 dialog.form-picker .picker-weekdays, dialog.form-picker .picker-date-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 4px;
+  gap: 4px 0;
   text-align: center;
 }
 dialog.form-picker .picker-weekdays {
   padding-bottom: 6px;
-  color: var(--secondary);
-  font-size: 0.6875rem;
+  color: var(--picker-secondary);
+  font-size: 0.75rem;
 }
 dialog.form-picker .picker-date-grid button {
+  position: relative;
+  isolation: isolate;
   display: grid;
   place-items: center;
   width: 100%;
   min-width: 0;
-  height: 44px;
+  height: 48px;
   border-radius: 14px;
   color: var(--ink);
   font-size: 0.9375rem;
   font-variant-numeric: tabular-nums;
 }
-dialog.form-picker .picker-date-grid button.outside {
-  color: var(--muted);
+dialog.form-picker .picker-date-grid button::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
 }
-dialog.form-picker .picker-date-grid button[aria-current=date] {
+dialog.form-picker .picker-date-grid button.outside {
+  color: var(--picker-secondary);
+}
+dialog.form-picker .picker-date-grid button[aria-current=date]::before {
   box-shadow: inset 0 0 0 1px var(--accent);
 }
 dialog.form-picker .picker-date-grid button[aria-pressed=true] {
-  background: var(--accent);
+  background: transparent;
   color: var(--canvas);
   font-weight: 650;
+}
+dialog.form-picker .picker-date-grid button[aria-pressed=true]::before {
+  background: var(--picker-accent);
   box-shadow: none;
 }
 dialog.form-picker .picker-month-grid {
@@ -9973,7 +10002,7 @@ dialog.form-picker .picker-month-grid button {
 }
 dialog.form-picker .picker-month-grid [aria-pressed=true] {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--ink);
   font-weight: 600;
 }
 dialog.form-picker .picker-shortcuts {
@@ -9988,7 +10017,7 @@ dialog.form-picker .picker-shortcuts button {
   padding: 10px 16px;
   border-radius: 14px;
   background: var(--surface);
-  color: var(--accent);
+  color: var(--picker-accent);
   font-size: 0.8125rem;
 }
 dialog.form-picker .picker-wheels {
@@ -10007,8 +10036,9 @@ dialog.form-picker .picker-wheels::before {
   inset: calc(50% - 22px) 0 auto;
   height: 44px;
   z-index: -1;
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
   pointer-events: none;
 }
 dialog.form-picker .picker-wheel {
@@ -10038,37 +10068,64 @@ dialog.form-picker .picker-wheel button {
   border-radius: 12px;
   background: transparent;
   color: var(--secondary);
-  font-size: 1.25rem;
+  font-size: 1.625rem;
   line-height: 28px;
   font-variant-numeric: tabular-nums;
 }
+dialog.form-picker .picker-wheel button:active {
+  background: transparent;
+}
 dialog.form-picker .picker-wheel [aria-selected=true] {
-  color: var(--accent);
+  color: var(--ink);
   font-weight: 650;
 }
-dialog.form-picker .picker-hint {
-  margin: 12px 0 0;
-  color: var(--secondary);
-  font-size: 0.75rem;
+dialog.form-picker [data-overlay-scrollbar][data-scroll-for=picker-wheel] {
+  display: none;
+}
+dialog.form-picker .picker-clear {
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
   text-align: center;
-  line-height: 1.6;
+}
+dialog.form-picker .picker-clear button {
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  color: var(--picker-accent);
+  font-size: 0.9375rem;
+}
+dialog.form-picker button {
+  transition: background-color 160ms ease, color 160ms ease;
+}
+dialog.form-picker button:active {
+  background-color: var(--control-pressed);
 }
 
 @media (hover: hover) and (pointer: fine) {
   #sheet .picker-trigger:hover:not(:active) {
     background-color: var(--control-hover);
   }
-  .form-picker button:hover:not(:active):not([aria-pressed=true]) {
+  .form-picker button:hover:not(:active):not([aria-pressed=true]):not([role=option]) {
     background-color: var(--control-hover);
+  }
+  .form-picker .picker-wheel button:hover {
+    color: var(--ink);
   }
 }
 @media (min-width: 700px) {
-  dialog.form-picker {
-    inset: 0;
-    margin: auto;
-    border-bottom: 1px solid var(--glass-edge);
-    border-radius: 28px;
-    box-shadow: 0 24px 80px rgba(20, 37, 29, 0.1725490196);
+  dialog.form-picker .picker-date-grid button {
+    height: 52px;
+  }
+}
+@media (max-width: 359px) {
+  dialog.form-picker :is(.picker-weekdays, .picker-date-grid) {
+    margin-inline: -10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  dialog.form-picker button {
+    transition: none;
   }
 }
 @media (prefers-reduced-transparency: reduce) {
