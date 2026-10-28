@@ -14,13 +14,34 @@ export function cardGeometry(source, target, radius = 28, targetRadius = 0) {
   ] };
 }
 
-export function createPresentations({ reducedMotion = () => false } = {}) {
+export function createPresentations({ reducedMotion = () => false, document: doc = globalThis.document } = {}) {
+  const view = doc?.defaultView || globalThis.window;
+  const preference = view?.matchMedia?.('(prefers-reduced-motion: reduce)');
   const states = new WeakMap();
   const replacementViews = new WeakMap();
-  const replacementDialogs = new WeakMap();
-  const replacementListeners = new WeakSet();
+  const replacementDialogs = new Map(), dialogListeners = new Map(), dragListeners = new Map(), looseAnimations = new Map();
+  let disposed = false, settling = false;
   let openOrder = [];
   const easing = 'cubic-bezier(.22,.78,.22,1)';
+  const reduce = () => disposed || settling || reducedMotion() || preference?.matches || doc?.hidden;
+  const cancelLoose = dialog => {
+    for (const [animation, owner] of looseAnimations) if (owner === dialog) {
+      looseAnimations.delete(animation); animation.cancel();
+    }
+  };
+  function registerDialog(dialog) {
+    if (disposed || dialogListeners.has(dialog)) return;
+    const close = () => {
+      if (dialog.open) return; // A queued close event can follow a same-tick reopen.
+      dragListeners.get(dialog)?.reset();
+      clearReplacements(dialog); cancelLoose(dialog);
+      const state = states.get(dialog);
+      cancel(state); clearFrozen(state); removeLayers(state); states.delete(dialog);
+      dialog.removeAttribute('data-closing'); dialog.removeAttribute('data-card-motion'); clearDrag(dialog);
+      openOrder = openOrder.filter(item => item !== dialog);
+    };
+    dialog.addEventListener('close', close); dialogListeners.set(dialog, close);
+  }
   // A result inside chat can share its action with a dashboard card. Keep the
   // originating surface so a rerender cannot send focus behind the open dialog.
   function resolveOrigin(state, { visible = false } = {}) {
@@ -70,7 +91,7 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
       fontSize: getComputedStyle(element).fontSize,
     }]));
     return { rect, parts, radius: parseFloat(getComputedStyle(source).borderRadius) || 28,
-      snapshot: reducedMotion() ? null : captureCardSnapshot(source) };
+      snapshot: reduce() ? null : captureCardSnapshot(source) };
   }
   const readFrame = (element, template) => {
     const style = getComputedStyle(element);
@@ -91,7 +112,9 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     if (view.contentZ !== undefined) view.content.style.zIndex = view.contentZ;
     view.root.remove();
     if (replacementViews.get(view.content) === view) replacementViews.delete(view.content);
-    replacementDialogs.get(view.dialog)?.delete(view);
+    const siblings = replacementDialogs.get(view.dialog);
+    siblings?.delete(view);
+    if (!siblings?.size) replacementDialogs.delete(view.dialog);
   }
   function clearReplacements(dialog, except = null) {
     for (const view of replacementDialogs.get(dialog) || []) if (view !== except) removeReplacement(view);
@@ -102,7 +125,7 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     // A composer can reverse before its previous reveal ends. Freeze its final
     // layout, never an opacity-zero frame, before taking the next outgoing view.
     if (settle) content?.getAnimations?.().forEach(animation => animation.cancel());
-    if (reducedMotion() || !dialog?.open || !content?.cloneNode) return null;
+    if (reduce() || !dialog?.open || !content?.cloneNode) return null;
     const bounds = content.getBoundingClientRect();
     if (bounds.width <= 0 || bounds.height <= 0) return null;
     const editor = anchor ? content.querySelector?.(anchor) : null;
@@ -194,10 +217,7 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     replacementViews.set(content, view);
     if (!replacementDialogs.has(dialog)) replacementDialogs.set(dialog, new Set());
     replacementDialogs.get(dialog).add(view);
-    if (!replacementListeners.has(dialog)) {
-      replacementListeners.add(dialog);
-      dialog.addEventListener('close', () => clearReplacements(dialog));
-    }
+    registerDialog(dialog);
     return view;
   }
   const clearDrag = dialog => {
@@ -341,7 +361,9 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
       settleOpening(dialog, state);
     }).catch(() => {});
   }
-  function show(dialog, { source = document.activeElement, kind = 'sheet' } = {}) {
+  function show(dialog, { source = doc?.activeElement, kind = 'sheet' } = {}) {
+    if (disposed) return;
+    registerDialog(dialog);
     const previous = states.get(dialog);
     if (dialog.open && previous && !previous.closing) {
       if (!previous.animation && !previous.frozen) {
@@ -358,7 +380,7 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     cancel(previous); clearFrozen(previous); removeLayers(previous); clearDrag(dialog);
     // Read the origin before the top-layer modal changes focus/inertness.
     const openingVisual = captureVisual(source);
-    const state = { source: captureControl(source), sourceRoot: source?.closest('dialog') || document, kind, animation: null, tracks: [], closing: null };
+    const state = { source: captureControl(source), sourceRoot: source?.closest('dialog') || doc, kind, animation: null, tracks: [], closing: null };
     states.set(dialog, state);
     openOrder = openOrder.filter(view => view !== dialog && view.open);
     openOrder.push(dialog);
@@ -367,11 +389,11 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     if (!dialog.open) dialog.showModal();
     state.target = dialog.getBoundingClientRect();
     state.motion = plan(dialog, state, openingVisual);
-    if (!reducedMotion()) finishOpening(dialog, state, run(dialog, state, state.motion, false, current));
+    if (!reduce()) finishOpening(dialog, state, run(dialog, state, state.motion, false, current));
   }
   function dismiss(dialog, { dragOffset = 0 } = {}) {
     if (!dialog.open) return Promise.resolve();
-    clearReplacements(dialog);
+    clearReplacements(dialog); cancelLoose(dialog);
     const state = states.get(dialog) || { kind: 'sheet', tracks: [] };
     if (state.closing) return state.closing;
     states.set(dialog, state);
@@ -385,8 +407,18 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     }
     state.motion ||= plan(dialog, state, null, true);
     dialog.dataset.closing = 'true';
+    state.finishClose = () => {
+      if (states.get(dialog) !== state) return;
+      state.pendingUpdate = null;
+      dragListeners.get(dialog)?.reset();
+      dialog.close(); cancel(state); clearFrozen(state); removeLayers(state);
+      dialog.removeAttribute('data-closing'); dialog.removeAttribute('data-card-motion'); clearDrag(dialog);
+      states.delete(dialog);
+      const source = resolveSource(state);
+      source?.focus({ preventScroll: true });
+    };
     state.closing = (async () => {
-      if (!reducedMotion()) {
+      if (!reduce()) {
         const animation = run(dialog, state, state.motion, true, current);
         try { await animation.finished; } catch {
           // Reopening owns a new state. Other cancellations must still release
@@ -394,12 +426,7 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
           if (states.get(dialog) !== state) return;
         }
       }
-      if (states.get(dialog) !== state) return;
-      dialog.close(); cancel(state); clearFrozen(state); removeLayers(state);
-      dialog.removeAttribute('data-closing'); dialog.removeAttribute('data-card-motion'); clearDrag(dialog);
-      states.delete(dialog);
-      const source = resolveSource(state);
-      source?.focus({ preventScroll: true });
+      state.finishClose();
     })();
     return state.closing;
   }
@@ -409,7 +436,7 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     content.getAnimations().forEach(animation => animation.cancel());
     const snapshot = previous && !previous.removed && previous.content === content && previous.dialog === dialog ? previous : null;
     if (previous && previous !== snapshot) removeReplacement(previous);
-    if (reducedMotion() || dialog && !dialog.open) { removeReplacement(snapshot); return; }
+    if (reduce() || dialog && !dialog.open) { removeReplacement(snapshot); return; }
     if (snapshot) {
       const target = content.getBoundingClientRect();
       if (vertical && ['left', 'top', 'width', 'height'].every(key => Math.abs(target[key] - snapshot.bounds[key]) < 1)) {
@@ -535,12 +562,21 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
       { opacity: .1, transform: `translateX(${back ? -18 : 24}px)` },
       { opacity: 1, transform: 'translateX(0)' },
     ];
-    content.animate(frames, { duration: level ? 150 : 260, easing });
+    const animation = content.animate(frames, { duration: level ? 150 : 260, easing });
+    if (dialog) registerDialog(dialog);
+    if (animation) {
+      looseAnimations.set(animation, dialog);
+      animation.finished?.then(() => looseAnimations.delete(animation), () => looseAnimations.delete(animation));
+    }
   }
   function pullToDismiss(dialog, onDismiss) {
+    if (disposed || dragListeners.has(dialog)) return;
     let drag;
-    const reset = () => { drag = null; clearDrag(dialog); };
-    dialog.addEventListener('pointerdown', event => {
+    const reset = () => {
+      const id = drag?.id; drag = null; clearDrag(dialog);
+      if (id != null && dialog.hasPointerCapture?.(id)) dialog.releasePointerCapture(id);
+    };
+    const down = event => {
       if (drag || isNavigationPage(dialog) || event.isPrimary === false || event.button !== 0 || dialog.dataset.closing || event.target.closest('button') ||
         !event.target.closest('.sheet-handle, .sheet-header, .chat-header, .voice-panel > header, .parking-detail, .card-detail-hero') ||
         (event.target.closest('.parking-detail, .card-detail-hero') && dialog.querySelector('#sheet-content')?.scrollTop > 0)) return;
@@ -550,8 +586,8 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
       // leaves the entrance running; movement takes over on pointermove.
       drag = { id: event.pointerId, y: event.clientY, at: performance.now(), offset: 0, state };
       dialog.setPointerCapture(event.pointerId);
-    });
-    dialog.addEventListener('pointermove', event => {
+    };
+    const move = event => {
       if (drag?.id !== event.pointerId) return;
       drag.offset = Math.max(0, event.clientY - drag.y) * .8;
       if (drag.offset < 3) return;
@@ -587,8 +623,8 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
       dialog.style.transform = `translateY(${drag.offset}px) ${base}`;
       const progress = Number(drag.base?.['--detail-progress']);
       dialog.style.setProperty('--detail-progress', String((Number.isFinite(progress) ? progress : 1) * Math.max(.2, 1 - drag.offset / 350)));
-    });
-    dialog.addEventListener('pointerup', event => {
+    };
+    const up = event => {
       if (drag?.id !== event.pointerId) return;
       const { offset, at, state, started } = drag;
       const velocity = offset / Math.max(1, performance.now() - at);
@@ -597,20 +633,24 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
       if (offset > 100 || (offset > 45 && velocity > .5)) onDismiss(offset);
       else {
         const current = snapshot(dialog, state); clearDrag(dialog);
-        if (!reducedMotion() && state) finishOpening(dialog, state, run(dialog, state, state.motion, false, current));
+        if (!reduce() && state) finishOpening(dialog, state, run(dialog, state, state.motion, false, current));
         else settleOpening(dialog, state);
       }
-    });
+    };
     const cancelDrag = event => {
       if (drag?.id !== event.pointerId) return;
       const { state, started } = drag, current = snapshot(dialog, state); reset();
       if (!started) return;
-      if (state && !reducedMotion()) finishOpening(dialog, state, run(dialog, state, state.motion, false, current));
+      if (state && !reduce()) finishOpening(dialog, state, run(dialog, state, state.motion, false, current));
       else settleOpening(dialog, state);
     };
-    dialog.addEventListener('pointercancel', cancelDrag);
-    dialog.addEventListener('lostpointercapture', cancelDrag);
-    dialog.addEventListener('close', reset);
+    const listeners = { pointerdown: down, pointermove: move, pointerup: up, pointercancel: cancelDrag, lostpointercapture: cancelDrag,
+      close: () => { if (!dialog.open) reset(); } };
+    for (const [name, listener] of Object.entries(listeners)) dialog.addEventListener(name, listener);
+    dragListeners.set(dialog, { reset, remove: () => {
+      reset();
+      for (const [name, listener] of Object.entries(listeners)) dialog.removeEventListener(name, listener);
+    } });
   }
   const deferUpdate = (dialog, update) => {
     const state = states.get(dialog);
@@ -618,12 +658,42 @@ export function createPresentations({ reducedMotion = () => false } = {}) {
     if (!state.closing) state.pendingUpdate = update;
     return true;
   };
-  const settle = dialog => {
-    clearReplacements(dialog);
+  const settle = (dialog, { preserveUpdate = false } = {}) => {
+    dragListeners.get(dialog)?.reset();
+    clearReplacements(dialog); cancelLoose(dialog);
     const state = states.get(dialog);
-    if (state?.closing) { state.animation?.finish?.(); return; }
-    if (state && !state.closing) { state.pendingUpdate = null; settleOpening(dialog, state); }
+    if (state?.closing) { state.finishClose(); return; }
+    if (state) { if (!preserveUpdate) state.pendingUpdate = null; settleOpening(dialog, state); }
   };
+  // System changes settle every top-layer surface, including nested pickers and
+  // outgoing content snapshots. Ordinary nested navigation still drops its old
+  // refresh through settle(); a live screen keeps its latest scheduled update.
+  const settleAll = ({ preserveUpdates = true } = {}) => {
+    if (settling) return;
+    settling = true;
+    try {
+      const dialogs = new Set([...openOrder, ...replacementDialogs.keys(), ...looseAnimations.values()]);
+      for (const dialog of dialogs) if (dialog) settle(dialog, { preserveUpdate: preserveUpdates });
+      for (const animation of looseAnimations.keys()) animation.cancel();
+      looseAnimations.clear();
+      openOrder = openOrder.filter(dialog => dialog.open);
+    } finally { settling = false; }
+  };
+  const preferenceChange = () => { if (reduce()) settleAll(); };
+  const visibilityChange = () => { if (doc.hidden) settleAll(); };
+  const resize = () => settleAll();
+  preference?.addEventListener?.('change', preferenceChange);
+  doc?.addEventListener?.('visibilitychange', visibilityChange);
+  view?.addEventListener?.('resize', resize);
+  function destroy() {
+    disposed = true; settleAll({ preserveUpdates: false });
+    preference?.removeEventListener?.('change', preferenceChange);
+    doc?.removeEventListener?.('visibilitychange', visibilityChange);
+    view?.removeEventListener?.('resize', resize);
+    for (const [dialog, listener] of dialogListeners) dialog.removeEventListener('close', listener);
+    for (const entry of dragListeners.values()) entry.remove();
+    dialogListeners.clear(); dragListeners.clear();
+  }
   const topDialog = () => openOrder.filter(dialog => dialog.open && !dialog.dataset.closing).at(-1) || null;
-  return { show, dismiss, captureReplacement, replace, pullToDismiss, topDialog, deferUpdate, settle };
+  return { show, dismiss, captureReplacement, replace, pullToDismiss, topDialog, deferUpdate, settle, settleAll, destroy };
 }

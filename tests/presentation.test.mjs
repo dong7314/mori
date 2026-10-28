@@ -24,8 +24,9 @@ function dialog() {
       getPropertyValue(name) { return this[property(name)] || ''; },
       removeProperty(name) { delete this[property(name)]; },
     },
-    addEventListener(name, handler) { listeners.set(name, handler); },
-    dispatch(name, event = {}) { listeners.get(name)?.({ pointerId: 1, button: 0, clientY: 100, preventDefault() {}, target: { closest: selector => selector.includes('.sheet-header') ? {} : null }, ...event }); },
+    addEventListener(name, handler) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(handler); },
+    removeEventListener(name, handler) { listeners.get(name)?.delete(handler); },
+    dispatch(name, event = {}) { for (const listener of listeners.get(name) || []) listener({ pointerId: 1, button: 0, clientY: 100, preventDefault() {}, target: { closest: selector => selector.includes('.sheet-header') ? {} : null }, ...event }); },
     setPointerCapture() {}, releasePointerCapture() {},
     removeAttribute(name) { delete this.dataset[property(name.replace('data-', ''))]; },
     showModal() { this.open = true; }, close() { this.open = false; this.closeCount++; },
@@ -33,7 +34,7 @@ function dialog() {
     animate(frames, options) {
       let finish, reject;
       const finished = new Promise((resolve, fail) => { finish = resolve; reject = fail; });
-      const animation = { frames, options, finished, finish, cancel: () => reject(new Error('cancelled')) };
+      const animation = { frames, options, finished, finish, cancel: () => { animation.cancelled = true; reject(new Error('cancelled')); } };
       this.animations.push(animation); return animation;
     } };
 }
@@ -56,6 +57,22 @@ afterEach(() => {
     else delete globalThis[key];
   }
 });
+
+function lifecycleFixture({ reducedMotion = () => false, matches = false } = {}) {
+  const events = values => {
+    const listeners = new Map();
+    return { ...values,
+      addEventListener(name, handler) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(handler); },
+      removeEventListener(name, handler) { listeners.get(name)?.delete(handler); },
+      dispatch(name) { for (const handler of listeners.get(name) || []) handler({ matches: this.matches }); },
+      listenerCount(name) { return listeners.get(name)?.size || 0; },
+    };
+  };
+  const preference = events({ matches });
+  const window = events({ matchMedia: () => preference });
+  const document = events({ ...globalThis.document, hidden: false, defaultView: window });
+  return { preference, window, document, presentation: createPresentations({ reducedMotion, document }) };
+}
 
 test('reduced motion opens and closes immediately, restoring focus without scrolling', async () => {
   const view = dialog(), trigger = source();
@@ -1174,10 +1191,11 @@ test('rapid voice reversal, dialog close and reduced motion release only their o
   const next = presentation.captureReplacement(content, { settle: true, anchor: '.composer-editor' });
   assert.equal(first.root.removed, true);
   setExpanded(false); presentation.replace(content, { previous: next, vertical: true, back: true });
-  view.dispatch('close');
+  view.close(); view.dispatch('close');
   assert.equal(next.root.removed, true);
   assert.equal(content.style.zIndex, '');
   await Promise.resolve();
+  view.showModal();
   const third = presentation.captureReplacement(content, { anchor: '.composer-editor' });
   setExpanded(true); reduced = true;
   presentation.replace(content, { previous: third, vertical: true });
@@ -1246,9 +1264,10 @@ test('voice pane animation ownership survives rapid reversal, dialog closure and
   assert.equal(liveTrack.cancelled, true);
   setExpanded(false); presentation.replace(content, { previous: closing, vertical: true, back: true });
   const frozenTrack = watch(closing.anchor.pane.element.animations[0]);
-  view.dispatch('close');
+  view.close(); view.dispatch('close');
   assert.equal(frozenTrack.cancelled, true);
   assert.equal(closing.root.removed, true);
+  view.showModal();
   const next = presentation.captureReplacement(content, { anchor: '.composer-editor' });
   setExpanded(true); presentation.replace(content, { previous: next, vertical: true });
   const reducedTrack = watch(voice.animations.at(-1));
@@ -1272,4 +1291,163 @@ test('cancelling a voice pane reveal releases the paired surface animation and i
   assert.equal(previous.root.removed, true);
   assert.equal(content.style.zIndex, '');
   assert.equal(editor.animations.length, 0);
+});
+
+test('the system motion preference applies before opening even without an app preference callback', async () => {
+  const { presentation } = lifecycleFixture({ matches: true });
+  const view = dialog(), trigger = source();
+  presentation.show(view, { source: trigger });
+  assert.equal(view.open, true);
+  assert.equal(view.animations.length, 0);
+  await presentation.dismiss(view);
+  assert.deepEqual(trigger.focused, { preventScroll: true });
+});
+
+test('enabling reduced motion settles card parts, nested pickers and outgoing content together', async () => {
+  const { presentation, preference } = lifecycleFixture();
+  const card = cardFixture(), picker = dialog();
+  const { view: contentDialog, content } = replacementFixture();
+  presentation.show(card.view, { source: card.trigger, kind: 'detail' });
+  presentation.show(picker, { source: source() });
+  contentDialog.open = true;
+  const previous = presentation.captureReplacement(content);
+  presentation.replace(content, { previous });
+  preference.matches = true; preference.dispatch('change');
+
+  for (const element of [card.view, card.title, card.art, card.reveal, picker]) assert.equal(element.animations[0].cancelled, true);
+  assert.equal(card.view.dataset.cardMotion, undefined);
+  assert.equal(card.view.open, true);
+  assert.equal(picker.open, true);
+  assert.equal(previous.root.removed, true);
+  assert.equal(previous.animations.every(animation => animation.cancelled), true);
+  assert.equal(content.style.zIndex, '');
+  await Promise.resolve();
+  assert.equal(presentation.topDialog(), picker);
+  const later = dialog();
+  presentation.show(later, { source: source() });
+  assert.equal(later.animations.length, 0);
+});
+
+test('hiding the document finishes dismissal once and applies only a live screen refresh', async () => {
+  const { presentation, document } = lifecycleFixture();
+  const reading = dialog(), leaving = dialog(), trigger = source(), applied = [];
+  presentation.show(reading, { source: source() });
+  const entrance = reading.animations[0];
+  presentation.deferUpdate(reading, () => applied.push('superseded'));
+  presentation.deferUpdate(reading, () => applied.push('current'));
+  presentation.show(leaving, { source: trigger });
+  presentation.deferUpdate(leaving, () => applied.push('closed'));
+  const closed = presentation.dismiss(leaving);
+  document.hidden = true; document.dispatch('visibilitychange');
+
+  assert.deepEqual(applied, ['current']);
+  assert.equal(reading.open, true);
+  assert.equal(leaving.open, false);
+  assert.equal(leaving.dataset.closing, undefined);
+  assert.deepEqual(trigger.focused, { preventScroll: true });
+  entrance.finish(); leaving.animations.at(-1).finish();
+  await closed;
+  assert.equal(leaving.closeCount, 1);
+  assert.deepEqual(applied, ['current']);
+  document.hidden = false; document.dispatch('visibilitychange');
+  assert.equal(reading.animations.length, 1);
+});
+
+test('resize releases an active card drag and cannot resume it from the old pointer', async () => {
+  const { presentation, window } = lifecycleFixture();
+  const { view, trigger, title } = cardFixture();
+  let captured = false, released = 0;
+  view.setPointerCapture = () => { captured = true; };
+  view.hasPointerCapture = () => captured;
+  view.releasePointerCapture = () => { captured = false; released++; };
+  presentation.pullToDismiss(view, () => assert.fail('The old pointer must not dismiss after resize'));
+  presentation.show(view, { source: trigger, kind: 'detail' });
+  view.dispatch('pointerdown'); view.dispatch('pointermove', { clientY: 150 });
+  assert.notEqual(view.style.getPropertyValue('transform'), '');
+  assert.notEqual(title.style.getPropertyValue('transform'), '');
+  window.dispatch('resize');
+  assert.equal(released, 1);
+  assert.equal(view.style.getPropertyValue('transform'), '');
+  assert.equal(title.style.getPropertyValue('transform'), '');
+  assert.equal(view.dataset.cardMotion, undefined);
+  view.dispatch('pointermove', { clientY: 400 }); view.dispatch('pointerup', { clientY: 400 });
+  assert.equal(view.style.getPropertyValue('transform'), '');
+  assert.equal(view.open, true);
+  await Promise.resolve();
+});
+
+test('resize settles snapshot-free replacements and uses new bounds for the next return', async () => {
+  const { presentation, window } = lifecycleFixture();
+  const view = dialog(); view.dataset.sheetPresentation = 'page';
+  presentation.show(view, { source: source() });
+  const content = { ...dialog(), closest: () => view, getAnimations() { return this.animations; } };
+  presentation.replace(content);
+  view.getBoundingClientRect = () => ({ left: 0, top: 0, width: 700, height: 900 });
+  window.dispatch('resize');
+  assert.equal(content.animations[0].cancelled, true);
+  const closed = presentation.dismiss(view);
+  assert.equal(view.animations.at(-1).frames.at(-1).transform, 'translateX(700px)');
+  view.animations.at(-1).finish(); await closed;
+});
+
+test('a lifecycle change removes the frozen dashboard card without replaying its entrance', async () => {
+  const { presentation, window } = lifecycleFixture();
+  const { view, node } = replacementFixture();
+  const trigger = node({ tag: 'BUTTON', attrs: { class: 'brief-card', 'data-action': 'detail', 'data-ref': 'parking' } });
+  trigger.dataset = {}; trigger.isConnected = true;
+  trigger.getClientRects = () => [rect]; trigger.getBoundingClientRect = () => rect;
+  trigger.matches = selector => selector.includes('.brief-card'); trigger.closest = () => null;
+  const hero = node();
+  view.querySelector = selector => selector === '.card-detail-hero' ? hero : null;
+  view.querySelectorAll = () => [];
+  presentation.show(view, { source: trigger, kind: 'detail' });
+  const snapshot = view.layers[0];
+  assert.ok(snapshot);
+  window.dispatch('resize');
+  assert.equal(snapshot.removed, true);
+  assert.equal(view.dataset.cardMotion, undefined);
+  view.animations[0].finish(); await Promise.resolve();
+  assert.equal(view.open, true);
+  assert.equal(view.layers.length, 1);
+});
+
+test('a queued native close cannot clear the replacement of a reopened dialog', async () => {
+  const { view, content } = replacementFixture(), presentation = createPresentations();
+  presentation.show(view, { source: source() });
+  const closed = presentation.dismiss(view);
+  presentation.settleAll();
+  presentation.show(view, { source: source() });
+  const previous = presentation.captureReplacement(content);
+  presentation.replace(content, { previous });
+  view.dispatch('close');
+  assert.equal(view.open, true);
+  assert.equal(previous.root.removed, false);
+  assert.equal(view.animations.at(-1).cancelled, undefined);
+  await closed;
+  assert.equal(view.open, true);
+  presentation.settleAll();
+  assert.equal(previous.root.removed, true);
+});
+
+test('app-triggered settling honors its preference and teardown drops pending work and listeners', async () => {
+  let reduced = false;
+  const { presentation, preference, window, document } = lifecycleFixture({ reducedMotion: () => reduced });
+  const view = dialog();
+  presentation.pullToDismiss(view, () => assert.fail('Destroyed gestures must not dismiss'));
+  presentation.show(view, { source: source() });
+  reduced = true; presentation.settleAll();
+  assert.equal(view.animations[0].cancelled, true);
+  reduced = false;
+  const next = dialog(); presentation.show(next, { source: source() });
+  presentation.deferUpdate(next, () => assert.fail('Teardown must not restore a pending page'));
+  presentation.destroy();
+  assert.equal(preference.listenerCount('change'), 0);
+  assert.equal(window.listenerCount('resize'), 0);
+  assert.equal(document.listenerCount('visibilitychange'), 0);
+  assert.equal(next.animations[0].cancelled, true);
+  view.dispatch('pointerdown'); view.dispatch('pointermove', { clientY: 400 }); view.dispatch('pointerup', { clientY: 400 });
+  assert.equal(view.style.getPropertyValue('transform'), '');
+  next.animations[0].finish();
+  await Promise.resolve();
+  assert.equal(next.open, true);
 });

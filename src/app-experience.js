@@ -60,7 +60,7 @@ matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event 
   data.profile.reduced = event.matches;
   if (event.matches) {
     voiceLayoutAnimation?.cancel();
-    presentations.settle($('#chat-panel'));
+    presentations.settleAll();
   }
   document.documentElement.classList.toggle('reduce-motion', data.profile.reduced);
   render({ background: true });
