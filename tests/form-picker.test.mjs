@@ -32,9 +32,9 @@ test('custom field controls retain original native types, required constraints a
   assert.doesNotMatch(duration, /<img/); assert.match(duration, /&lt;img/);
 });
 
-// Exercise the actual controller's transaction/history contract without relying
-// on browser popup UI. Calendar/wheel geometry is a separate visual QA concern.
-function fixture(type = 'date', originalValue = '2026-10-27', options = [], { required = false, clearable = false, describedBy = '', label = '날짜' } = {}) {
+// Exercise the controller with measured option heights. Rendering and touch
+// geometry still need browser QA; these fixtures cover values and scroll math.
+function fixture(type = 'date', originalValue = '2026-10-27', options = [], { required = false, clearable = false, describedBy = '', label = '날짜', rowHeight = 44 } = {}) {
   const events = [], changes = [], focused = [], listeners = new Map(), attributes = new Map();
   if (describedBy) attributes.set('aria-describedby', describedBy);
   const trigger = { isConnected: true, setAttribute: (name, value) => attributes.set(name, value),
@@ -52,18 +52,23 @@ function fixture(type = 'date', originalValue = '2026-10-27', options = [], { re
   form.elements = [input];
   // Materialize only the scrollable option interface from the controller's
   // rendered markup; business values and fallback selection come from production.
+  const geometry = { rowHeight };
   const wheels = [];
   function readWheels(html) {
     wheels.length = 0;
     for (const [, attrs, body] of html.matchAll(/<div class="picker-wheel"([^>]*)>(.*?)<\/div>/gs)) {
       const callbacks = new Map(), name = attrs.match(/data-picker-wheel="([^"]+)"/)[1];
       const wheel = { dataset: { pickerWheel: name }, scrollTop: 0, setAttribute() {}, focus() {} };
+      wheel.closest = selector => selector === '[data-picker-wheel]' ? wheel : null;
       const items = [...body.matchAll(/<button([^>]*)>(.*?)<\/button>/gs)].map(([, attrs, text]) => ({
         id: attrs.match(/id="([^"]+)"/)[1], selected: attrs.includes('aria-selected="true"'), textContent: text,
         dataset: { pickerValue: attrs.match(/data-picker-value="([^"]+)"/)[1], pickerIndex: attrs.match(/data-picker-index="([^"]+)"/)[1] },
         setAttribute(_name, value) { this.selected = value === 'true'; },
+        getBoundingClientRect: () => ({ height: geometry.rowHeight }),
+        closest(selector) { return selector === '[data-picker-index]' ? this : selector === '[data-picker-wheel]' ? wheel : null; },
       }));
-      wheel.querySelectorAll = () => items; wheel.querySelector = () => items.find(item => item.selected);
+      wheel.querySelectorAll = () => items;
+      wheel.querySelector = selector => selector === '[role=option]' ? items[0] : items.find(item => item.selected);
       wheel.addEventListener = (name, fn) => callbacks.set(name, fn);
       wheel.scrollTo = ({ top }) => { wheel.scrollTop = top; callbacks.get('scroll')?.(); };
       wheels.push(wheel);
@@ -85,7 +90,9 @@ function fixture(type = 'date', originalValue = '2026-10-27', options = [], { re
     return listeners.get('click')({ target });
   };
   const choose = date => action('date', { date });
-  return { picker, input, dialog, events, changes, choose, action, field, form, display, trigger, requiredLabel, focused, wheels };
+  const key = (wheel, key) => listeners.get('keydown')({ target: wheel, key, preventDefault() {} });
+  const chooseOption = (wheel, index) => listeners.get('click')({ target: wheel.querySelectorAll('[role=option]')[index] });
+  return { picker, input, dialog, events, changes, choose, action, field, form, display, trigger, requiredLabel, focused, wheels, geometry, key, chooseOption };
 }
 
 test('calendar choices stay drafts until Done, while cancel preserves the form and emits no edits', async () => {
@@ -117,6 +124,33 @@ test('time wheels center the existing hour/minute and retain one-minute precisio
   assert.equal(picker.snapshot().value, '00:59'); assert.equal(input.value, '23:17');
   await picker.close({ commit: true });
   assert.equal(input.value, '00:59'); assert.equal(display.textContent, '오전 12:59');
+});
+
+test('enlarged wheel rows keep the selected time through scrolling, keyboard, taps and a text-size change', async () => {
+  const { picker, field, input, wheels, geometry, key, chooseOption } = fixture('time', '23:17', [], { rowHeight: 88 });
+  await picker.open(field);
+  assert.equal(wheels[0].scrollTop, 23 * 88);
+  assert.equal(wheels[1].scrollTop, 17 * 88);
+  wheels[0].scrollTo({ top: 2 * 88 });
+  key(wheels[1], 'End');
+  assert.equal(picker.snapshot().value, '02:59');
+  assert.equal(wheels[1].scrollTop, 59 * 88);
+  chooseOption(wheels[0], 0);
+  assert.equal(wheels[0].scrollTop, 0);
+  assert.equal(picker.snapshot().value, '00:59');
+
+  // A queued scroll after text resizing must re-center the current option,
+  // rather than treating its former pixel position as a new minute.
+  geometry.rowHeight = 66.5;
+  wheels[1].scrollTo({ top: 59 * 88 });
+  assert.equal(wheels[1].scrollTop, 59 * 66.5);
+  assert.equal(picker.snapshot().value, '00:59');
+  key(wheels[0], 'ArrowDown');
+  assert.equal(wheels[0].scrollTop, 66.5);
+  assert.equal(picker.snapshot().value, '01:59');
+  assert.equal(input.value, '23:17');
+  await picker.close({ commit: true });
+  assert.equal(input.value, '01:59');
 });
 
 test('duration wheels preserve existing non-preset values and cancel without modifying the input', async () => {

@@ -25,6 +25,7 @@
 @use 'content-transitions';
 @use 'form-picker';
 @use 'custom-feature-form';
+@use 'hig-accessibility';
 @include flows.styles;
 @include inline-voice.styles;
 @include card-detail-page.styles;
@@ -44,3 +45,4 @@
 @include content-transitions.styles;
 @include form-picker.styles;
 @include custom-feature-form.styles;
+@include hig-accessibility.styles;

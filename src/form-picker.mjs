@@ -53,7 +53,8 @@ export function syncPickerFields(root) {
 // input, preserving native constraints, FormData, drafts and change listeners.
 export function createFormPickers(root = document, { now = () => Date.now(), show, dismiss, onChange = () => {}, onCreate = () => {} } = {}) {
   const doc = root.ownerDocument || root;
-  let dialog, active = null, closing = null;
+  let dialog, active = null, closing = null, wheelObserver = null;
+  const wheelHeights = new WeakMap();
   const icon = name => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
   const button = (action, label, attrs = '') => `<button type="button" data-picker-action="${action}" ${attrs}>${label}</button>`;
   const optionsOf = field => JSON.parse(field.dataset.pickerOptions || '[]');
@@ -91,16 +92,37 @@ export function createFormPickers(root = document, { now = () => Date.now(), sho
     const minutes = Array.from({ length: 60 }, (_, value) => ({ value, label: String(value).padStart(2, '0') }));
     return `<div class="picker-wheels picker-wheels--time">${wheel('hour', '시 · 24시간 기준', hours, hour)}${wheel('minute', '분', minutes, minute)}</div>`;
   }
+  function wheelRowHeight(wheel) {
+    return wheel.querySelector('[role=option]')?.getBoundingClientRect().height || 44;
+  }
+  function alignWheel(wheel) {
+    const height = wheelRowHeight(wheel);
+    wheelHeights.set(wheel, height);
+    wheel.scrollTop = Number(wheel.querySelector('[aria-selected=true]')?.dataset.pickerIndex || 0) * height;
+  }
   function positionWheels() {
+    wheelObserver?.disconnect();
+    if (typeof ResizeObserver === 'function') wheelObserver = new ResizeObserver(entries => {
+      if (!active || !dialog.open) return;
+      for (const entry of entries) alignWheel(entry.target.closest('[data-picker-wheel]'));
+    });
     dialog.querySelectorAll('[data-picker-wheel]').forEach(wheel => {
-      const selected = wheel.querySelector('[aria-selected=true]');
-      wheel.scrollTop = Number(selected?.dataset.pickerIndex || 0) * 44;
-      wheel.addEventListener('scroll', () => selectWheel(wheel, Math.round(wheel.scrollTop / 44)), { passive: true });
+      alignWheel(wheel);
+      const firstOption = wheel.querySelector('[role=option]');
+      if (firstOption) wheelObserver?.observe(firstOption);
+      wheel.addEventListener('scroll', () => {
+        const height = wheelRowHeight(wheel);
+        // A text-size change must retain the draft selection, not interpret its
+        // old pixel offset as a different time before the resize callback runs.
+        if (height !== wheelHeights.get(wheel)) return alignWheel(wheel);
+        selectWheel(wheel, Math.round(wheel.scrollTop / height));
+      }, { passive: true });
     });
   }
   function paint() {
+    wheelObserver?.disconnect();
     dialog.dataset.pickerType = active.type;
-    dialog.innerHTML = `<div class="sheet-handle"></div><header class="picker-header sheet-header">${button('cancel', '취소')}<h2 id="form-picker-title">${esc(active.label)}</h2>${button('done', '완료')}</header><div class="picker-content"><p class="picker-summary" data-picker-summary aria-live="polite" aria-atomic="true"></p>${content()}${active.clearable ? `<div class="picker-clear">${button('clear', '시간 지정 안 함')}</div>` : ''}</div>`;
+    dialog.innerHTML = `<header class="picker-header sheet-header">${button('cancel', '취소')}<h2 id="form-picker-title">${esc(active.label)}</h2>${button('done', '완료')}</header><div class="picker-content"><p class="picker-summary" data-picker-summary aria-live="polite" aria-atomic="true"></p>${content()}${active.clearable ? `<div class="picker-clear">${button('clear', '시간 지정 안 함')}</div>` : ''}</div>`;
     summary();
   }
   function selectWheel(wheel, index, move = false) {
@@ -116,7 +138,11 @@ export function createFormPickers(root = document, { now = () => Date.now(), sho
       const parts = active.value.split(':'); parts[wheel.dataset.pickerWheel === 'hour' ? 0 : 1] = String(value).padStart(2, '0');
       active.value = parts.join(':');
     }
-    if (move) wheel.scrollTo({ top: Number(option.dataset.pickerIndex) * 44, behavior: 'instant' });
+    if (move) {
+      const height = wheelRowHeight(wheel);
+      wheelHeights.set(wheel, height);
+      wheel.scrollTo({ top: Number(option.dataset.pickerIndex) * height, behavior: 'instant' });
+    }
     summary();
   }
   async function close({ commit = false, clear = false, notify = true, restoreFocus = true } = {}) {
@@ -126,6 +152,7 @@ export function createFormPickers(root = document, { now = () => Date.now(), sho
     if (clear && !state.clearable) return;
     if (commit && !clear && !validPickerValue(state.type, state.value, state.options)) return;
     active = null;
+    wheelObserver?.disconnect();
     state.trigger.setAttribute('aria-expanded', 'false');
     if (commit && state.input.isConnected && state.input.form?.isConnected) {
       state.input.value = clear ? '' : state.value;

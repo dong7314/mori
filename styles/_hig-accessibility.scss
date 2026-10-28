@@ -1,0 +1,133 @@
+// Shared web adaptations of HIG readability, safe areas and material preferences.
+// Keep content opaque; translucency belongs to navigation and transient controls.
+@mixin opaque-controls {
+  :root :is(.tab-bar, .quick-composer, .window-menu, .header-button),
+  :root #sheet.card-page > .sheet-header button {
+    background: var(--surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  :root .chat-panel :is(.chat-header, .chat-composer, .chat-header .small-icon, .chat-suggestions button) {
+    background: var(--chat-paper);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  :root dialog::backdrop { backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+@mixin styles {
+  :root { --control-focus: var(--accent); }
+  // Distinguish hierarchy through size and weight, without low-contrast captions.
+  :is(.row-content, .setting-copy, .conversation-draft) > strong { font-size: 1rem; }
+  :is(.row-content, .setting-copy, .conversation-draft) > small { font-size: .875rem; }
+  :is(.row-content, .setting-copy) .row-meta,
+  .record-kind, .row-date, .brief-stamp, .tag { font-size: .75rem; }
+  .home-lower .row-content { strong { font-size: 1rem; } small { font-size: .875rem; } }
+  .section-heading h2 { font-size: 1.1875rem; }
+  .section-caption, .list-label, .home-date { font-size: .875rem; }
+  #main[data-page=dashboard] :is(.window-trigger, .section-view-button) { font-size: .875rem; }
+  #main[data-page=features] .feature-tile p { font-size: .875rem; }
+  .window-menu > button {
+    strong { font-size: 1rem; }
+    small { font-size: .8125rem; line-height: 1.55; }
+  }
+  .tab-bar button { font-size: .75rem; }
+  .segmented > button { min-height: 44px; font-size: .875rem; }
+  .text-button { min-width: 44px; }
+  .quick-composer > button:first-child { min-height: 44px; }
+  :is(.primary-button, .secondary-button, .danger-button) { word-break: keep-all; overflow-wrap: anywhere; }
+  .account-plan {
+    flex-wrap: wrap;
+    > div { flex: 1 1 12rem; min-width: 0; }
+    h3, p { word-break: keep-all; overflow-wrap: anywhere; }
+    > button { flex: 0 0 auto; }
+  }
+  .month-header { display: flex; flex-wrap: wrap; justify-content: space-between; }
+  .month-header .month-title, .month-header .calendar-navigation { flex: 0 0 auto; }
+  #main[data-page=schedule] {
+    --calendar-date-size: max(36px, 2.25rem);
+    --calendar-cell-height: max(48px, 3rem);
+  }
+  #sheet:is([data-sheet-surface="sheet"], [data-sheet-surface="card"]) {
+    .field > span, fieldset > legend { font-size: .875rem; }
+    .field-help, .document-storage-note, .guide-footnote { font-size: .8125rem; }
+    // rem-based minimums also reflow when the reader enlarges text, not only
+    // when the viewport changes. Normal-size rows retain their familiar layout.
+    .field-pair { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
+    .picker-trigger > span { white-space: normal; overflow-wrap: anywhere; }
+  }
+  .chat-panel .chat-composer textarea::placeholder { color: var(--chat-secondary); }
+  #chat-panel .chat-composer:focus-within { outline: 2px solid var(--voice-accent); outline-offset: 2px; }
+  .chat-panel .messages > .field-help { font-size: .8125rem; }
+
+  // Landscape cutouts must not hide controls. Insets remain zero on ordinary web.
+  #main {
+    padding-left: max(var(--gutter), env(safe-area-inset-left));
+    padding-right: max(var(--gutter), env(safe-area-inset-right));
+  }
+  .app-dock {
+    --dock-gutter: 19px;
+    padding-left: max(var(--dock-gutter), env(safe-area-inset-left));
+    padding-right: max(var(--dock-gutter), env(safe-area-inset-right));
+  }
+  #sheet[data-sheet-surface="sheet"][data-sheet-presentation="page"] > :is(.sheet-header, #sheet-content) {
+    padding-left: max(var(--sheet-gutter), env(safe-area-inset-left), calc((100% - var(--page-reading-width)) / 2));
+    padding-right: max(var(--sheet-gutter), env(safe-area-inset-right), calc((100% - var(--page-reading-width)) / 2));
+  }
+  #sheet.card-page {
+    --detail-page-gutter: max(clamp(1.25rem, 4.5vw, 2.5rem), env(safe-area-inset-left), env(safe-area-inset-right));
+  }
+  #chat-panel .chat-header {
+    padding-left: max(.75rem, env(safe-area-inset-left));
+    padding-right: max(.75rem, env(safe-area-inset-right));
+  }
+  #chat-panel .messages {
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
+  }
+  #chat-panel[data-chat-presentation="page"] {
+    .chat-header {
+      padding-left: max(.75rem, env(safe-area-inset-left), calc((100% - 760px) / 2));
+      padding-right: max(.75rem, env(safe-area-inset-right), calc((100% - 760px) / 2));
+    }
+    .messages {
+      padding-left: max(1.25rem, env(safe-area-inset-left), calc((100% - 720px) / 2));
+      padding-right: max(1.25rem, env(safe-area-inset-right), calc((100% - 720px) / 2));
+    }
+  }
+  dialog.form-picker {
+    .picker-header {
+      padding-left: max(8px, calc(var(--picker-gutter) - 8px), env(safe-area-inset-left));
+      padding-right: max(8px, calc(var(--picker-gutter) - 8px), env(safe-area-inset-right));
+    }
+    .picker-content {
+      padding-left: max(var(--picker-gutter), env(safe-area-inset-left));
+      padding-right: max(var(--picker-gutter), env(safe-area-inset-right));
+    }
+  }
+  @media (min-width: 700px) { .app-dock { --dock-gutter: var(--gutter); } }
+  @media (min-width: 48rem) {
+    #chat-panel:not([data-chat-presentation="page"]) {
+      .chat-header { padding-inline: max(1.5rem, env(safe-area-inset-left), env(safe-area-inset-right)); }
+      .messages { padding-inline: max(2.5rem, env(safe-area-inset-left), env(safe-area-inset-right)); }
+    }
+  }
+  @media (max-width: 767px) {
+    #chat-panel .chat-composer {
+      margin-left: max(.875rem, env(safe-area-inset-left));
+      margin-right: max(.875rem, env(safe-area-inset-right));
+    }
+  }
+  @media (prefers-reduced-transparency: reduce) { @include opaque-controls; }
+  @media (prefers-contrast: more) {
+    @include opaque-controls;
+    :root:not([data-theme=dark]) { --secondary: #3f5145; --muted: #46594d; --line: #6b7e70; }
+    :root[data-theme=dark] { --secondary: #d1ded4; --muted: #c1d1c6; --line: #82958a; }
+    :root :is(.tab-bar, .quick-composer, .window-menu, .header-button) { border-color: var(--line); }
+    :root .chat-panel { --chat-line: var(--line); --chat-secondary: var(--secondary); }
+    :root .chat-panel :is(.chat-composer, .chat-header .small-icon, .chat-suggestions button) { border-color: var(--line); }
+    :root #chat-panel .chat-composer:focus-within { outline-width: 3px; border-color: var(--voice-accent); }
+    :root #sheet :is(.field input, .field textarea, .picker-trigger, .choice-trigger),
+    :root .search-box { border-color: var(--line); }
+  }
+}

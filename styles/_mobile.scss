@@ -1,9 +1,9 @@
 @font-face { font-family: Pretendard; src: url('/assets/fonts/PretendardVariable.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
 :root {
   color-scheme: light;
-  --ink: #28352f; --secondary: #707c75; --text-secondary: var(--secondary); --muted: #839087;
+  --ink: #28352f; --secondary: #5d6c63; --text-secondary: var(--secondary); --muted: #5f6d64;
   --canvas: #f5f6f3; --surface: #fff; --soft: #eef1ec; --line: #e5eae3;
-  --accent: #597d69; --accent-soft: #e9f0e9; --danger: #c85d66;
+  --accent: #456e57; --accent-soft: #e9f0e9; --danger: #ac3f4d;
   --sage: #e4eee3; --lavender: #eee9f5; --blue: #e8eef9; --peach: #f8eee1;
   --glass: #ffffffb8; --glass-edge: #ffffffed;
   --shadow: 0 3px 7px #2b403207, 0 12px 28px #2b403207;
@@ -12,7 +12,7 @@
 }
 :root[data-theme=dark] {
   color-scheme: dark;
-  --ink: #edf3ee; --secondary: #a8b6ad; --muted: #92a399; --canvas: #171c1b;
+  --ink: #edf3ee; --secondary: #a8b6ad; --muted: #a4b5a9; --canvas: #171c1b;
   --surface: #232c28; --soft: #2b3530; --line: #354039; --accent: #abcbb3;
   --accent-soft: #34473a; --danger: #f09aa0; --sage: #33473a; --lavender: #3c354a;
   --blue: #303c4c; --peach: #493d30; --glass: #28332de0; --glass-edge: #ffffff18;
@@ -34,7 +34,6 @@ a { color: var(--accent); }
 .skip-link { position: fixed; top: -100px; left: 16px; z-index: 100; background: var(--surface); padding: 12px; &:focus { top: 12px; } }
 .app-frame { position: relative; height: 100dvh; max-width: 1120px; margin: auto; overflow: hidden; background: var(--canvas); }
 #main { height: 100%; padding: calc(18px + env(safe-area-inset-top)) var(--gutter) calc(10rem + 14px + env(safe-area-inset-bottom)); overflow: auto; scrollbar-width: none; overscroll-behavior: contain; }
-#main::before { content: ''; position: absolute; top: -180px; left: 0; right: 0; height: 470px; background: radial-gradient(ellipse at 20% 0, color-mix(in srgb, var(--sage) 80%, transparent), transparent 65%), radial-gradient(ellipse at 90% 15%, color-mix(in srgb, var(--lavender) 65%, transparent), transparent 60%); z-index: -1; pointer-events: none; }
 #main { isolation: isolate; position: relative; }
 .home-top { display: flex; justify-content: space-between; align-items: center; min-height: 42px; margin-bottom: 23px; }
 .wordmark { font-size: 1.625rem; font-weight: 760; letter-spacing: -.065em; line-height: 1; span { color: #8eaf8f; font-weight: 800; margin-left: 1px; } }
