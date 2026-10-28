@@ -10134,3 +10134,319 @@ dialog.form-picker button:active {
     -webkit-backdrop-filter: none;
   }
 }
+#sheet .choice-field .choice-options {
+  position: fixed;
+  inset: auto;
+  z-index: 30;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 8px 28px rgba(20, 37, 29, 0.1411764706), 0 2px 6px rgba(20, 37, 29, 0.0509803922);
+  overscroll-behavior: contain;
+  overflow-y: auto;
+}
+#sheet .choice-field .choice-options::backdrop {
+  background: transparent;
+}
+#sheet .choice-field .choice-options[data-choice-open=true] {
+  animation: choice-menu-in 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+#sheet .choice-field .choice-options > button {
+  min-height: 48px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 0.9375rem;
+}
+#sheet .choice-field .choice-options > button > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#sheet .choice-field .choice-options > button > .icon {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+}
+#sheet .choice-field .choice-options > [aria-selected=true] {
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 600;
+}
+#sheet .choice-field .choice-options > button:focus-visible {
+  outline: 2px solid var(--control-focus);
+  outline-offset: -2px;
+}
+
+@keyframes choice-menu-in {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+#sheet #custom-form .custom-icon-picker {
+  display: block;
+  padding: 0;
+  margin-bottom: 24px;
+}
+#sheet #custom-form .custom-icon-picker > legend {
+  width: 100%;
+  margin-bottom: 10px;
+  font-size: 0.8125rem;
+  color: var(--secondary);
+}
+#sheet #custom-form .custom-icon-picker > legend > span {
+  float: right;
+  font-weight: 500;
+  color: var(--accent);
+}
+#sheet #custom-form .custom-icon-categories {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 3px;
+  border-radius: 13px;
+  background: var(--soft);
+  margin-bottom: 10px;
+}
+#sheet #custom-form .custom-icon-categories > button {
+  min-height: 44px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  color: var(--secondary);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+#sheet #custom-form .custom-icon-categories > button[aria-pressed=true] {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(20, 37, 29, 0.0392156863);
+}
+#sheet #custom-form .custom-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+#sheet #custom-form .custom-icon-grid > label {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+#sheet #custom-form .custom-icon-grid > label > span {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 68px;
+  padding: 9px 2px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--secondary);
+  transition: border-color 160ms, background-color 160ms;
+}
+#sheet #custom-form .custom-icon-grid > label > span > .icon {
+  width: 22px;
+  height: 22px;
+}
+#sheet #custom-form .custom-icon-grid > label > span > small {
+  font-size: 0.6875rem;
+  line-height: 1.2;
+  font-weight: 500;
+  white-space: nowrap;
+}
+#sheet #custom-form .custom-icon-grid input:checked + span {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+#sheet #custom-form .custom-icon-grid input:focus-visible + span {
+  outline: 2px solid var(--control-focus);
+  outline-offset: 2px;
+}
+#sheet #custom-form .custom-reference {
+  overflow: hidden;
+  margin: 4px 0 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+}
+#sheet #custom-form .custom-reference .custom-reference-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 76px;
+  padding: 16px;
+  text-align: left;
+}
+#sheet #custom-form .custom-reference .custom-reference-toggle > .icon:first-child {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  color: var(--accent);
+}
+#sheet #custom-form .custom-reference .custom-reference-toggle > span {
+  flex: 1;
+  min-width: 0;
+}
+#sheet #custom-form .custom-reference .custom-reference-toggle strong {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 550;
+  line-height: 1.5;
+}
+#sheet #custom-form .custom-reference .custom-reference-toggle small {
+  display: block;
+  margin-top: 3px;
+  color: var(--secondary);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+#sheet #custom-form .custom-reference .custom-reference-toggle > .icon:last-child {
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+  rotate: 90deg;
+  color: var(--secondary);
+  transition: rotate 200ms;
+}
+#sheet #custom-form .custom-reference .custom-reference-toggle[aria-expanded=true] > .icon:last-child {
+  rotate: -90deg;
+}
+#sheet #custom-form .custom-reference .custom-reference-toggle:active {
+  background: var(--control-pressed);
+}
+#sheet #custom-form .custom-reference #custom-reference-body {
+  padding: 0 16px 14px;
+  overflow: hidden;
+}
+#sheet #custom-form .custom-reference .field {
+  margin: 0;
+}
+#sheet #custom-form .custom-reference .field > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+#sheet #custom-form .custom-reference textarea {
+  min-height: 132px;
+  max-height: 260px;
+  border-color: var(--line);
+  background: var(--canvas);
+  font-size: 1rem;
+}
+#sheet #custom-form .custom-reference .custom-reference-limit {
+  display: block;
+  margin-top: 8px;
+  text-align: right;
+  font-size: 0.6875rem;
+  color: var(--secondary);
+  font-variant-numeric: tabular-nums;
+}
+#sheet #custom-form .custom-preview-section {
+  margin: 28px 0 24px;
+}
+#sheet #custom-form .custom-preview-section > h3 {
+  margin: 0 0 12px;
+  font-size: 0.8125rem;
+  font-weight: 550;
+  color: var(--secondary);
+}
+#sheet #custom-form .custom-preview-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 18px 16px;
+  padding: 22px;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+#sheet #custom-form .custom-preview-card .custom-preview-copy {
+  min-width: 0;
+}
+#sheet #custom-form .custom-preview-card strong {
+  display: block;
+  font-size: 1.1875rem;
+  line-height: 1.45;
+  font-weight: 620;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#sheet #custom-form .custom-preview-card p {
+  margin: 6px 0 0;
+  color: var(--secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+#sheet #custom-form .custom-preview-card > .feature-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+}
+#sheet #custom-form .custom-preview-card > .feature-icon .icon {
+  width: 24px;
+  height: 24px;
+}
+#sheet #custom-form .custom-preview-card .custom-preview-schedule {
+  grid-column: 1/-1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 0.8125rem;
+  color: var(--secondary);
+}
+#sheet #custom-form .custom-preview-card .custom-preview-schedule > .icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+#sheet #custom-form .custom-preview-card .custom-preview-schedule > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 359px) {
+  #sheet #custom-form .custom-icon-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  #sheet .choice-field .choice-options button:hover:not([aria-selected=true]),
+  #sheet #custom-form .custom-reference-toggle:hover {
+    background: var(--control-hover);
+  }
+  #sheet #custom-form .custom-icon-grid label:hover input:not(:checked) + span {
+    background: var(--control-hover);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #sheet .choice-options[data-choice-open=true] {
+    animation: none;
+  }
+  #sheet #custom-form :is(.custom-icon-categories button, .custom-icon-grid label > span, .custom-reference-toggle > .icon) {
+    transition: none;
+  }
+}

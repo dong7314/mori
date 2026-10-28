@@ -1,11 +1,12 @@
 import { dateKey } from './experience.mjs';
+import { normalizeCustomIcon } from './custom-icons.mjs';
 
 // Keep one timeline across record types without mutating the stored collections.
 export function recordsOf(state, filter = 'all') {
   return [
     ...state.notes.map(n => ({ ...n, kind: 'note', label: '메모', icon: 'note', color: 'amber', excerpt: n.body })),
     ...state.documents.map(d => ({ id: d.id, title: d.title, at: d.at, filename: d.filename, size_bytes: d.size_bytes, kind: 'document', label: '문서', icon: 'file', color: 'blue', excerpt: d.filename })),
-    ...state.customs.filter(f => f.result).map(f => ({ id: f.id, title: f.title, at: f.result.at, kind: 'custom', label: '실행 결과', icon: f.icon || 'spark', color: 'purple', excerpt: `할 일 ${f.result.items.length}개 · ${f.result.items.filter(i => i.done).length}개 완료` })),
+    ...state.customs.filter(f => f.result).map(f => ({ id: f.id, title: f.title, at: f.result.at, kind: 'custom', label: '실행 결과', icon: normalizeCustomIcon(f.icon), color: 'purple', excerpt: `할 일 ${f.result.items.length}개 · ${f.result.items.filter(i => i.done).length}개 완료` })),
   ].filter(r => filter === 'all' || r.kind === filter).sort((a, b) => b.at - a.at);
 }
 
@@ -40,5 +41,5 @@ export function customPreview(values) {
   return { title: values.title.trim() || work.slice(0, 24) || '새로운 내 기능',
     description: values.description.trim() || '나에게 맞춰 기억하는 작은 부탁', work,
     time: values.time, repeat: values.repeat,
-    icon: ['spark', 'note', 'leaf', 'news', 'bell', 'compass'].includes(values.icon) ? values.icon : 'spark' };
+    icon: normalizeCustomIcon(values.icon) };
 }

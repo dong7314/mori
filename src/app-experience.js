@@ -19,6 +19,7 @@ import { parkingConfig, parkingOptions, parkingDescription, parkingPurpose } fro
 import { DOCUMENT_MAX_BYTES, documentRecord, formatBytes, storeOriginal, readOriginal, removeOriginal } from './document-store.mjs';
 import { choiceField, installChoices, setChoice } from './choice-field.mjs';
 import { pickerField, createFormPickers, syncPickerFields } from './form-picker.mjs';
+import { CUSTOM_ICON_GROUPS, CUSTOM_ICONS, normalizeCustomIcon } from './custom-icons.mjs';
 import { EVENT_KINDS, eventKind, dayDate, eventsOn, moveDate, calendarDates, eventDuration, eventEnd, eventDaySpan, calendarEventContext, timelineHours, hasOverlap } from './calendar-model.mjs';
 import { parkingAttempt, parkingLabel } from './ui-model.mjs';
 import { createMotion } from './motion.mjs';
@@ -66,7 +67,7 @@ matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event 
 });
 const ui = { view: 'dashboard', horizon: 0, windowMenu: false, resetRails: false, date: dateKey(nowOf(data)), month: new Date(nowOf(data)), calendar: 'month', filter: 'all', chatId: null, search: '', chart: '1일', detail: null, recordFilter: 'all', recordSearch: '', liveUser: null, liveParking: null, sheetEpoch: 0, accountState: 'checking', settingsRevision: 0, settingsState: 'checking' };
 ui.month.setDate(1);
-installChoices(document, { disclose: (element, expanded) => motion.disclosure(element, expanded) });
+installChoices(document);
 let toastTimer, recognition, liveAttempt = null, fileBusy = false, deletedEvent = null, deletedNote = null, deletedDocument = null;
 const busy = new Set();
 const presentations = createPresentations({ reducedMotion: () => data.profile.reduced });
@@ -814,9 +815,35 @@ function updateEventPreview() {
   $('#event-preview').classList.toggle('has-overlap', overlap);
   $('#event-preview').textContent = `${shortDate(dayDate(values.date))} · ${values.time} – ${eventEnd(candidate)}${overlap ? ' · 같은 시간에 다른 약속이 있어요.' : ''}`;
 }
+function customIconPicker(value) {
+  const selected = normalizeCustomIcon(value), group = CUSTOM_ICON_GROUPS.find(group => group.icons.some(item => item.value === selected));
+  return `<fieldset class="icon-picker custom-icon-picker"><legend>카드 아이콘 <span id="custom-icon-name" aria-live="polite">${CUSTOM_ICONS.find(item => item.value === selected).label}</span></legend>
+    <div class="custom-icon-categories" role="group" aria-label="아이콘 종류">${CUSTOM_ICON_GROUPS.map(item => button('custom-icon-group', item.label, '', `data-group="${item.id}" aria-pressed="${item.id === group.id}" aria-controls="custom-icons-${item.id}"`)).join('')}</div>
+    ${CUSTOM_ICON_GROUPS.map(item => `<div class="custom-icon-grid" id="custom-icons-${item.id}" data-icon-group="${item.id}" ${item.id !== group.id ? 'hidden' : ''}>${item.icons.map(({ value, label }) => `<label><input type="radio" name="icon" aria-label="${label}" value="${value}" ${value === selected ? 'checked' : ''}><span>${icon(value)}<small>${label}</small></span></label>`).join('')}</div>`).join('')}
+  </fieldset>`;
+}
+function selectCustomIconGroup(groupId) {
+  const picker = $('#custom-form .custom-icon-picker'); if (!picker) return;
+  picker.querySelectorAll('[data-icon-group]').forEach(group => { group.hidden = group.dataset.iconGroup !== groupId; });
+  picker.querySelectorAll('[data-action=custom-icon-group]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.group === groupId)));
+}
 function customForm(id) {
   const f = data.customs.find(f => f.id === id);
-  openSheet(f ? '내 기능 편집' : '나만의 기능 만들기', `<div class="form-intro compact-intro">${mark('spark', 'purple')}<h3>반복하는 부탁을 기억해요.</h3><p>반복할 일과 실행 시간을 입력하세요.</p></div>${!f ? button('custom-example', '메모 정리 기능으로 시작하기 ' + arrow, 'example-request') : ''}<form id="custom-form" data-id="${f?.id || ''}"><fieldset class="icon-picker"><legend>카드 아이콘</legend>${[['spark', '반짝임'], ['note', '메모'], ['leaf', '일상'], ['news', '정보'], ['bell', '알림'], ['compass', '여행']].map(([v, label]) => `<label><input type="radio" name="icon" aria-label="${label}" value="${v}" ${(f?.icon || 'spark') === v ? 'checked' : ''}><span>${icon(v)}<span class="sr-only">${label}</span></span></label>`).join('')}</fieldset>${field('기능 이름', 'title', f?.title || '', 'text', 'maxlength="60" placeholder="예: 퇴근 정리"')}${textArea('어떤 일을 하면 좋을까요?', 'work', f?.work || '', 'maxlength="2000" placeholder="오늘 저장한 메모를 모아서 할 일을 정리해줘"')}${field('짧은 설명 · 선택', 'description', f?.description || '', 'text', 'maxlength="180" placeholder="카드에 보여줄 한 줄"')}<div class="field-pair">${pickerField('실행 시간 · 선택', 'time', f?.time || '', 'time', { describedBy: 'custom-schedule-help', clearable: true })}${choiceField('반복', 'repeat', f?.time ? f.repeat : '필요할 때', ['필요할 때', '매일', '평일', '한 번'])}</div><details class="support-details"><summary>참고할 내용 추가하기</summary>${textArea('참고 자료 · 선택', 'content', f?.content || '', 'maxlength="6000" placeholder="함께 확인할 내용을 남겨주세요"')}</details><p id="custom-schedule-help" class="field-help" role="status">필요할 때 직접 실행해요.</p><p class="field-help">시간을 입력하면 반복이 ‘매일’로 선택돼요.${developerPreview ? '<br>체험에서는 앱이 열려 있을 때 저장한 메모를 정리해요.' : ''}</p><details class="support-details custom-preview-disclosure"><summary>대시보드 카드 미리보기</summary><div id="custom-preview" class="custom-preview" aria-label="기능 카드 미리보기"></div></details><p class="form-error" role="alert"></p><button class="primary-button" type="submit">${f ? '변경 저장' : '내 기능으로 저장'} ${icon('check')}</button></form>`);
+  openSheet(f ? '내 기능 편집' : '나만의 기능 만들기', `<div class="form-intro compact-intro"><p>맡길 일을 적고 실행 방법을 정하세요.</p></div>${!f ? button('custom-example', '메모 정리 기능으로 시작하기 ' + arrow, 'example-request') : ''}<form id="custom-form" data-id="${f?.id || ''}">
+    ${customIconPicker(f?.icon)}
+    ${field('기능 이름', 'title', f?.title || '', 'text', 'maxlength="60" placeholder="예: 퇴근 정리"')}
+    ${textArea('어떤 일을 하면 좋을까요?', 'work', f?.work || '', 'maxlength="2000" placeholder="오늘 저장한 메모를 모아서 할 일을 정리해줘"')}
+    ${field('짧은 설명 · 선택', 'description', f?.description || '', 'text', 'maxlength="180" placeholder="카드에 보여줄 한 줄"')}
+    <div class="field-pair">${pickerField('실행 시간 · 선택', 'time', f?.time || '', 'time', { describedBy: 'custom-schedule-help', clearable: true })}${choiceField('반복', 'repeat', f?.time ? f.repeat : '필요할 때', ['필요할 때', '매일', '평일', '한 번'])}</div>
+    <p id="custom-schedule-help" class="field-help" role="status">필요할 때 직접 실행해요.</p>
+    <section class="custom-reference" aria-label="참고 내용">
+      ${button('custom-reference', `${icon('file')}<span><strong>참고 내용</strong><small id="custom-reference-meta">링크나 조건을 함께 남겨두세요</small></span>${icon('chevron')}`, 'custom-reference-toggle', `aria-expanded="${Boolean(f?.content)}" aria-controls="custom-reference-body"`)}
+      <div id="custom-reference-body" ${f?.content ? '' : 'hidden'}>${textArea('참고 자료 · 선택', 'content', f?.content || '', 'maxlength="6000" placeholder="예: 기술 뉴스는 공식 발표를 우선하고, 출처 링크를 함께 정리해줘"')}<span class="custom-reference-limit" id="custom-reference-length">0 / 6,000자</span></div>
+    </section>
+    ${developerPreview ? '<p class="field-help">체험에서는 앱이 열려 있을 때 저장한 메모를 정리해요.</p>' : ''}
+    <section class="custom-preview-section" aria-labelledby="custom-preview-heading"><h3 id="custom-preview-heading">카드 미리보기</h3><div id="custom-preview" aria-label="기능 카드 미리보기"></div></section>
+    <p class="form-error" role="alert"></p><button class="primary-button" type="submit">${f ? '변경 저장' : '내 기능으로 저장'} ${icon('check')}</button>
+  </form>`);
   syncCustomSchedule($('#custom-form'));
   updateCustomPreview();
 }
@@ -837,8 +864,19 @@ function syncCustomSchedule(form, changedName) {
 }
 function updateCustomPreview() {
   const form = $('#custom-form'); if (!form) return;
-  const f = customPreview(Object.fromEntries(new FormData(form)));
-  $('#custom-preview').innerHTML = `<div class="preview-label">카드 미리보기 ${tag(f.work ? '준비됨' : '초안', 'purple')}</div><div class="preview-content">${mark(f.icon, 'purple')}<div><strong>${esc(f.title)}</strong><p>${esc(f.description)}</p></div></div><div class="preview-time">${icon(f.time ? 'clock' : 'spark')}${f.time ? `${f.repeat} ${clockLabel(f.time)}` : f.repeat === '필요할 때' ? '필요할 때 직접 실행' : `${f.repeat} · 실행 시간 선택 필요`}</div>`;
+  const values = Object.fromEntries(new FormData(form)), f = customPreview(values);
+  const selectedIcon = CUSTOM_ICONS.find(item => item.value === f.icon);
+  $('#custom-icon-name').textContent = selectedIcon.label;
+  if (form.dataset.previewIcon !== f.icon) {
+    selectCustomIconGroup(CUSTOM_ICON_GROUPS.find(group => group.icons.some(item => item.value === f.icon)).id);
+    form.dataset.previewIcon = f.icon;
+  }
+  const length = values.content.length;
+  $('#custom-reference-meta').textContent = length ? `${length.toLocaleString()}자 입력됨` : '링크나 조건을 함께 남겨두세요';
+  $('#custom-reference-length').textContent = `${length.toLocaleString()} / 6,000자`;
+  const description = values.description.trim() || f.work;
+  const schedule = f.time ? `${f.repeat} ${clockLabel(f.time)}` : f.repeat === '필요할 때' ? '필요할 때 직접 실행' : `${f.repeat} · 실행 시간 선택 필요`;
+  $('#custom-preview').innerHTML = `<article class="custom-preview-card"><div class="custom-preview-copy"><strong>${esc(values.title.trim() || f.work.slice(0, 24) || '기능 이름')}</strong><p class="${description ? '' : 'is-placeholder'}">${esc(description || '실행할 일을 입력해 주세요')}</p></div>${mark(f.icon, 'purple')}<div class="custom-preview-schedule">${icon(f.time ? 'clock' : 'repeat')}<span>${esc(schedule)}</span></div></article>`;
 }
 function remaining(target) { const total = Math.max(0, Math.ceil((target - current()) / 1000)); return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`; }
 const articleTitles = ['개인 비서 AI의 일정 관리 기능', '음성 인식, 어디까지 왔을까', '업무 도구에 추가되는 자동화 기능'];
@@ -1316,6 +1354,12 @@ document.addEventListener('click', async event => {
   if (a === 'jump-month') { const selected = dayDate(ui.date), nextDate = moveDate(ui.date, (ui.jumpYear - selected.getFullYear()) * 12 + Number(el.dataset.month) - selected.getMonth(), 'month'); await closeSheet(); return selectScheduleDate(nextDate, '[data-action=calendar-jump]'); }
   if (a === 'feature-filter') return switchViewContent('filter', el.dataset.value);
   if (a === 'new-custom' || a === 'edit-custom') return customForm(id);
+  if (a === 'custom-icon-group') return selectCustomIconGroup(el.dataset.group);
+  if (a === 'custom-reference') {
+    const expanded = el.getAttribute('aria-expanded') !== 'true';
+    el.setAttribute('aria-expanded', String(expanded));
+    return motion.disclosure($('#custom-reference-body'), expanded, { inFlow: true });
+  }
   if (a === 'custom-example') { const form = $('#custom-form'); form.elements.title.value = '하루 마무리'; form.elements.work.value = '오늘 저장한 메모를 모아서 할 일을 정리하기'; form.elements.description.value = '오늘 메모에서 할 일을 정리해요'; form.elements.time.value = '19:00'; setChoice(form.querySelector('[name=repeat]').closest('[data-choice]'), '평일'); syncCustomSchedule(form); clearFormError(form); updateCustomPreview(); captureDraft(form); return; }
   if (a === 'toggle-custom') { const f = data.customs.find(f => f.id === id); if (!f.work) return toast('편집에서 어떤 일을 할지 먼저 추가해 주세요.'); if (!changeState(() => { f.active = !f.active; })) return; render(); return openDetail(`custom:${id}`); }
   if (a === 'run-custom') { let result; if (!changeState(state => { result = runCustom(state, id); }) || !result) return; render(); openDetail(`custom:${id}`); return toast('저장된 메모로 실행 결과를 만들었어요.'); }

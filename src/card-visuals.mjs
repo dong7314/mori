@@ -1,6 +1,7 @@
 import { esc } from './experience.mjs';
+import { CUSTOM_ICON_IDS } from './custom-icons.mjs';
 
-const ICONS = new Set(['car', 'news', 'chart', 'calendar', 'bell', 'repeat', 'note', 'file', 'book', 'heart', 'compass', 'leaf', 'spark', 'clock', 'check']);
+const ICONS = new Set([...CUSTOM_ICON_IDS, 'repeat', 'check']);
 const KINDS = new Set(['parking', 'news', 'stock', 'note', 'schedule', 'reminder']);
 const icon = name => `<svg class="icon" focusable="false"><use href="#i-${ICONS.has(name) ? name : 'repeat'}"/></svg>`;
 const compact = (value, limit, fallback = '') => {
