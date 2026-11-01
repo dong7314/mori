@@ -19,6 +19,8 @@ from mori.auth.models import (
 )
 from mori.auth.router import profile_router
 from mori.auth.router import router as auth_router
+from mori.automation.models import AutomationJob, AutomationScheduleState
+from mori.automation.router import router as automation_router
 from mori.chat.models import ChatTurn, Conversation
 from mori.chat.router import router as chat_router
 from mori.config import Settings
@@ -28,8 +30,12 @@ from mori.documentation import DESCRIPTION, TAGS, install_scalar
 from mori.errors import ErrorResponse, register_error_handlers
 from mori.features.models import Feature, FeatureResult, SkillVersion
 from mori.features.router import router as features_router
+from mori.integrations.models import MarketWatch, NewsBriefing
+from mori.integrations.router import router as integrations_router
 from mori.membership.models import AccessChange
 from mori.membership.router import router as membership_router
+from mori.notifications.models import PushSubscription, ReminderDelivery
+from mori.notifications.router import router as notifications_router
 from mori.organizer import calendar, documents, notes, reminders
 from mori.organizer.models import (
     CalendarEvent,
@@ -60,7 +66,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Mori API",
-        version="0.7.0",
+        version="0.8.0",
         description=DESCRIPTION,
         openapi_tags=TAGS,
         swagger_ui_parameters={
@@ -104,6 +110,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         account_router,
         features_router,
         dashboard_router,
+        automation_router,
+        integrations_router,
+        notifications_router,
     ):
         app.include_router(router)
 
@@ -138,6 +147,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             Feature,
             SkillVersion,
             FeatureResult,
+            AutomationJob,
+            AutomationScheduleState,
+            NewsBriefing,
+            MarketWatch,
+            PushSubscription,
+            ReminderDelivery,
         ):
             session.execute(select(model).limit(0))
         response.headers["Cache-Control"] = "no-store"

@@ -6,6 +6,8 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, literal, select, union_all
 
 from mori.features.models import Feature, FeatureResult
+from mori.features.service import automation_available
+from mori.notifications.models import PushSubscription
 from mori.organizer.models import CalendarEvent, Document, Note, Reminder
 from mori.organizer.service import assistant_preferences
 from mori.parking.models import ParkingRecord
@@ -19,8 +21,9 @@ def wall_time(day, clock, zone):
     return utc if utc.astimezone(zone).replace(tzinfo=None) == local.replace(tzinfo=None) else None
 
 
-def library(session, user_id, kind, limit, offset):
+def library(session, user_id, kind, limit, offset, q=""):
     queries = []
+    term = q.strip()
     for name, model, field in (
         ("note", Note, Note.body),
         ("document", Document, Document.text),
@@ -28,16 +31,23 @@ def library(session, user_id, kind, limit, offset):
     ):
         if kind is not None and kind != name:
             continue
-        queries.append(
-            select(
-                model.id,
-                literal(name).label("kind"),
-                model.title,
-                func.left(field, 160).label("description"),
-                model.updated_at,
-            ).where(model.user_id == user_id, model.deleted_at.is_(None))
-        )
+        query = select(
+            model.id,
+            literal(name).label("kind"),
+            model.title,
+            func.left(field, 160).label("description"),
+            model.updated_at,
+        ).where(model.user_id == user_id, model.deleted_at.is_(None))
+        if term:
+            matches = model.title.icontains(term, autoescape=True) | field.icontains(
+                term, autoescape=True
+            )
+            if model is Document:
+                matches |= Document.filename.icontains(term, autoescape=True)
+            query = query.where(matches)
+        queries.append(query)
     rows = union_all(*queries).subquery()
+    total = session.scalar(select(func.count()).select_from(rows))
     selected = session.execute(
         select(rows)
         .order_by(rows.c.updated_at.desc(), rows.c.kind, rows.c.id.desc())
@@ -55,15 +65,28 @@ def library(session, user_id, kind, limit, offset):
         "items": items[:limit],
         "has_more": len(items) > limit,
         "next_offset": offset + limit if len(items) > limit else None,
+        "total": total,
     }
 
 
-def timeline(session, user_id, hours, now, limit):
+def timeline(session, user_id, hours, now, limit, *, settings=None, tier=None):
     prefs = assistant_preferences(session, user_id)
     zone = ZoneInfo(prefs.timezone)
     until = now + timedelta(hours=hours)
     entries = []
     capped = False
+    push_ready = (
+        bool(settings and settings.push_enabled)
+        and session.scalar(
+            select(PushSubscription.id)
+            .where(
+                PushSubscription.user_id == user_id,
+                PushSubscription.active.is_(True),
+            )
+            .limit(1)
+        )
+        is not None
+    )
 
     def add(
         kind,
@@ -76,6 +99,7 @@ def timeline(session, user_id, hours, now, limit):
         action,
         url,
         availability="available",
+        ongoing=None,
     ):
         current = show_from <= now and (show_until is None or now < show_until)
         if not current and (hours == 0 or not now <= at < until):
@@ -91,6 +115,7 @@ def timeline(session, user_id, hours, now, limit):
                 show_from=show_from,
                 show_until=show_until,
                 current=current,
+                ongoing=ongoing,
                 action=action,
                 availability=availability,
                 detail_url=url,
@@ -124,6 +149,7 @@ def timeline(session, user_id, hours, now, limit):
             row.ends_at,
             "appointment",
             f"/v1/calendar/events/{row.id}",
+            ongoing=row.starts_at <= now < row.ends_at,
         )
     reminders = bounded(
         select(Reminder)
@@ -147,7 +173,7 @@ def timeline(session, user_id, hours, now, limit):
             row.target_at + timedelta(seconds=1),
             "notify",
             f"/v1/reminders/{row.id}",
-            "delivery_not_configured",
+            "delivery_configured" if push_ready else "delivery_not_configured",
         )
     parking = session.scalar(
         select(ParkingRecord)
@@ -245,7 +271,9 @@ def timeline(session, user_id, hours, now, limit):
                     at + timedelta(minutes=90),
                     "execute",
                     f"/v1/features/{row.id}",
-                    "automation_not_configured",
+                    "automation_configured"
+                    if automation_available(row, settings, tier)
+                    else "automation_not_configured",
                 )
             day += timedelta(days=1)
     entries.sort(key=lambda x: (not x["current"], x["at"], x["key"]))

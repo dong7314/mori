@@ -21,8 +21,10 @@ PoC의 대시보드·스케줄·대화·기능·마이 화면을 위한 Mori API
   실제 작업 결과는 메시지 기록 및 실행 기록 API에서도 확인할 수 있습니다.
 
 ### 구현 범위
-일정·메모·알림 목표·사용자 기능 정의와 결과를 저장합니다. 실제 예약 실행, 기기 푸시,
-주가 공급자와 Office 문서 변환은 아직 연결되지 않았습니다.
+일정·메모·알림 목표·사용자 기능 정의와 체크리스트 결과를 저장합니다.
+별도 worker는 예약 실행·뉴스 수집·시세 수집·Web Push를 처리합니다.
+SearXNG, 시세 gateway, VAPID와 기기 구독은 서버 설정이 필요하며 capabilities에 반영됩니다.
+실제 결제와 Office 문서 변환은 아직 연결되지 않았습니다.
 요청 실행은 현재 연결된 API의 데이터를 실제로 변경합니다.
 """
 
@@ -32,7 +34,10 @@ TAGS = [
     {"name": "chat", "description": "대화 목록·메시지·SSE 진행 상태·실행 결과"},
     {"name": "features", "description": "기본 기능 카탈로그와 내 기능 정의·버전·결과"},
     {"name": "notes", "description": "메모 작성·조회·검색·편집·삭제·복원"},
-    {"name": "reminders", "description": "알림 목표 시각과 취소·복원. 기기 푸시는 미연결"},
+    {"name": "reminders", "description": "알림 목표·재개·연장·취소·삭제 복원"},
+    {"name": "automation", "description": "예약 실행의 상태·재시도·결과 이력"},
+    {"name": "data", "description": "구조화 뉴스와 관심 종목·시세·일/주/월 캔들"},
+    {"name": "notifications", "description": "Web Push 기기 구독 및 기기별 알림 전달 상태"},
     {"name": "documents", "description": "TXT·MD·CSV 원문 보관 및 다운로드"},
     {"name": "parking", "description": "사용자별 주차 위치 저장과 최신 위치 조회"},
     {"name": "account", "description": "마이: 내 정보·프로필 수정·테마·요금제와 결제 상태"},

@@ -258,12 +258,11 @@ def test_feature_draft_versions_pause_and_schedule_contract(client, accounts):
         ]
         == "paused"
     )
-    assert (
-        create(
-            client, accounts, "features", {"schedule": {"time": "09:00", "repeat": "once"}}
-        ).status_code
-        == 422
+    one_off = create(
+        client, accounts, "features", {"schedule": {"time": "09:00", "repeat": "once"}}
     )
+    assert one_off.status_code == 201
+    assert date.fromisoformat(one_off.json()["schedule"]["date"])
     assert (
         create(
             client,

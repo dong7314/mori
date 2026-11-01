@@ -2,7 +2,7 @@ FROM python:3.12-slim-bookworm AS base
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
 FROM base AS builder
-RUN pip install --no-cache-dir uv==0.12.15
+RUN pip install --no-cache-dir uv==0.13.6
 WORKDIR /app
 ENV UV_PYTHON_DOWNLOADS=never UV_COMPILE_BYTECODE=1
 COPY pyproject.toml uv.lock ./

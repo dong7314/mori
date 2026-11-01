@@ -43,6 +43,45 @@ class Settings(BaseSettings):
     chat_enabled: bool = False
     chat_private_runtimes: dict[str, PrivateRuntime] = Field(default_factory=dict)
     hermes_startup_timeout_seconds: int = Field(default=90, ge=10, le=300)
+    automation_enabled: bool = False
+    automation_poll_seconds: int = Field(default=15, ge=1, le=300)
+    automation_lease_seconds: int = Field(default=900, ge=60, le=3600)
+    automation_max_attempts: int = Field(default=3, ge=1, le=10)
+    searxng_base_url: str = ""
+    market_data_base_url: str = ""
+    market_data_api_key: SecretStr = SecretStr("")
+    market_data_provider: str = Field(default="configured", min_length=1, max_length=80)
+    push_enabled: bool = False
+    vapid_public_key: str = ""
+    vapid_private_key: SecretStr = SecretStr("")
+    vapid_subject: str = ""
+    push_allowed_hosts: list[str] = Field(
+        default_factory=lambda: [
+            "fcm.googleapis.com",
+            "updates.push.services.mozilla.com",
+            "web.push.apple.com",
+        ]
+    )
+    push_timeout_seconds: int = Field(default=10, ge=1, le=30)
+    push_max_attempts: int = Field(default=3, ge=1, le=10)
+    push_lease_seconds: int = Field(default=60, ge=40, le=600)
+
+    @field_validator("searxng_base_url", "market_data_base_url")
+    @classmethod
+    def validate_provider_url(cls, value):
+        return cls.validate_hermes_url(value) if value else ""
+
+    @field_validator("market_data_api_key")
+    @classmethod
+    def validate_market_key(cls, value):
+        return cls.validate_hermes_key(value)
+
+    @model_validator(mode="after")
+    def validate_push_settings(self):
+        from mori.notifications.service import validate_push_configuration
+
+        validate_push_configuration(self)
+        return self
 
     @field_validator("chat_private_runtimes")
     @classmethod

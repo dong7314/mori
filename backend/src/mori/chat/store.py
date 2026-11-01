@@ -5,8 +5,7 @@ from sqlalchemy import select
 
 from mori.chat.models import ChatTurn, Conversation
 from mori.errors import ApiError
-from mori.features.models import FeatureResult
-from mori.features.service import create_feature, executable
+from mori.features.service import create_feature, create_feature_result, executable
 from mori.features.service import snapshot as feature_snapshot
 from mori.organizer.models import CalendarEvent, Note, Reminder
 from mori.organizer.schemas import EventRead, NoteRead, ReminderRead
@@ -166,6 +165,8 @@ def finish(factory, run_id, user_id: UUID, decision):
             answer = f"주차 위치를 {location}(으)로 저장했어요."
             if record.display_mode == "always":
                 answer += " 새 위치를 저장하기 전까지 대시보드에 계속 표시해요."
+            elif record.display_mode == "manual":
+                answer += " 기능 탭의 주차 기록에서 언제든 확인할 수 있어요."
             else:
                 schedule = record.display_schedule
                 answer += (
@@ -194,7 +195,8 @@ def finish(factory, run_id, user_id: UUID, decision):
             answer = f"{label}을 저장했어요."
             if decision.action == "reminder_save":
                 answer += (
-                    " 앱에서 남은 시간을 확인할 수 있어요. 기기 푸시 전달은 아직 연결되지 않았어요."
+                    " 앱에서 남은 시간을 확인할 수 있어요."
+                    " 알림 상세에서 기기 알림 연결과 전달 상태를 확인해 주세요."
                 )
         elif decision.action == "feature_save":
             record = create_feature(session, user_id, decision.feature)
@@ -203,11 +205,13 @@ def finish(factory, run_id, user_id: UUID, decision):
             if record.status == "draft":
                 answer += " 수행할 내용을 입력하면 실행할 수 있어요."
             if record.schedule:
-                answer += " 시간 설정을 보관했지만 자동 실행은 아직 연결되지 않았어요."
+                answer += (
+                    " 시간 설정도 저장했어요. 기능 상세에서 자동 실행 가능 상태를 확인해 주세요."
+                )
         else:
             answer = decision.reply
         if decision.reminder_requested:
-            answer += "\n예약 알림은 아직 지원하지 않아 예약하지 않았어요."
+            answer += "\n추가 알림은 함께 예약하지 않았어요. 알림 요청을 따로 보내 주세요."
         events = []
         if decision.action != "reply":
             paths = {
@@ -241,12 +245,13 @@ def finish(factory, run_id, user_id: UUID, decision):
                 append(
                     turn,
                     "capability.unavailable",
-                    capability="reminders",
-                    message="예약 알림은 아직 지원하지 않아요.",
+                    capability="combined_actions",
+                    message="추가 알림은 별도 요청으로 예약해 주세요.",
                 )
             )
         if turn.feature_id:
-            saved = FeatureResult(
+            saved = create_feature_result(
+                session,
                 user_id=user_id,
                 feature_id=turn.feature_id,
                 feature_version=turn.feature_snapshot["version"],
@@ -254,8 +259,6 @@ def finish(factory, run_id, user_id: UUID, decision):
                 title=turn.feature_snapshot["title"],
                 text=answer,
             )
-            session.add(saved)
-            session.flush()
             events.append(
                 append(
                     turn,

@@ -1,6 +1,6 @@
 [project]
 name = "mori-backend"
-version = "0.7.0"
+version = "0.8.0"
 description = "Mori personal assistant API"
 requires-python = ">=3.12,<3.14"
 dependencies = [
@@ -9,6 +9,7 @@ dependencies = [
   "httpx>=0.28,<1",
   "psycopg[binary]>=3.2,<4",
   "pydantic-settings>=2.7,<3",
+  "pywebpush>=2.0,<3",
   "sqlalchemy>=2.0,<2.1",
   "uvicorn>=0.34,<1",
 ]

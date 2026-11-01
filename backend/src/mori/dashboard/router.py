@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from pydantic import AwareDatetime
 
 from mori.auth.dependencies import CurrentUser
@@ -17,6 +17,7 @@ router = APIRouter(responses=PRIVATE_API_RESPONSES, prefix="/v1", tags=["dashboa
 def dashboard(
     user: CurrentUser,
     session: DatabaseSession,
+    request: Request,
     hours: int = Query(0, json_schema_extra={"enum": [0, 3, 5, 24]}),
     at: AwareDatetime | None = None,
     limit: int = Query(200, ge=1, le=500),
@@ -26,7 +27,9 @@ def dashboard(
     at = at or datetime.now(UTC)
     if not 1970 <= at.year <= 2200:
         raise ApiError(422, "INVALID_RANGE", "조회 시각은 1970년부터 2200년까지 지원합니다.")
-    return timeline(session, user.id, hours, at, limit)
+    return timeline(
+        session, user.id, hours, at, limit, settings=request.app.state.settings, tier=user.tier
+    )
 
 
 @router.get("/library", response_model=LibraryRead)
@@ -36,5 +39,6 @@ def records(
     kind: Literal["note", "document", "feature_result"] | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0, le=100000),
+    q: str = Query("", max_length=200, description="Literal title or full-content search."),
 ):
-    return library(session, user.id, kind, limit, offset)
+    return library(session, user.id, kind, limit, offset, q=q)

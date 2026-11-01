@@ -60,7 +60,10 @@ class ParkingCreate(BaseModel):
     zone: LocationPart | None = None
     spot: LocationPart | None = None
     purpose: Literal["commute", "external"] = "external"
-    display_mode: Literal["always", "scheduled"] = "always"
+    display_mode: Literal["always", "scheduled", "manual"] = Field(
+        default="always",
+        description="always: always visible; scheduled: timed visibility; manual: lookup only.",
+    )
     display_schedule: ParkingDisplaySchedule | None = None
 
     @model_validator(mode="after")
@@ -68,7 +71,7 @@ class ParkingCreate(BaseModel):
         if self.floor is None and self.zone is None and self.spot is None:
             raise ValueError("층, 구역, 자리 번호 중 하나 이상을 입력해 주세요.")
         if (self.display_mode == "scheduled") != (self.display_schedule is not None):
-            raise ValueError("Scheduled display requires a time; always display omits it")
+            raise ValueError("Scheduled display requires a time; always/manual display omit it")
         return self
 
 
@@ -81,5 +84,5 @@ class ParkingRead(BaseModel):
     spot: str | None
     recorded_at: AwareDatetime
     purpose: Literal["commute", "external"]
-    display_mode: Literal["always", "scheduled"]
+    display_mode: Literal["always", "scheduled", "manual"]
     display_schedule: ParkingDisplaySchedule | None

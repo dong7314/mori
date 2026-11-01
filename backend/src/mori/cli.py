@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import json
 from uuid import UUID
 
@@ -22,13 +23,30 @@ def main() -> None:
     revoke = commands.add_parser("revoke-session", help="로그인 세션 폐기")
     revoke.add_argument("--session-id", required=True, type=UUID)
     commands.add_parser("prune-auth", help="만료된 로그인 요청·교환 코드·세션 정리")
+    worker = commands.add_parser("worker", help="예약 실행 및 Web Push worker")
+    worker.add_argument("--once", action="store_true", help="한 처리 주기 후 종료")
     for name in ("grant-super-admin", "revoke-super-admin"):
         role_command = commands.add_parser(name, help="기존 소셜 가입자의 최고 관리자 역할 변경")
         role_command.add_argument("--user-id", required=True, type=UUID)
         role_command.add_argument("--reason", required=True)
     args = parser.parse_args()
-    engine = build_engine(Settings())
+    settings = Settings()
+    engine = build_engine(settings)
     try:
+        if args.command == "worker":
+            from mori.worker import run_cycle, run_worker
+
+            factory = build_session_factory(engine)
+            try:
+                if args.once:
+                    print(json.dumps(asyncio.run(run_cycle(factory, settings)), ensure_ascii=False))
+                else:
+                    asyncio.run(run_worker(factory, settings))
+            except ValueError as error:
+                parser.exit(2, str(error) + "\n")
+            except KeyboardInterrupt:
+                pass
+            return
         with build_session_factory(engine)() as session:
             if args.command == "revoke-session":
                 revoke_session(session, args.session_id)

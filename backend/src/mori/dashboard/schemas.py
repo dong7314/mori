@@ -10,6 +10,7 @@ class LibraryRead(BaseModel):
     items: list[LibraryItem]
     has_more: bool
     next_offset: int | None
+    total: int
 
 
 class TimelineItem(BaseModel):
@@ -21,9 +22,21 @@ class TimelineItem(BaseModel):
     at: datetime
     show_from: datetime
     show_until: datetime | None
-    current: bool
+    current: bool = Field(
+        description="True while the item is inside its dashboard visibility window."
+    )
+    ongoing: bool | None = Field(
+        default=None,
+        description="For events: starts_at <= query time < ends_at. Null for other item kinds.",
+    )
     action: Literal["appointment", "notify", "display", "execute"]
-    availability: Literal["available", "delivery_not_configured", "automation_not_configured"]
+    availability: Literal[
+        "available",
+        "delivery_not_configured",
+        "automation_not_configured",
+        "delivery_configured",
+        "automation_configured",
+    ]
     detail_url: str
 
 

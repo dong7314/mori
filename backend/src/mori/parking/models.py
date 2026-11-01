@@ -18,7 +18,9 @@ class ParkingRecord(Base):
         ),
         Index("ix_parking_user_latest", "user_id", "recorded_at", "id"),
         CheckConstraint("purpose IN ('commute', 'external')", name="ck_parking_purpose"),
-        CheckConstraint("display_mode IN ('always', 'scheduled')", name="ck_parking_display_mode"),
+        CheckConstraint(
+            "display_mode IN ('always', 'scheduled', 'manual')", name="ck_parking_display_mode"
+        ),
         CheckConstraint(
             "display_mode = 'scheduled' OR display_schedule IS NULL",
             name="ck_parking_display_schedule",

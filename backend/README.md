@@ -1,11 +1,13 @@
 # Mori Backend
 
+API 0.8.0은 [PoC 계약 보강·예약 worker·뉴스·시세·Web Push](docs/poc-backend-0.8.md)를 추가한다. `0008_poc_completion`까지 적용하고 별도 `mori worker`를 실행한다. 외부 제공자/VAPID는 서버 설정이 필요하다. 아래 0.7.0 내역은 이전 버전 기록이다.
+
 네이버·카카오 소셜 로그인, 무료·프로 권한 관리, 사용자별 주차 기록과 채팅을 제공한다. AI 요청은 채팅 API로 받으며 Hermes가 필요한 검색 도구를 선택한다. 자연어 주차 저장·조회는 Hermes의 작업 제안을 검증한 뒤 Mori가 실행한다. 공용 Hermes는 현재 단일 테스트 소유자에게만 연결한다.
 
 ## 실행 환경
 
 - Python 3.12 또는 3.13, PostgreSQL 16 이상.
-- `uv.lock`으로 실행·개발 의존성을 고정한다. uv 0.12.15 기준이다.
+- `uv.lock`으로 실행·개발 의존성을 고정한다. uv 0.13.6 기준이다.
 - DB 스키마는 Alembic으로 적용한다. API 시작 시 테이블을 자동 생성하지 않는다.
 
 ## Docker로 실행

@@ -16,8 +16,8 @@ class Schedule(Input):
 
     @model_validator(mode="after")
     def once_date(self):
-        if (self.repeat == "once") != (self.date is not None):
-            raise ValueError("One-off schedules require a date; repeating schedules omit it")
+        if self.repeat != "once" and self.date is not None:
+            raise ValueError("Repeating schedules omit the date")
         return self
 
 
@@ -25,9 +25,50 @@ class FeatureWrite(Input):
     title: Title = "나만의 기능"
     description: str = Field(default="", max_length=180)
     work: str = Field(default="", max_length=2000)
-    reference: str = Field(default="", max_length=6000)
-    icon: Literal["spark", "note", "news", "bell", "calendar", "chart"] = "spark"
+    reference: str = Field(
+        default="",
+        max_length=6000,
+        description="Reference text; content is also accepted on input.",
+    )
+    icon: Literal[
+        "note",
+        "file",
+        "book",
+        "news",
+        "chart",
+        "chat",
+        "calendar",
+        "clock",
+        "bell",
+        "sun",
+        "moon",
+        "spark",
+        "home",
+        "leaf",
+        "heart",
+        "car",
+        "pin",
+        "compass",
+    ] = "spark"
     schedule: Schedule | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def content_alias(cls, values):
+        if isinstance(values, dict) and "content" in values:
+            values = dict(values)
+            content = values.pop("content")
+            if "reference" in values:
+                reference = values["reference"]
+                if (
+                    not isinstance(content, str)
+                    or not isinstance(reference, str)
+                    or content.strip() != reference.strip()
+                ):
+                    raise ValueError("content and reference must match when both are provided")
+            else:
+                values["reference"] = content
+        return values
 
 
 class FeatureCreate(FeatureWrite):
@@ -44,8 +85,18 @@ class FeatureRead(FeatureWrite, RecordRead):
     version: int
     template_key: Literal["standard"] = "standard"
     template_version: int = 1
-    automation_status: Literal["not_configured", "not_requested"] = "not_requested"
+    automation_status: Literal["not_configured", "not_requested", "configured"] = "not_requested"
     execution_available: bool = True
+
+
+class FeatureResultItem(Input):
+    id: UUID
+    text: str = Field(min_length=1)
+    done: bool = False
+
+
+class FeatureResultItemUpdate(Revision):
+    done: bool = Field(strict=True)
 
 
 class FeatureResultRead(RecordRead):
@@ -54,6 +105,7 @@ class FeatureResultRead(RecordRead):
     run_id: UUID
     title: str
     text: str
+    items: list[FeatureResultItem] = Field(default_factory=list)
     template_key: Literal["text"] = "text"
     template_version: int = 1
 
@@ -76,6 +128,7 @@ class Capabilities(Input):
     office_conversion: bool
     text_document_storage: bool
     custom_chat_execution: bool
+    news_collection: bool = False
 
 
 class CatalogRead(Input):

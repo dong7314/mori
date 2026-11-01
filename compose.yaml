@@ -31,7 +31,7 @@ services:
   api:
     build: ./backend
     image: mori-backend:dev
-    environment:
+    environment: &backend-environment
       MORI_DATABASE_URL: postgresql+psycopg://mori:mori-local-only@db:5432/mori
       MORI_CORS_ORIGINS: '${MORI_CORS_ORIGINS:-["http://localhost:5173","http://127.0.0.1:5173"]}'
       MORI_AUTH_PUBLIC_BASE_URL: '${MORI_AUTH_PUBLIC_BASE_URL:-http://localhost:8000}'
@@ -50,6 +50,22 @@ services:
       MORI_CHAT_ENABLED: '${MORI_CHAT_ENABLED:-false}'
       MORI_HERMES_STARTUP_TIMEOUT_SECONDS: '${MORI_HERMES_STARTUP_TIMEOUT_SECONDS:-90}'
       MORI_CHAT_PRIVATE_RUNTIMES: '${MORI_CHAT_PRIVATE_RUNTIMES:-{}}'
+      MORI_AUTOMATION_ENABLED: '${MORI_AUTOMATION_ENABLED:-false}'
+      MORI_AUTOMATION_POLL_SECONDS: '${MORI_AUTOMATION_POLL_SECONDS:-15}'
+      MORI_AUTOMATION_LEASE_SECONDS: '${MORI_AUTOMATION_LEASE_SECONDS:-900}'
+      MORI_AUTOMATION_MAX_ATTEMPTS: '${MORI_AUTOMATION_MAX_ATTEMPTS:-3}'
+      MORI_SEARXNG_BASE_URL: '${MORI_SEARXNG_BASE_URL:-}'
+      MORI_MARKET_DATA_BASE_URL: '${MORI_MARKET_DATA_BASE_URL:-}'
+      MORI_MARKET_DATA_API_KEY: '${MORI_MARKET_DATA_API_KEY:-}'
+      MORI_MARKET_DATA_PROVIDER: '${MORI_MARKET_DATA_PROVIDER:-configured}'
+      MORI_PUSH_ENABLED: '${MORI_PUSH_ENABLED:-false}'
+      MORI_VAPID_PUBLIC_KEY: '${MORI_VAPID_PUBLIC_KEY:-}'
+      MORI_VAPID_PRIVATE_KEY: '${MORI_VAPID_PRIVATE_KEY:-}'
+      MORI_VAPID_SUBJECT: '${MORI_VAPID_SUBJECT:-}'
+      MORI_PUSH_ALLOWED_HOSTS: '${MORI_PUSH_ALLOWED_HOSTS:-["fcm.googleapis.com","updates.push.services.mozilla.com","web.push.apple.com"]}'
+      MORI_PUSH_TIMEOUT_SECONDS: '${MORI_PUSH_TIMEOUT_SECONDS:-10}'
+      MORI_PUSH_MAX_ATTEMPTS: '${MORI_PUSH_MAX_ATTEMPTS:-3}'
+      MORI_PUSH_LEASE_SECONDS: '${MORI_PUSH_LEASE_SECONDS:-60}'
     ports:
       - "127.0.0.1:${MORI_API_PORT:-8000}:8000"
     depends_on:
@@ -65,6 +81,22 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  worker:
+    profiles: [automation]
+    build: ./backend
+    image: mori-backend:dev
+    environment: *backend-environment
+    command: ["mori", "worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
     read_only: true
     tmpfs:
       - /tmp

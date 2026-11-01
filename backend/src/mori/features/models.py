@@ -42,3 +42,4 @@ class FeatureResult(OwnedRecord, Base):
     )
     title: Mapped[str] = mapped_column(String(80))
     text: Mapped[str] = mapped_column(Text)
+    items: Mapped[list[dict]] = mapped_column(JSONB, default=list, server_default="[]")

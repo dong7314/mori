@@ -110,9 +110,26 @@ class ReminderUpdate(ReminderWrite, Revision):
     pass
 
 
+class ReminderResume(Revision):
+    target_at: AwareDatetime
+
+
+class ReminderExtend(Revision):
+    minutes: int = Field(default=5, ge=1, le=1440)
+
+
 class ReminderRead(ReminderWrite, RecordRead):
     cancelled: bool
-    delivery_status: Literal["not_configured"] = "not_configured"
+    delivery_status: Literal["unknown", "not_configured", "no_subscription", "ready"] = Field(
+        default="unknown",
+        description="Push channel readiness, not an individual device delivery receipt.",
+    )
+    deliveries_url: str = ""
+
+    @model_validator(mode="after")
+    def delivery_link(self):
+        self.deliveries_url = f"/v1/reminders/{self.id}/deliveries"
+        return self
 
 
 class DocumentWrite(Input):

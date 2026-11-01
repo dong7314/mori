@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Header, Query
+from fastapi import APIRouter, Header, Query, Request
 from sqlalchemy import select
 
 from mori.auth.dependencies import CurrentUser
@@ -14,6 +14,7 @@ from mori.features.schemas import (
     CatalogRead,
     FeatureCreate,
     FeatureRead,
+    FeatureResultItemUpdate,
     FeatureResultRead,
     FeatureState,
     FeatureUpdate,
@@ -24,17 +25,19 @@ router = APIRouter(responses=PRIVATE_API_RESPONSES, prefix="/v1", tags=["feature
 
 
 @router.get("/feature-catalog", response_model=CatalogRead)
-def catalog(user: CurrentUser):
+def catalog(user: CurrentUser, request: Request):
+    settings = request.app.state.settings
     return {
         "items": service.CATALOG,
         "template_version": 1,
         "capabilities": {
-            "scheduled_execution": False,
-            "push_delivery": False,
-            "market_data": False,
+            "scheduled_execution": settings.automation_enabled,
+            "push_delivery": settings.push_enabled,
+            "market_data": bool(settings.market_data_base_url),
             "office_conversion": False,
             "text_document_storage": True,
-            "custom_chat_execution": True,
+            "custom_chat_execution": service.chat_available(settings, user.id, user.tier),
+            "news_collection": bool(settings.searxng_base_url),
         },
     }
 
@@ -44,6 +47,7 @@ def create(
     payload: FeatureCreate,
     user: CurrentUser,
     session: DatabaseSession,
+    request: Request,
     idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
 ):
     return idempotent_create(
@@ -53,7 +57,7 @@ def create(
         idempotency_key,
         payload,
         lambda: service.create_feature(session, user.id, payload),
-        service.read_feature,
+        lambda row: service.read_feature(row, request.app.state.settings, user.tier),
     )
 
 
@@ -61,11 +65,12 @@ def create(
 def listing(
     user: CurrentUser,
     session: DatabaseSession,
+    request: Request,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0, le=100000),
 ):
     return [
-        service.read_feature(row)
+        service.read_feature(row, request.app.state.settings, user.tier)
         for row in session.scalars(
             select(Feature)
             .where(
@@ -80,19 +85,35 @@ def listing(
 
 
 @router.get("/features/{feature_id}", response_model=FeatureRead)
-def detail(feature_id: UUID, user: CurrentUser, session: DatabaseSession):
-    return service.read_feature(owned(session, Feature, user.id, feature_id))
+def detail(feature_id: UUID, user: CurrentUser, session: DatabaseSession, request: Request):
+    return service.read_feature(
+        owned(session, Feature, user.id, feature_id),
+        request.app.state.settings,
+        user.tier,
+    )
 
 
 @router.put("/features/{feature_id}", response_model=FeatureRead)
-def replace(feature_id: UUID, payload: FeatureUpdate, user: CurrentUser, session: DatabaseSession):
+def replace(
+    feature_id: UUID,
+    payload: FeatureUpdate,
+    user: CurrentUser,
+    session: DatabaseSession,
+    request: Request,
+):
     row = service.update_feature(session, user.id, feature_id, payload)
     session.commit()
-    return service.read_feature(row)
+    return service.read_feature(row, request.app.state.settings, user.tier)
 
 
 @router.post("/features/{feature_id}/state", response_model=FeatureRead)
-def state(feature_id: UUID, payload: FeatureState, user: CurrentUser, session: DatabaseSession):
+def state(
+    feature_id: UUID,
+    payload: FeatureState,
+    user: CurrentUser,
+    session: DatabaseSession,
+    request: Request,
+):
     row = owned(session, Feature, user.id, feature_id, lock=True)
     check_revision(row, payload.revision)
     if payload.status == "active" and not row.work:
@@ -102,7 +123,7 @@ def state(feature_id: UUID, payload: FeatureState, user: CurrentUser, session: D
         row.revision += 1
         row.updated_at = datetime.now(UTC)
     session.commit()
-    return service.read_feature(row)
+    return service.read_feature(row, request.app.state.settings, user.tier)
 
 
 @router.get("/features/{feature_id}/versions/{version}", response_model=FeatureRead)
@@ -141,3 +162,16 @@ def results(
 @router.get("/feature-results/{result_id}", response_model=FeatureResultRead)
 def result(result_id: UUID, user: CurrentUser, session: DatabaseSession):
     return owned(session, FeatureResult, user.id, result_id)
+
+
+@router.patch("/feature-results/{result_id}/items/{item_id}", response_model=FeatureResultRead)
+def update_result_item(
+    result_id: UUID,
+    item_id: UUID,
+    payload: FeatureResultItemUpdate,
+    user: CurrentUser,
+    session: DatabaseSession,
+):
+    row = service.update_result_item(session, user.id, result_id, item_id, payload)
+    session.commit()
+    return row
