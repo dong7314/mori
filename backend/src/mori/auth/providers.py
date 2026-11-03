@@ -88,7 +88,7 @@ def _json(response: httpx.Response) -> dict:
         )
     try:
         value = response.json()
-    except ValueError:
+    except (ValueError, RecursionError):
         value = None
     if not isinstance(value, dict):
         raise ApiError(502, "OAUTH_INVALID_RESPONSE", "소셜 로그인 응답을 확인할 수 없습니다.")
@@ -115,6 +115,8 @@ def verify_profile(
             raise ApiError(
                 401, "OAUTH_REJECTED", "소셜 인증을 완료하지 못했습니다. 다시 로그인해 주세요."
             )
+        if not access_token.isascii() or any(c in access_token for c in "\x00\r\n"):
+            raise ApiError(502, "OAUTH_INVALID_RESPONSE", "소셜 로그인 응답을 확인할 수 없습니다.")
         params = (
             {"property_keys": '["kakao_account.profile"]'} if provider == Provider.KAKAO else None
         )
@@ -151,5 +153,13 @@ def verify_profile(
         raise ApiError(502, "OAUTH_INVALID_RESPONSE", "소셜 계정 식별 정보를 확인할 수 없습니다.")
     nickname = nickname if isinstance(nickname, str) else ""
     display_name = "".join(c for c in nickname if ord(c) >= 32 and ord(c) != 127).strip()[:80]
+    try:
+        subject.encode("utf-8")
+        display_name.encode("utf-8")
+    except UnicodeError as exc:
+        # Escaped lone surrogates in JSON cannot be stored as PostgreSQL UTF-8 text.
+        raise ApiError(
+            502, "OAUTH_INVALID_RESPONSE", "소셜 계정 정보를 확인할 수 없습니다."
+        ) from exc
     # Provider tokens, email, phone and the full profile are not persisted or sent to the app.
     return VerifiedProfile(provider, subject, display_name or "모리 사용자")

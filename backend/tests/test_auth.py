@@ -615,3 +615,23 @@ def test_relogin_keeps_admin_approved_pro_access(client, provider_stub, sessions
     second_login = signin(client, provider)
     me = client.get("/v1/me", headers=auth(second_login)).json()
     assert me["id"] == member_id and me["tier"] == "pro" and me["role"] == "user"
+
+
+@pytest.mark.parametrize("raw_token", ["\ud800", "\udfff"])
+def test_surrogate_refresh_token_is_rejected_without_revoking_session(
+    client, provider_stub, raw_token
+):
+    pair = signin(client)
+    calls = len(provider_stub.calls)
+    # Raw ASCII JSON preserves the surrogate escape through the HTTP boundary.
+    response = client.post(
+        "/v1/auth/refresh",
+        content=json.dumps({"refresh_token": raw_token}),
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code == 401, response.text
+    assert response.json()["error"]["code"] == "INVALID_REFRESH_TOKEN"
+    assert client.get("/v1/me", headers=auth(pair)).status_code == 200
+    refreshed = client.post("/v1/auth/refresh", json={"refresh_token": pair["refresh_token"]})
+    assert refreshed.status_code == 200, refreshed.text
+    assert len(provider_stub.calls) == calls

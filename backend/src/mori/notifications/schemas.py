@@ -68,6 +68,13 @@ class SubscriptionWrite(BaseModel):
 
     _endpoint = field_validator("endpoint")(validate_endpoint)
 
+    @field_validator("device_name")
+    @classmethod
+    def valid_device_name(cls, value):
+        if "\x00" in value:
+            raise ValueError("Device name must not contain NUL")
+        return value
+
 
 class SubscriptionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)

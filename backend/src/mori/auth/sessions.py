@@ -107,7 +107,7 @@ def exchange_login(session: Session, settings: Settings, payload: ExchangeReques
 
 
 def refresh_session(session: Session, settings: Settings, raw_token: str) -> TokenResponse:
-    if not 1 <= len(raw_token) <= 256:
+    if not 1 <= len(raw_token) <= 256 or not raw_token.isascii():
         raise ApiError(401, "INVALID_REFRESH_TOKEN", "다시 로그인해 주세요.")
     candidate = session.scalar(
         select(RefreshToken).where(RefreshToken.token_hash == hash_token(raw_token))

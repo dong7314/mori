@@ -517,3 +517,42 @@ def test_chat_reminder_snapshot_defers_push_readiness_to_http_lookup(
         f"/v1/reminders/{result['id']}", headers=accounts["alice"]["headers"]
     ).json()
     assert latest["delivery_status"] == "ready"
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_device_name_nul_rejected_before_creating_or_reactivating_subscription(
+    client, accounts, sessions, push_settings, existing
+):
+    payload = subscription_payload(push_settings)
+    headers = accounts["alice"]["headers"]
+    subscription_id = None
+    if existing:
+        created = client.post("/v1/notifications/subscriptions", json=payload, headers=headers)
+        assert created.status_code == 201, created.text
+        subscription_id = created.json()["id"]
+        removed = client.delete(
+            "/v1/notifications/subscriptions/" + subscription_id, headers=headers
+        )
+        assert removed.status_code == 200 and not removed.json()["active"]
+    payload["device_name"] = "phone\x00name"
+    payload["keys"]["auth"] = b64(b"b" * 16)
+    rejected = client.post("/v1/notifications/subscriptions", json=payload, headers=headers)
+    assert rejected.status_code == 422, rejected.text
+    with sessions() as session:
+        saved = session.scalar(select(PushSubscription))
+        if existing:
+            assert str(saved.id) == subscription_id
+            assert not saved.active
+            assert saved.device_name == "내 휴대폰"
+            assert saved.auth == b64(b"a" * 16)
+        else:
+            assert saved is None
+    payload["device_name"] = "새 휴대폰"
+    retried = client.post("/v1/notifications/subscriptions", json=payload, headers=headers)
+    assert retried.status_code == 201, retried.text
+    assert retried.json()["active"] and retried.json()["device_name"] == "새 휴대폰"
+    if existing:
+        assert retried.json()["id"] == subscription_id
+    with sessions() as session:
+        saved = session.scalar(select(PushSubscription))
+        assert saved.auth == b64(b"b" * 16)
