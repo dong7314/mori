@@ -1,5 +1,7 @@
 # 2026-09-29 — 정식 런타임 배포와 Hermes 콜드 스타트 현장 기록
 
+> **2026-11-03 이력 안내:** 아래 상태·명령·수치는 당시 실험 기록이다. 현재 master 6285aba/API 0.9.0의 완료 범위는 [아키텍처 계획](plan.md), 다음 배포와 검증은 [운영 적용 로드맵](runtime-operations-roadmap-2026-11-03.md)을 따른다. 예약은 Mori DB/worker가 소유하며, 새 gateway·개인 Knative 배정 코드의 실환경 검증은 별도다.
+
 [전체 계획](../plan.md) · [채팅 구현](../back/chat-implementation-2026-09-29.md)
 
 이 문서는 사용자가 대화에 제공한 서버 출력과 `master` 코드 이력을 구분해 기록한다.

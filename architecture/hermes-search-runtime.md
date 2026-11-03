@@ -1,5 +1,7 @@
 # Hermes 경량화와 자체 호스팅 검색 방향
 
+> **2026-11-03 이력 안내:** 아래 상태·명령·수치는 당시 실험 기록이다. 현재 master 6285aba/API 0.9.0의 완료 범위는 [아키텍처 계획](plan.md), 다음 배포와 검증은 [운영 적용 로드맵](runtime-operations-roadmap-2026-11-03.md)을 따른다. 예약은 Mori DB/worker가 소유하며, 새 gateway·개인 Knative 배정 코드의 실환경 검증은 별도다.
+
 [전체 계획](../plan.md) · [아키텍처](plan.md) · [공용 Hermes 재개 절차](hermes-shared-resume.md)
 
 갱신일: 2026-09-28. 사용자 의도는 보유한 서버에서 검색을 운영해 외부 검색 API 비용을 피하고 공용/개인 Hermes를 가볍게 유지하는 것이다. **SearXNG 배포·모델 검색, 이미지 후보 도구, 같은 Hermes Pod의 로컬 본문 추출까지 실험 검증했다.** [상세 증거](hermes-web-validation-2026-09-28.md). 실습 리소스 삭제 후 도구를 포함한 이미지·YAML을 `master` `2e2a397`에 구현하고 로컬 기동을 검증했다. 다음은 Harbor 등록·worker 재배포다. 의존성을 제거한 경량 이미지와 개인 실행 환경은 미완료다. [전환 기록](runtime-image-transition.md).

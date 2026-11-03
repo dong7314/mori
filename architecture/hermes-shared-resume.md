@@ -1,5 +1,7 @@
 # 공용 Hermes 테스트 — 집에서 이어서 진행할 절차
 
+> **2026-11-03 이력 안내:** 아래 상태·명령·수치는 당시 실험 기록이다. 현재 master 6285aba/API 0.9.0의 완료 범위는 [아키텍처 계획](plan.md), 다음 배포와 검증은 [운영 적용 로드맵](runtime-operations-roadmap-2026-11-03.md)을 따른다. 예약은 Mori DB/worker가 소유하며, 새 gateway·개인 Knative 배정 코드의 실환경 검증은 별도다.
+
 > **이력 문서:** 아래는 당시 상태다. 2026-09-29 현재 완료 범위와 다음 실행은 [최신 기록](hermes-knative-validation-2026-09-29.md)을 따른다. 검색 API/임시 토큰은 제거됐고 런타임은 재배포·Knative 기동/종료 검증을 마쳤다.
 
 [전체 계획](../plan.md) · [아키텍처](plan.md) · [검색·경량화 방향](hermes-search-runtime.md) · [Knative 검증 기록](knative-validation-2026-09-21.md)

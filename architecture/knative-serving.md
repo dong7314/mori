@@ -1,5 +1,7 @@
 # k3s의 공용 Hermes Gateway 콜드 스타트 — 설치·전환 절차
 
+> **2026-11-03 이력 안내:** 아래 상태·명령·수치는 당시 실험 기록이다. 현재 master 6285aba/API 0.9.0의 완료 범위는 [아키텍처 계획](plan.md), 다음 배포와 검증은 [운영 적용 로드맵](runtime-operations-roadmap-2026-11-03.md)을 따른다. 예약은 Mori DB/worker가 소유하며, 새 gateway·개인 Knative 배정 코드의 실환경 검증은 별도다.
+
 [전체 계획](../plan.md) · [아키텍처](plan.md)
 
 갱신일: 2026-09-28 · 상태: **Knative 기반·테스트 앱 1→0→1과 일반 Deployment의 Hermes 대화 확인, 실제 Hermes Knative 전환은 미완료.** 사용자가 서버에서 실행한 출력에 근거하며 직접 원격 점검한 결과는 아니다. [Knative 검증 기록](knative-validation-2026-09-21.md) · [Hermes 대화 결과](hermes-shared-validation-2026-09-23.md).
@@ -14,7 +16,7 @@
 - 노트북 1의 k3s CPU worker에 공용 Hermes Gateway Pod를 배치한다. Pod는 HTTP 요청이 없으면 0개, 필요하면 최대 1개로 기동한다.
 - Mori API·PostgreSQL·예약/작업 Worker는 요청을 받을 수 있도록 계속 가동한다. Linux RTX 3090 eGPU 노트북의 llama.cpp `192.168.0.8:8080`도 k3s 밖에서 계속 가동한다. llama.cpp의 API 키는 k3s Secret으로 Hermes에만 제공한다.
 - Knative Serving의 controller, autoscaler, activator와 네트워크 구성요소는 설치 후 상시 자원을 사용한다. 절감 대상은 공용 Hermes 프로세스의 유휴 CPU·메모리다. Eventing은 HTTP 콜드 스타트에 필요하지 않다.
-- 이 절차는 **공용 Gateway P1 실험**이다. 유료 사용자별 Pod, 예약 사전 준비, 사용자 격리와 긴 비동기 작업의 수명주기는 [아키텍처](plan.md#유휴-중지와-콜드-스타트)의 별도 설계다.
+- 이 절차는 **공용 Gateway P1 실험**이다. 유료 사용자별 Pod, 예약 사전 준비, 사용자 격리와 긴 비동기 작업의 수명주기는 [아키텍처](plan.md#3-예약은-mori가-소유)의 별도 설계다.
 
 ## 1. 설치 전 확인
 
