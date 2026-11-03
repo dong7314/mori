@@ -1,12 +1,12 @@
 # React 웹·RN 앱을 위한 백엔드 확장 계약
 
-갱신일: 2026-10-06 · 상태: 신규 경로/필드는 설계 초안, API 0.7.0에 미포함
+갱신일: 2026-11-03 · 기준: master 6285aba / API 0.9.0 · 상태: B-18/B-19 신규 경로는 설계 초안
 
 [백엔드 계획](plan.md) · [앱 구조](../front/react-native-webview-plan.md) · [배포 정책](../architecture/app-release-versioning.md)
 
 ## 1. 현행 API에서 재사용할 것
 
-기준 커밋은 `master` `53b0fa6`, API 0.7.0, migration `0007_parking_display`다. 아래는 현행 코드에서 확인한 인증 경로다.
+기준 커밋은 `master` **6285aba**, API **0.9.0**, migration **0017_news_refresh_deadline**다. [현재 구현 현황](implementation-status-2026-11-03.md)과 [고정 OpenAPI](https://github.com/dong7314/mori/blob/6285abac905b242442cceda103c63e18d8900ab3/backend/docs/openapi.json)를 대조했다. 아래는 이미 구현된 인증 경로다. B-18의 HttpOnly 웹 세션·WebView 교환권·client-config, B-19의 APNs/FCM·위젯 계약은 아직 이 명세에 없다.
 
 | 경로 | 현행 역할 |
 | --- | --- |
@@ -57,7 +57,9 @@ client-config 응답 실패와 사용자 인증 실패는 다르다. 마지막 �
 
 ## 4. B-19: 기기 등록·위젯·알림
 
-이 절은 실제 푸시/위젯 구현 시 추가한다. 현재 Reminder 목표 시각 저장만으로 전달이 수행되는 것은 아니다.
+현재 **Web Push** 구독 등록/목록/해제와 알림 전달 worker·전달 이력은 구현했다. `GET /v1/notifications/push-config`, `GET/POST /v1/notifications/subscriptions`, `DELETE /v1/notifications/subscriptions/{id}`, `GET /v1/reminders/{id}/deliveries`를 재사용한다. 이는 APNs/FCM용 native 설치 등록이나 위젯 API가 아니다. HTTPS 브라우저의 권한·service worker·실제 Push 전달도 연결 후 별도 확인해야 한다.
+
+아래 표는 B-19에서 추가할 **native 기기/위젯 계약**이다. Reminder 저장, Web Push 제공자 접수, 기기 수신과 사용자 확인은 서로 다른 상태다.
 
 | 신규 계약 후보 | 책임 |
 | --- | --- |
@@ -74,10 +76,18 @@ client-config 응답 실패와 사용자 인증 실패는 다르다. 마지막 �
 
 ## 5. 다른 후속 기능과의 관계
 
-- 음성 업로드/전사는 제공자·파일 크기·보관 기간을 정한 뒤 추가한다. 전사 결과는 기존 대화 ID와 요청 키로 채팅에 보낸다.
-- 문서 선택·공유는 현재 TXT/MD/CSV 10MB 계약부터 연결한다. 바이너리 변환·Office/HWP 편집을 이번 모바일 계약의 완료 항목으로 계산하지 않는다.
-- 현재 SSE에는 이벤트 영속 재생과 앱 종료 후 작업 완료 보장이 없다. 영속 작업 큐/백그라운드 실행은 별도 구현하고 프론트가 자동 재전송으로 보완하지 않는다.
-- Pro 관리자 승인, 개인 Pod 자동 배정, AI 예약/prewarm, 실제 과금은 서로 다른 기능이다. 앱 배포만으로 이 기능들이 켜지지 않는다.
+| 현행 구현 | 앱에서 연결할 일 | B-18/B-19와 별도인 한계 |
+| --- | --- | --- |
+| `POST /v1/speech/transcriptions` 원본 오디오 바이트 전사 | RN 녹음/권한·지원 MIME·취소·키보드 전환, 전사문 확인 후 별도 채팅 제출 | 전사는 채팅을 자동 실행하지 않음. 브라우저/RN 녹음과 TTS는 미구현 |
+| `/v1/files`, `/v1/document-jobs` 및 기존 `/v1/documents` | 파일 선택/공유·업로드·첨부·작업 상태·다운로드·취소/재시도 UI | HWP/HWPX는 읽기/텍스트 변환만 지원. OCR·원본 HWP 편집과 레이아웃 보존 변환은 없음 |
+| durable `/runs` 접수와 저장된 `/events` 재생·취소 | run ID·마지막 이벤트 ID 보관, 인증 fetch 스트림 재연결·중복 제거·백그라운드 복귀 | 앱 연결 종료는 작업 취소가 아님. worker 운영이 필요하며 즉시 실행/정시 완료를 보장하지 않음 |
+| Mori DB 예약·worker prewarm 및 Pro Knative 배정 | `/v1/me/runtime` 준비/실패 상태 표시, 예약 회차 조회·취소와 결과 상세 연결 | Route ready는 Pod 상시 실행이 아님. 실제 k3s·GPU·앱 종료 인수는 별도 |
+| Toss 웹 자동결제와 유효 Pro 권한 | 웹 SDK·callback·주문 상태 확인·기간 말 해지/재개 | StoreKit/Google Play 구매 검증은 별도 개발. 202를 과금 완료로 표시하지 않음 |
+| Web Push 구독·전달 worker·service worker 계약 예시 | HTTPS 권한 요청·구독 등록/해제·딥링크 및 실제 브라우저 전달 | APNs/FCM 등록·OS 위젯·native 로컬 알림과 동일 기능으로 취급하지 않음 |
+
+현행 채팅 접수는 UUID `Idempotency-Key`로 중복을 막고 `202`에 `run_id/status_url/events_url`을 반환한다. SSE 관찰은 기본 25초에 종료할 수 있으며 `Last-Event-ID` 또는 `after`로 같은 실행을 이어 읽는다. 관찰 종료를 실패로 표시하거나 새 POST로 작업을 중복 생성하지 않는다. 자세한 계약은 [고정 채팅 문서](https://github.com/dong7314/mori/blob/6285abac905b242442cceda103c63e18d8900ab3/backend/docs/chat.md)를 따른다.
+
+무료 계정은 공용 gateway에서 사용자별 자식 프로세스·HOME을 분리하고, Pro는 개인 Knative Service/PVC를 사용한다. 클라이언트가 user_id나 runtime URL을 선택하지 않는다. 공용 프로필과 Pro PVC 사이의 자동 메모리 이사는 미구현이다. 예약 원장은 Mori DB/worker이며 Hermes cron을 앱에서 중복 등록하지 않는다.
 
 ## 6. 인수 기준
 
@@ -85,4 +95,12 @@ B-18은 iOS/Android/브라우저에서 소셜 로그인 취소·만료·성공·
 
 client-config는 구/신 앱 조합, 지원하지 않는 protocol, 없는 release, 만료 정책, 스토어 미출시 상태의 잘못된 강제 업데이트를 검증한다. B-19는 앱 종료·계정 전환·기기 token 회전·권한 거부·snapshot 만료·중복 전달을 실기기에서 확인한다.
 
-구현 시 관련 요청/응답을 OpenAPI에 추가해 Swagger/Scalar와 생성 클라이언트를 함께 갱신한다. 이번 문서 작업에서는 API 서비스 버전이나 migration 번호를 올리지 않는다.
+구현 시 관련 요청/응답을 OpenAPI에 추가해 Swagger/Scalar와 생성 클라이언트를 함께 갱신한다. 이번 문서 작업에서는 API 서비스 버전이나 migration 번호를 올리지 않는다. backend 726개·Hermes 91개/1개 skip/43 subtest 통과는 2026-11-03 master 커밋 전 검증 결과이며, 새 모바일 세션·native Push·위젯의 구현/실기기 검증 증거가 아니다.
+
+## 7. 착수 순서
+
+1. B-18 웹 세션과 WebView 교환 방식·정확한 origin/CSRF·로그아웃 연계를 먼저 구현한다. 현재 JSON Bearer 로그인 계약은 보존한다.
+2. React/RN의 첫 화면 동선을 기존 주차·대시보드·durable 채팅 API에 연결한다. 제품 프론트를 만들며 PoC를 운영 API용으로 바꾸지 않는다.
+3. client-config의 앱/웹 release 호환 정책과 네이티브 브리지 capability 협상을 실제 배포 구조에 맞춰 구현한다. `/v1/capabilities`의 worker/제공자 준비 상태를 client-config로 오인하지 않는다.
+4. B-19 APNs/FCM·위젯 snapshot/제한 세션과 앱 계정 전환을 구현하고 실제 iOS/Android에서 검증한다.
+5. 스토어 결제를 사용할 경우 구매 검증·복원·갱신/취소 통지를 별도로 연결하고 웹 구독·관리자 승인과 같은 유효 이용권 판정으로 합친다.
