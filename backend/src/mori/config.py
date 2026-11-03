@@ -5,6 +5,9 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, m
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
+from mori.billing.settings import BillingMarketSettings
+from mori.runtimes.settings import RuntimeSettings
+
 
 class PrivateRuntime(BaseModel):
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
@@ -20,7 +23,7 @@ class PrivateRuntime(BaseModel):
         return self
 
 
-class Settings(BaseSettings):
+class Settings(RuntimeSettings, BillingMarketSettings, BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="MORI_", env_file=".env", extra="ignore", hide_input_in_errors=True
     )
@@ -40,14 +43,33 @@ class Settings(BaseSettings):
     hermes_api_key: SecretStr = SecretStr("")
     hermes_test_user_id: UUID | None = None
     hermes_timeout_seconds: int = Field(default=300, ge=10, le=600)
+    shared_hermes_enabled: bool = False
+    shared_hermes_base_url: str = ""
+    shared_hermes_api_key: SecretStr = SecretStr("")
     chat_enabled: bool = False
+    chat_worker_enabled: bool = False
+    chat_job_lease_seconds: int = Field(default=900, ge=60, le=3600)
+    chat_job_max_attempts: int = Field(default=3, ge=1, le=10)
+    chat_poll_seconds: int = Field(default=1, ge=1, le=30)
+    chat_stream_seconds: int = Field(default=25, ge=1, le=300)
     chat_private_runtimes: dict[str, PrivateRuntime] = Field(default_factory=dict)
     hermes_startup_timeout_seconds: int = Field(default=90, ge=10, le=300)
     automation_enabled: bool = False
     automation_poll_seconds: int = Field(default=15, ge=1, le=300)
     automation_lease_seconds: int = Field(default=900, ge=60, le=3600)
     automation_max_attempts: int = Field(default=3, ge=1, le=10)
+    automation_prewarm_seconds: int = Field(default=120, ge=0, le=600)
+    documents_enabled: bool = False
+    document_max_bytes: int = Field(default=10_000_000, ge=1024, le=10_000_000)
+    document_user_quota_bytes: int = Field(default=100_000_000, ge=10_000_000, le=1_000_000_000)
+    document_trash_days: int = Field(default=30, ge=1, le=365)
+    document_font_path: str = "/usr/share/fonts/truetype/nanum/NanumGothic.ttf"
+    speech_base_url: str = ""
+    speech_api_key: SecretStr = SecretStr("")
+    speech_model: str = "whisper-1"
+    speech_max_bytes: int = Field(default=10_000_000, ge=1024, le=25_000_000)
     searxng_base_url: str = ""
+    news_summary_enabled: bool = False
     market_data_base_url: str = ""
     market_data_api_key: SecretStr = SecretStr("")
     market_data_provider: str = Field(default="configured", min_length=1, max_length=80)
@@ -66,7 +88,9 @@ class Settings(BaseSettings):
     push_max_attempts: int = Field(default=3, ge=1, le=10)
     push_lease_seconds: int = Field(default=60, ge=40, le=600)
 
-    @field_validator("searxng_base_url", "market_data_base_url")
+    @field_validator(
+        "searxng_base_url", "market_data_base_url", "speech_base_url", "shared_hermes_base_url"
+    )
     @classmethod
     def validate_provider_url(cls, value):
         return cls.validate_hermes_url(value) if value else ""
@@ -75,6 +99,17 @@ class Settings(BaseSettings):
     @classmethod
     def validate_market_key(cls, value):
         return cls.validate_hermes_key(value)
+
+    @model_validator(mode="after")
+    def validate_shared_runtime(self):
+        if self.shared_hermes_enabled and (
+            not self.shared_hermes_base_url
+            or len(self.shared_hermes_api_key.get_secret_value()) < 32
+        ):
+            raise ValueError(
+                "Shared isolation gateway needs an origin and a strong server-only key"
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_push_settings(self):
@@ -92,7 +127,7 @@ class Settings(BaseSettings):
             raise ValueError("Each private runtime must have a unique user and URL")
         return canonical
 
-    @field_validator("hermes_api_key")
+    @field_validator("hermes_api_key", "shared_hermes_api_key", "speech_api_key")
     @classmethod
     def validate_hermes_key(cls, value: SecretStr) -> SecretStr:
         if any(not 33 <= ord(c) <= 126 for c in value.get_secret_value()):

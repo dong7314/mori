@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,7 +10,15 @@ from mori.organizer.models import OwnedRecord
 
 class Feature(OwnedRecord, Base):
     __tablename__ = "features"
-    __table_args__ = (UniqueConstraint("user_id", "builtin_key", name="uq_user_builtin"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "builtin_key", name="uq_user_builtin"),
+        CheckConstraint(
+            "jsonb_typeof(allowed_actions) = 'array' AND allowed_actions @> '[\"reply\"]'::jsonb "
+            'AND allowed_actions <@ \'["reply","note_save","event_save","reminder_save",'
+            '"parking_save","document_process"]\'::jsonb',
+            name="ck_feature_allowed_actions",
+        ),
+    )
     builtin_key: Mapped[str | None] = mapped_column(String(24), nullable=True)
     title: Mapped[str] = mapped_column(String(80))
     description: Mapped[str] = mapped_column(String(180))
@@ -20,6 +28,9 @@ class Feature(OwnedRecord, Base):
     status: Mapped[str] = mapped_column(String(16))
     schedule: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     version: Mapped[int] = mapped_column(default=1)
+    allowed_actions: Mapped[list[str]] = mapped_column(
+        JSONB, default=lambda: ["reply"], server_default='["reply"]'
+    )
 
 
 class SkillVersion(Base):

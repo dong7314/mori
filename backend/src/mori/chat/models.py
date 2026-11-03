@@ -35,6 +35,7 @@ class ChatTurn(Base):
     requested_feature_id: Mapped[UUID | None] = mapped_column(nullable=True)
     feature_id: Mapped[UUID | None] = mapped_column(nullable=True)
     feature_snapshot: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    attachments: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     request_key: Mapped[UUID] = mapped_column()
     message: Mapped[str] = mapped_column(Text)
     answer: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -42,3 +43,29 @@ class ChatTurn(Base):
     events: Mapped[list] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     deadline: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    durable: Mapped[bool] = mapped_column(default=False, server_default="false")
+
+
+class ChatJob(Base):
+    """A durable execution lease; clients only observe the associated turn."""
+
+    __tablename__ = "chat_jobs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('queued','processing','retry','completed','failed','cancelled')",
+            name="ck_chat_job_status",
+        ),
+    )
+    run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("chat_turns.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="queued")
+    history: Mapped[list] = mapped_column(JSONB, default=list)
+    attempts: Mapped[int] = mapped_column(default=0)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_token: Mapped[UUID | None] = mapped_column(nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -40,6 +40,7 @@ class CalendarEvent(OwnedRecord, Base):
 class Reminder(OwnedRecord, Base):
     __tablename__ = "reminders"
     title: Mapped[str] = mapped_column(String(80))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     target_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     cancelled: Mapped[bool] = mapped_column(default=False)
 

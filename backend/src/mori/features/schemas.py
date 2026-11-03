@@ -1,6 +1,9 @@
+from datetime import UTC, datetime
 from datetime import date as Date
+from datetime import time as Time
 from typing import Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from pydantic import Field, field_validator, model_validator
 
@@ -19,6 +22,13 @@ class Schedule(Input):
         if self.repeat != "once" and self.date is not None:
             raise ValueError("Repeating schedules omit the date")
         return self
+
+    def validate_utc_range(self):
+        """Check a resolved write/worker schedule without restricting legacy reads."""
+        if self.date is not None:
+            zone = ZoneInfo(self.timezone)
+            wall = datetime.combine(self.date, Time.fromisoformat(self.time), tzinfo=zone)
+            wall.astimezone(UTC).astimezone(zone)
 
 
 class FeatureWrite(Input):
@@ -51,6 +61,23 @@ class FeatureWrite(Input):
         "compass",
     ] = "spark"
     schedule: Schedule | None = None
+    allowed_actions: list[
+        Literal[
+            "reply", "note_save", "event_save", "reminder_save", "parking_save", "document_process"
+        ]
+    ] = Field(
+        default_factory=lambda: ["reply"],
+        min_length=1,
+        max_length=6,
+        description="Explicit execution permission. reply is required; writes are opt-in.",
+    )
+
+    @field_validator("allowed_actions")
+    @classmethod
+    def action_permissions(cls, value):
+        if "reply" not in value or len(set(value)) != len(value):
+            raise ValueError("Include reply and use distinct allowed actions")
+        return value
 
     @model_validator(mode="before")
     @classmethod

@@ -10,6 +10,7 @@ COPY src ./src
 RUN uv sync --frozen --no-dev --no-editable
 
 FROM base AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends fonts-nanum libxml2 libxslt1.1 && rm -rf /var/lib/apt/lists/*
 RUN groupadd --gid 10001 mori && useradd --uid 10001 --gid mori --no-create-home mori
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv

@@ -3,8 +3,10 @@ from logging.config import fileConfig
 from alembic import context
 
 from mori.account import models as account_models  # noqa: F401
+from mori.artifacts import models as artifact_models  # noqa: F401
 from mori.auth import models as auth_models  # noqa: F401
 from mori.automation import models as automation_models  # noqa: F401
+from mori.billing import models as billing_models  # noqa: F401
 from mori.chat import models as chat_models  # noqa: F401
 from mori.config import Settings
 from mori.database import Base, build_engine
@@ -12,8 +14,10 @@ from mori.features import models as feature_models  # noqa: F401
 from mori.integrations import models as integration_models  # noqa: F401
 from mori.membership import models as membership_models  # noqa: F401
 from mori.notifications import models as notification_models  # noqa: F401
+from mori.operations import models as operation_models  # noqa: F401
 from mori.organizer import models as organizer_models  # noqa: F401
 from mori.parking import models as parking_models  # noqa: F401
+from mori.runtimes import models as runtime_models  # noqa: F401
 
 config = context.config
 if config.config_file_name:

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,9 +17,15 @@ class NewsBriefing(Base):
     feature_revision: Mapped[int] = mapped_column()
     generation: Mapped[int] = mapped_column(default=0)
     status: Mapped[str] = mapped_column(String(16), default="empty")
+    manual_refresh_deadline: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     articles: Mapped[list] = mapped_column(JSONB, default=list)
     collected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_kind: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    summary_error: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
 
 class MarketWatch(OwnedRecord, Base):
