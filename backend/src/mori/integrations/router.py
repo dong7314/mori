@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 
 import httpx
@@ -8,12 +8,14 @@ from sqlalchemy import select
 from mori.auth.dependencies import CurrentUser
 from mori.database import DatabaseSession
 from mori.errors import PRIVATE_API_RESPONSES, ApiError, ErrorResponse
-from mori.features.models import Feature
-from mori.features.schemas import FeatureCreate, FeatureUpdate
-from mori.features.service import create_feature, update_feature
 from mori.integrations.market import fetch_market
 from mori.integrations.models import MarketWatch, NewsBriefing
-from mori.integrations.news import fetch_articles, store_briefing
+from mori.integrations.news import (
+    begin_briefing,
+    fetch_articles,
+    store_briefing,
+    summarize_articles,
+)
 from mori.integrations.schemas import (
     CandlesRead,
     MarketSettings,
@@ -21,6 +23,15 @@ from mori.integrations.schemas import (
     NewsRead,
     NewsSettings,
     QuoteRead,
+)
+from mori.integrations.service import (
+    chosen_symbol,
+    market_settings_read,
+    news_feature,
+    news_read,
+    recover_expired_manual_refresh,
+    save_market_settings,
+    save_news_settings,
 )
 from mori.organizer.schemas import Revision
 from mori.organizer.service import check_revision, lock_user
@@ -39,35 +50,10 @@ def get_integration_transport():
 Transport = Annotated[httpx.AsyncBaseTransport | None, Depends(get_integration_transport)]
 
 
-def news_feature(session, user_id, *, lock=False):
-    query = select(Feature).where(
-        Feature.user_id == user_id,
-        Feature.builtin_key == "news",
-        Feature.deleted_at.is_(None),
-    )
-    return session.scalar(query.with_for_update() if lock else query)
-
-
-def news_read(session, feature, settings):
-    if feature is None:
-        return NewsRead(configured=bool(settings.searxng_base_url))
-    row = session.get(NewsBriefing, feature.id)
-    current = row is not None and row.feature_revision == feature.revision
-    return NewsRead(
-        feature_id=feature.id,
-        revision=feature.revision,
-        topic=feature.work,
-        schedule=feature.schedule,
-        configured=bool(settings.searxng_base_url),
-        status=row.status if current else "empty",
-        articles=row.articles if current else [],
-        collected_at=row.collected_at if current else None,
-        error_code=row.error_code if current else None,
-    )
-
-
 @router.get("/news", response_model=NewsRead, summary="뉴스 설정 및 마지막 수집 결과")
 def news(user: CurrentUser, session: DatabaseSession, request: Request):
+    if recover_expired_manual_refresh(session, user.id):
+        session.commit()
     return news_read(session, news_feature(session, user.id), request.app.state.settings)
 
 
@@ -75,38 +61,7 @@ def news(user: CurrentUser, session: DatabaseSession, request: Request):
 def news_settings(
     payload: NewsSettings, user: CurrentUser, session: DatabaseSession, request: Request
 ):
-    lock_user(session, user.id)
-    feature = news_feature(session, user.id, lock=True)
-    if feature is None:
-        if payload.revision != 0:
-            raise ApiError(409, "REVISION_CONFLICT", "뉴스 설정을 다시 조회해 주세요.")
-        feature = create_feature(
-            session,
-            user.id,
-            FeatureCreate(
-                builtin_key="news",
-                title="뉴스 브리핑",
-                work=payload.topic,
-                icon="news",
-                schedule=payload.schedule,
-            ),
-        )
-    else:
-        check_revision(feature, payload.revision)
-        feature = update_feature(
-            session,
-            user.id,
-            feature.id,
-            FeatureUpdate(
-                revision=payload.revision,
-                title=feature.title,
-                description=feature.description,
-                work=payload.topic,
-                reference=feature.reference,
-                icon=feature.icon,
-                schedule=payload.schedule,
-            ),
-        )
+    feature = save_news_settings(session, user.id, payload)
     session.commit()
     return news_read(session, feature, request.app.state.settings)
 
@@ -129,12 +84,11 @@ async def refresh_news(
     check_revision(feature, payload.revision)
     if feature.status != "active":
         raise ApiError(409, "FEATURE_NOT_ACTIVE", "뉴스 기능을 활성화해 주세요.")
-    row = session.get(NewsBriefing, feature.id)
-    if row is None:
-        row = NewsBriefing(feature_id=feature.id, generation=0, articles=[])
-        session.add(row)
-    row.generation += 1
-    row.feature_revision, row.status, row.error_code = feature.revision, "loading", None
+    row = begin_briefing(session, feature)
+    # Search is bounded to 15s and summary generation to 120s. The remaining
+    # margin covers local state publication without leaving an orphaned spinner.
+    deadline = datetime.now(UTC) + timedelta(seconds=180)
+    row.manual_refresh_deadline = deadline
     generation, revision, feature_id, topic = (
         row.generation,
         feature.revision,
@@ -149,8 +103,10 @@ async def refresh_news(
         failure = exc
     # Refresh ORM state after network I/O; only the latest request/version may publish.
     session.expire_all()
+    if recover_expired_manual_refresh(session, user.id):
+        session.commit()
     feature = news_feature(session, user.id, lock=True)
-    row = session.get(NewsBriefing, feature_id, populate_existing=True)
+    row = session.get(NewsBriefing, feature_id, populate_existing=True, with_for_update=True)
     if (
         feature is None
         or feature.revision != revision
@@ -164,23 +120,47 @@ async def refresh_news(
         )
     if failure:
         row.status, row.error_code = "failed", failure.code
+        row.manual_refresh_deadline = None
         session.commit()
         raise failure
-    store_briefing(session, feature, articles)
+    collected_at = datetime.now(UTC)
+    if not (settings.news_summary_enabled and articles and row.summary_text):
+        store_briefing(session, feature, articles, collected_at)
+        if settings.news_summary_enabled and articles:
+            # Articles are already readable while the summary is in progress.
+            # Keep the refresh lease until that final phase is published.
+            row.status = "loading"
+            row.manual_refresh_deadline = deadline
+    session.commit()
+    # Publish an initial collection immediately. When a successful summary exists,
+    # retain its complete briefing until the replacement summary succeeds.
+    summary = await summarize_articles(
+        request.app.state.session_factory, settings, user.id, topic, articles, transport=transport
+    )
+    session.expire_all()
+    if recover_expired_manual_refresh(session, user.id):
+        session.commit()
+    feature = news_feature(session, user.id, lock=True)
+    row = session.get(NewsBriefing, feature_id, populate_existing=True, with_for_update=True)
+    if (
+        feature is None
+        or feature.revision != revision
+        or feature.status != "active"
+        or row is None
+        or row.generation != generation
+    ):
+        session.rollback()
+        raise ApiError(
+            409, "NEWS_REFRESH_SUPERSEDED", "뉴스 설정이 바뀌었습니다. 다시 수집해 주세요."
+        )
+    store_briefing(session, feature, articles, collected_at, summary=summary)
     session.commit()
     return news_read(session, feature, settings)
 
 
 @router.get("/market/settings", response_model=MarketSettingsRead, summary="관심 종목 조회")
 def market_settings(user: CurrentUser, session: DatabaseSession, request: Request):
-    row = session.scalar(select(MarketWatch).where(MarketWatch.user_id == user.id))
-    settings = request.app.state.settings
-    return MarketSettingsRead(
-        symbol=row.symbol if row else None,
-        revision=row.revision if row else 0,
-        configured=bool(settings.market_data_base_url),
-        provider=settings.market_data_provider,
-    )
+    return market_settings_read(session, user.id, request.app.state.settings)
 
 
 @router.put("/market/settings", response_model=MarketSettingsRead, summary="관심 종목 저장")
@@ -190,22 +170,7 @@ def update_market_settings(
     session: DatabaseSession,
     request: Request,
 ):
-    lock_user(session, user.id)
-    row = session.scalar(select(MarketWatch).where(MarketWatch.user_id == user.id))
-    if row is None:
-        if payload.revision != 0:
-            raise ApiError(409, "REVISION_CONFLICT", "관심 종목을 다시 조회해 주세요.")
-        row = MarketWatch(user_id=user.id, symbol=payload.symbol)
-        session.add(row)
-    else:
-        check_revision(row, payload.revision)
-        if row.symbol != payload.symbol:
-            row.snapshot = row.collected_at = None
-        row.symbol, row.revision, row.updated_at = (
-            payload.symbol,
-            row.revision + 1,
-            datetime.now(UTC),
-        )
+    save_market_settings(session, user.id, payload, request.app.state.settings)
     session.commit()
     return market_settings(user, session, request)
 
@@ -214,15 +179,6 @@ def update_market_settings(
 def market_snapshot(user: CurrentUser, session: DatabaseSession):
     row = session.scalar(select(MarketWatch).where(MarketWatch.user_id == user.id))
     return row.snapshot if row else None
-
-
-def chosen_symbol(session, user_id, symbol):
-    if symbol:
-        return symbol.upper()
-    row = session.scalar(select(MarketWatch).where(MarketWatch.user_id == user_id))
-    if row is None:
-        raise ApiError(422, "SYMBOL_REQUIRED", "먼저 관심 종목을 선택해 주세요.")
-    return row.symbol
 
 
 Symbol = Annotated[str | None, Query(max_length=40, pattern=r"^[A-Za-z0-9.^:_-]+$")]
