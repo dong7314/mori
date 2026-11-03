@@ -1,6 +1,6 @@
 # 웹·앱 배포와 버전 호환 계획
 
-갱신일: 2026-10-06 · 상태: 목표 설계/배포 자동화 미구현
+갱신일: 2026-11-03 · 상태: 웹/앱 release·호환 설계, 제품 배포 자동화 미구현 · 서버 기준: master 6285aba/API 0.9.0
 
 [전체 계획](../plan.md) · [앱 구조](../front/react-native-webview-plan.md) · [모바일 API 계약](../back/mobile-client-contracts.md)
 
@@ -29,7 +29,7 @@
 | 웹 release ID | `web-<git-sha>` | 수정하지 않는 빌드 식별자; 동일 ID 덮어쓰기 금지 |
 | bridge protocol | `1` | 메시지 규약의 호환성 경계 |
 | capability | `audio.record.v1` | 설치된 native 구현이 제공하는 기능/계약 |
-| API 서비스 버전 | 현재 `0.7.0` | 서버 구현 릴리스. URL의 `/v1`과 별개 |
+| API 서비스 버전 | 현재 `0.9.0` / `6285aba` | 서버 구현 릴리스. URL의 `/v1`과 별개 |
 | 정책 revision | 증가하는 정수 | 앱별 웹 선택·최소 build·기능 중지 정책 변경 |
 | OTA runtimeVersion | 초기에는 없음 | OTA 도입 시 native runtime과 JS 번들의 호환 단위 |
 
@@ -130,7 +130,7 @@ Harbor는 웹/API 이미지 저장소이고 휴대폰 앱의 설치 배포처가
 
 ## 8. 스토어 배포 전에 확인할 제품 결정
 
-원격 웹 갱신이나 OTA를 심사 우회 수단으로 쓰지 않는다. 스토어 심사 기준은 제출 시 다시 확인하며, 단순 웹 포장 수준을 넘는 제품 기능과 안정성을 갖춘다. iOS의 소셜 로그인 조항 적용 여부는 네이버·카카오만 제공하는 현재 정책과 함께 검토해야 한다. 필요하면 동등한 로그인 선택지 추가를 별도 기획으로 결정한다. 결제는 현재 관리자 승인 Pro를 유지하며, 실제 디지털 서비스 과금 도입 시 스토어별 결제 정책을 다시 검토한다. [Apple App Review Guidelines — 2.5.2·4.2·4.8](https://developer.apple.com/app-store/review/guidelines/)
+원격 웹 갱신이나 OTA를 심사 우회 수단으로 쓰지 않는다. 스토어 심사 기준은 제출 시 다시 확인하며, 단순 웹 포장 수준을 넘는 제품 기능과 안정성을 갖춘다. iOS의 소셜 로그인 조항 적용 여부는 네이버·카카오만 제공하는 현재 정책과 함께 검토해야 한다. 필요하면 동등한 로그인 선택지 추가를 별도 기획으로 결정한다. 서버 0.9에는 웹 Toss 자동결제와 관리자 승인/유효 유료 기간에 따른 Pro 권한이 구현돼 있다. 스토어 구매·복원·서버 검증과 앱 판매 방식은 별도 미구현/결정 항목이며, 앱 출시 전에 스토어별 결제 정책을 다시 검토한다. [Apple App Review Guidelines — 2.5.2·4.2·4.8](https://developer.apple.com/app-store/review/guidelines/)
 
 현재 서비스가 소셜 로그인 예외에 해당한다는 근거 없이 네이버·카카오만으로 iOS 심사가 가능하다고 가정하지 않는다. 계정 생성 기능에 대응하는 앱 내 계정 삭제도 출시 전 검토/구현 항목이다. 현재 마이 API에 탈퇴가 이미 있다는 뜻은 아니다. [Apple — 4.8·5.1.1(v)](https://developer.apple.com/app-store/review/guidelines/)
 
