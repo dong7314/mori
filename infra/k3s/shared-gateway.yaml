@@ -1,0 +1,105 @@
+# Requires the rebuilt Mori Hermes image with shared_gateway.py. Replace the image with its digest.
+# API/worker must use this Service only with MORI_SHARED_HERMES_ENABLED=true.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mori-hermes-shared-profiles
+  namespace: mori
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mori-hermes-shared-gateway
+  namespace: mori
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: mori-hermes-shared-gateway}
+  template:
+    metadata:
+      labels: {app: mori-hermes-shared-gateway}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 90
+      securityContext:
+        fsGroup: 10000
+        seccompProfile: {type: RuntimeDefault}
+      nodeSelector:
+        kubernetes.io/hostname: k3s-infra
+        kubernetes.io/arch: amd64
+      tolerations:
+        - {key: infra, operator: Equal, value: 'true', effect: NoSchedule}
+      imagePullSecrets: []
+      containers:
+        - name: gateway
+          image: mori-hermes:dev
+          imagePullPolicy: IfNotPresent
+          ports: [{name: http, containerPort: 8642}]
+          env:
+            - {name: MORI_SHARED_GATEWAY_ENABLED, value: 'true'}
+            - {name: MORI_SHARED_HOME_ROOT, value: '/opt/data/tenants'}
+            - {name: MORI_SHARED_CONFIG, value: '/bootstrap/config.yaml'}
+            - {name: MORI_SHARED_MAX_PROCESSES, value: '4'}
+            - {name: MORI_SHARED_MAX_PROFILES, value: '40'}
+            - {name: MORI_SHARED_PROFILE_MAX_BYTES, value: '100000000'}
+            - {name: MORI_SHARED_IDLE_SECONDS, value: '180'}
+            - {name: SEARXNG_URL, value: 'http://searxng.search.svc.cluster.local:8080'}
+            - name: MORI_SHARED_GATEWAY_KEY
+              valueFrom:
+                secretKeyRef: {name: mori-hermes-shared-gateway, key: MORI_SHARED_GATEWAY_KEY}
+            - name: LLAMA_API_KEY
+              valueFrom:
+                secretKeyRef: {name: mori-hermes, key: LLAMA_API_KEY}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: '2', memory: 4Gi}
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 20
+          volumeMounts:
+            - {name: home, mountPath: /opt/data}
+            - {name: config, mountPath: /bootstrap, readOnly: true}
+      volumes:
+        - name: home
+          persistentVolumeClaim: {claimName: mori-hermes-shared-profiles}
+        - name: config
+          configMap: {name: mori-hermes-config}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mori-hermes-shared-gateway
+  namespace: mori
+spec:
+  selector: {app: mori-hermes-shared-gateway}
+  ports: [{name: http, port: 8642, targetPort: http}]
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mori-hermes-shared-gateway-ingress
+  namespace: mori
+spec:
+  podSelector:
+    matchLabels: {app: mori-hermes-shared-gateway}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: mori-api}}
+        - podSelector: {matchLabels: {app: mori-worker}}
+      ports: [{protocol: TCP, port: 8642}]

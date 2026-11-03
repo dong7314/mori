@@ -1,0 +1,117 @@
+# Apply only after setting the backend image, Secrets, Knative feature flags and storage.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mori-agents
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mori-hermes
+  namespace: mori-agents
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mori-runtime-provisioner
+  namespace: mori
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mori-runtime-provisioner
+  namespace: mori-agents
+rules:
+  - apiGroups: [serving.knative.dev]
+    resources: [services]
+    verbs: [get, create, delete]
+  - apiGroups: [""]
+    resources: [secrets, configmaps]
+    verbs: [get, create, delete]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get, create]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mori-runtime-provisioner
+  namespace: mori-agents
+subjects:
+  - kind: ServiceAccount
+    name: mori-runtime-provisioner
+    namespace: mori
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mori-runtime-provisioner
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mori-runtime-provisioner
+  namespace: mori
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mori-runtime-provisioner
+  template:
+    metadata:
+      labels:
+        app: mori-runtime-provisioner
+    spec:
+      serviceAccountName: mori-runtime-provisioner
+      automountServiceAccountToken: true
+      terminationGracePeriodSeconds: 120
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: provisioner
+          image: mori-backend:dev
+          imagePullPolicy: IfNotPresent
+          command: [python, -m, mori.runtimes.worker]
+          envFrom:
+            - secretRef:
+                name: mori-backend
+          env:
+            - name: MORI_RUNTIME_PROVISIONING_ENABLED
+              value: "true"
+            - name: MORI_RUNTIME_NAMESPACE
+              value: mori-agents
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+          startupProbe:
+            exec:
+              command: [python, -c, "from pathlib import Path; assert Path('/tmp/mori-runtime-worker-heartbeat').exists()"]
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command: [python, -c, "import time; from pathlib import Path; assert time.time()-float(Path('/tmp/mori-runtime-worker-heartbeat').read_text()) < 90"]
+            periodSeconds: 15
+          livenessProbe:
+            exec:
+              command: [python, -c, "import time; from pathlib import Path; assert time.time()-float(Path('/tmp/mori-runtime-worker-heartbeat').read_text()) < 180"]
+            periodSeconds: 30
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

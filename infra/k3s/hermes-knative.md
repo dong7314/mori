@@ -1,5 +1,7 @@
 # Hermes의 첫 Knative 전환과 0→1 요청 검사
 
+**현재 0.9 운영 구조:** 예약 정의·실행은 Mori DB와 worker가 관리한다. 사용자별 Knative 배정과 사전 기동은 [현재 런타임 문서](runtime-provisioning.md)를 따른다. 아래는 2026-09-29 공용 런타임 실험 기록이다.
+
 **2026-09-29 후속:** 0.1.0은 s6 중복 기동 및 foreground 종료 코드 1 문제가 확인됐다. 신규 전환에는 0.1.1 이상을 사용한다. 이미 임시 foreground Knative 서비스를 실행 중이면 [수명주기 수정 이미지 교체](hermes-lifecycle-upgrade.md)를 먼저 따른다. 0.1.0과 임시 shell command로 돌아가지 않는다.
 
 2026-09-29: 사용자 출력으로 Harbor `0.1.0` 업로드, 일반 Deployment 기동, 실제 모델 검색·본문 추출 성공을 확인했다. 아래는 **아직 현장 미검증인 전환 절차**다. 이미지 재빌드 없이 현재 이미지·Secret·ConfigMap·PVC를 사용한다. 예약 실행·Mori API 연동·Pro 자동 생성은 포함하지 않는다.
@@ -126,4 +128,4 @@ sudo k3s kubectl -n mori delete pod mori-hermes-coldstart-client --ignore-not-fo
 
 이 도구는 최초 공용 runtime 전환을 위한 검사다. 같은 PVC를 쓸 새 Revision을 apply하면 max-scale 1이어도 이전 Revision과 겹칠 수 있으므로 그대로 업데이트하지 않는다. 모든 이전 작성자 종료를 확인하는 유지보수 절차/컨트롤러가 필요하다. RWO는 같은 노드의 두 Pod 작성을 막는 잠금이 아니다.
 
-Pro에서는 같은 이미지에 사용자별 서비스/PVC/Secret/자원 제한을 지정하고, 사용자→runtime→Route 매핑과 승인/회수 시 자원 처리를 구현한다. 예약 내용은 Hermes가 관리하고 Mori는 최소 기동 메타데이터를 동기화하는 합의 방향이다. 예약 사전 기동·실행 중 유지·완료 결과 반영·다음 기동 시각 동기화는 이번 HTTP 실험과 분리한다.
+Pro에서는 같은 이미지에 사용자별 서비스/PVC/Secret/자원 제한을 지정하고, 사용자→runtime→Route 매핑과 승인/회수 시 자원 처리를 구현한다. 당시에는 Hermes 예약과 Mori 기동 메타데이터 동기화를 검토했으나, 현재 0.9 구현은 Mori DB·worker가 예약을 관리하는 구조다. 예약 사전 기동·실행 중 유지·완료 결과 반영·다음 기동 시각 동기화는 이번 HTTP 실험과 분리한다.

@@ -1,0 +1,59 @@
+# Same immutable backend image and Secret as the API. Set flags in mori-backend Secret.
+# Provisioner uses separate RBAC/YAML; this worker has no Kubernetes credentials.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mori-worker
+  namespace: mori
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mori-worker
+  template:
+    metadata:
+      labels:
+        app: mori-worker
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 660
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: mori-backend:dev
+          imagePullPolicy: IfNotPresent
+          command: [mori, worker]
+          envFrom:
+            - secretRef:
+                name: mori-backend
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests: {cpu: 250m, memory: 256Mi}
+            limits: {cpu: "2", memory: 2Gi}
+          # Checks only enabled components. DB heartbeat is emitted while long jobs execute.
+          startupProbe:
+            exec:
+              command: [python, -m, mori.operations.healthcheck]
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command: [python, -m, mori.operations.healthcheck]
+            periodSeconds: 20
+            timeoutSeconds: 10
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi

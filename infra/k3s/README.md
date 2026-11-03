@@ -1,8 +1,12 @@
 # 기존 k3s에 Mori API 배포
 
+Backend 0.9의 다중 사용자 실행·worker·결제 연결은 [통합 배포 절차](../../backend/docs/poc-backend-0.9.md)와 [개인 런타임 배정](runtime-provisioning.md)을 따른다. 아래의 기존 단일 소유자 Hermes 배포와 새 공용 사용자 gateway를 혼동하지 않는다.
+
 이 문서의 본문은 Mori API 배포 예시다. Hermes·SearXNG의 독립적인 재배포는 [런타임 배포 가이드](hermes-shared.md)를 따른다. 실제 적용 전에 이미지 저장소, PostgreSQL 연결 주소, 소셜 앱 키와 공개 API 주소를 준비한다. PostgreSQL 배포·스토리지 정책은 별도로 구성한다.
 
 기존 k3s worker에서 공용 Hermes Gateway를 실행하고 별도 Linux GPU 노트북의 llama.cpp에 연결하는 절차는 [hermes-shared.md](hermes-shared.md)를 참고한다. 해당 배포는 Mori API 배포와 별도로 적용한다.
+
+여러 Free 사용자를 하나의 Pod에 연결할 때는 단일 운영자용 설정 대신 [사용자별 공유 게이트웨이](shared-gateway.md)를 사용한다. Pro 개인 런타임은 [런타임 프로비저닝](runtime-provisioning.md)에서 관리한다.
 
 ## 적용 순서
 
