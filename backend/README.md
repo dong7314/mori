@@ -1,8 +1,8 @@
 # Mori Backend
 
-API 0.8.0은 [PoC 계약 보강·예약 worker·뉴스·시세·Web Push](docs/poc-backend-0.8.md)를 추가한다. `0008_poc_completion`까지 적용하고 별도 `mori worker`를 실행한다. 외부 제공자/VAPID는 서버 설정이 필요하다. 아래 0.7.0 내역은 이전 버전 기록이다.
+API **0.9.0**은 [백그라운드 실행과 PoC 기능 연결](docs/poc-backend-0.9.md)을 구현한다. DB는 `0017_news_refresh_deadline`까지 적용한다. API와 별도로 `mori worker`, 개인 런타임 배정용 provisioner를 실행한다. 기존 [0.8.0 내역](docs/poc-backend-0.8.md)은 변경 이력이다.
 
-네이버·카카오 소셜 로그인, 무료·프로 권한 관리, 사용자별 주차 기록과 채팅을 제공한다. AI 요청은 채팅 API로 받으며 Hermes가 필요한 검색 도구를 선택한다. 자연어 주차 저장·조회는 Hermes의 작업 제안을 검증한 뒤 Mori가 실행한다. 공용 Hermes는 현재 단일 테스트 소유자에게만 연결한다.
+네이버·카카오 로그인, 주차·일정·메모·알림·문서·대화·기능 결과를 사용자별로 관리한다. 무료 계정은 사용자별 프로세스와 홈을 분리한 공용 Hermes gateway를 사용하고, Pro는 전용 Knative Service/PVC를 사용한다. 예약은 Mori DB와 worker가 소유한다. 결제·시세·음성·검색·알림은 서버 설정과 실제 제공자 검증이 필요하다. PoC 화면에는 연결하지 않았다.
 
 ## 실행 환경
 
@@ -138,14 +138,18 @@ Docker 이미지는 UID 10001로 실행한다. `/health/live`는 프로세스, `
 
 [k3s 예시](../infra/k3s/README.md)는 API Deployment·내부 Service·별도 마이그레이션 Job을 제공한다. 실제 클러스터 배포는 수행하지 않았다.
 
-## 실시간 채팅과 주차 작업
+## 이전 버전 기록
+
+아래는 도입 당시의 범위다. 현재 기능·migration·연결 방식은 맨 위 0.9.0 문서를 따른다.
+
+### 실시간 채팅과 주차 작업 (0.5.0)
 
 API 0.5.0은 사용자별 대화, 실제 실행 상태 SSE, Hermes 요청 해석에 따른 주차 저장·조회를
 추가한다. [설정·API·프론트 이벤트 계약](docs/chat.md)을 참고한다. 기존 Hermes 이미지를
 사용하며 새 API 이미지와 `0004_chat` migration이 필요하다. 예약 실행과 개인 Pod 자동 생성은
 이번 범위에 포함하지 않는다.
 
-## PoC 화면 API (0.7.0)
+### PoC 화면 API (0.7.0)
 
 [화면별 API 계약과 연결 예제](docs/screen-api.md)를 추가했다. 대시보드 시간 범위, 보관함,
 메모·일정·알림 목표, 사용자 설정, 기능 정의/버전/결과, 대화 정리를 PostgreSQL에 저장한다.

@@ -1,13 +1,13 @@
 # 무료·프로 권한과 최고 관리자 승인
 
-가입자는 기본 무료 사용자다. 최고 관리자가 소셜 가입자를 직접 승인하면 프로 사용자가 되며, 승인을 회수하면 무료로 돌아간다. 현재는 요금제·결제·구독·유효 기간 없이 승인 상태만 관리한다. 별도의 프로 신청·심사 대기 목록은 없다.
+가입자는 기본 무료 사용자다. 0.9.0부터 관리자 승인과 유료 구독 기간을 구분한다. 둘 중 하나라도 유효하면 Pro이며, 관리자 승인 회수는 남은 유료 이용 기간을 없애지 않는다. 웹 구독 해지도 관리자 승인을 회수하지 않는다. 결제는 [Toss 계약](billing-market.md), 개인 Knative 배정은 [런타임 문서](../../infra/k3s/runtime-provisioning.md)를 따른다. 별도의 프로 신청·심사 대기 목록은 없다.
 
 ## 등급과 역할
 
 | 구분 | API 값 | 의미 |
 | --- | --- | --- |
 | 사용자 등급 | `tier: free` | 무료 사용자, 가입 시 기본값 |
-| 사용자 등급 | `tier: pro` | 최고 관리자가 프로 사용을 승인한 사용자 |
+| 사용자 등급 | `tier: pro` | 관리자 승인 또는 유효한 유료 구독을 가진 사용자 |
 | 운영 역할 | `role: user` | 일반 사용자, 가입 시 기본값 |
 | 운영 역할 | `role: super_admin` | 사용자 조회와 프로 승인·회수가 가능한 최고 관리자 |
 
@@ -59,7 +59,7 @@ uv run mori revoke-super-admin --user-id <USER_UUID> --reason "운영 담당 변
 | --- | --- |
 | `GET /v1/admin/users` | 소셜 가입자 목록 |
 | `POST /v1/admin/users/{user_id}/pro/approve` | 프로 사용 승인 |
-| `POST /v1/admin/users/{user_id}/pro/revoke` | 프로 승인 회수, 무료로 전환 |
+| `POST /v1/admin/users/{user_id}/pro/revoke` | 관리자 승인 회수, 유료 기간이 없으면 무료로 전환 |
 | `GET /v1/admin/users/{user_id}/access-history` | 대상 사용자의 최근 권한 변경 이력 |
 
 목록은 UUID 오름차순이며 `limit`은 기본 50, 최대 100이다. `tier=free` 또는 `tier=pro`로 필터링한다. 응답의 `next_cursor`가 있으면 다음 요청에 `cursor`로 넣고 같은 필터를 유지한다. 소셜 식별자·이메일·토큰 원문은 반환하지 않는다. 닉네임이 같을 수 있으므로 대상 사용자의 UUID를 확인한다.
