@@ -6,47 +6,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from mori.account.models import AccountSettings
 from mori.account.router import router as account_router
-from mori.auth.models import (
-    AccessToken,
-    AuthSession,
-    LoginGrant,
-    OAuthFlow,
-    RefreshToken,
-    SocialIdentity,
-    User,
-)
+from mori.artifacts.router import router as artifacts_router
 from mori.auth.router import profile_router
 from mori.auth.router import router as auth_router
-from mori.automation.models import AutomationJob, AutomationScheduleState
 from mori.automation.router import router as automation_router
-from mori.chat.models import ChatTurn, Conversation
+from mori.billing.router import router as billing_router
 from mori.chat.router import router as chat_router
 from mori.config import Settings
 from mori.dashboard.router import router as dashboard_router
-from mori.database import DatabaseSession, build_engine, build_session_factory
+from mori.database import Base, DatabaseSession, build_engine, build_session_factory
 from mori.documentation import DESCRIPTION, TAGS, install_scalar
 from mori.errors import ErrorResponse, register_error_handlers
-from mori.features.models import Feature, FeatureResult, SkillVersion
 from mori.features.router import router as features_router
-from mori.integrations.models import MarketWatch, NewsBriefing
 from mori.integrations.router import router as integrations_router
-from mori.membership.models import AccessChange
 from mori.membership.router import router as membership_router
-from mori.notifications.models import PushSubscription, ReminderDelivery
 from mori.notifications.router import router as notifications_router
+from mori.operations.router import router as capabilities_router
+from mori.operations.speech import router as speech_router
 from mori.organizer import calendar, documents, notes, reminders
-from mori.organizer.models import (
-    CalendarEvent,
-    Document,
-    Note,
-    Reminder,
-    UserPreference,
-    WriteReceipt,
-)
-from mori.parking.models import ParkingRecord
 from mori.parking.router import router as parking_router
+from mori.runtimes.router import router as runtimes_router
 
 
 class HealthStatus(BaseModel):
@@ -66,7 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Mori API",
-        version="0.8.0",
+        version="0.9.0",
         description=DESCRIPTION,
         openapi_tags=TAGS,
         swagger_ui_parameters={
@@ -84,7 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Authorization", "Content-Type", "Idempotency-Key"],
+        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "Last-Event-ID"],
         expose_headers=["X-Mori-Run-ID"],
     )
 
@@ -103,6 +83,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(membership_router)
     app.include_router(chat_router)
     for router in (
+        capabilities_router,
+        speech_router,
+        artifacts_router,
+        runtimes_router,
+        billing_router,
         notes.router,
         calendar.router,
         reminders.router,
@@ -127,34 +112,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         tags=["health"],
     )
     def ready(session: DatabaseSession, response: Response) -> HealthStatus:
-        # Check schema availability, not just whether a database accepts connections.
-        session.execute(select(User).limit(0))
-        session.execute(select(AccessToken.id).limit(0))
-        session.execute(select(ParkingRecord).limit(0))
-        for model in (SocialIdentity, AuthSession, OAuthFlow, LoginGrant, RefreshToken):
-            session.execute(select(model).limit(0))
-        session.execute(select(AccessChange).limit(0))
-        session.execute(select(Conversation.id).limit(0))
-        session.execute(select(ChatTurn.id).limit(0))
-        for model in (
-            Note,
-            CalendarEvent,
-            Reminder,
-            Document,
-            UserPreference,
-            AccountSettings,
-            WriteReceipt,
-            Feature,
-            SkillVersion,
-            FeatureResult,
-            AutomationJob,
-            AutomationScheduleState,
-            NewsBriefing,
-            MarketWatch,
-            PushSubscription,
-            ReminderDelivery,
-        ):
-            session.execute(select(model).limit(0))
+        # All imported models participate, including optional worker/runtime schemas.
+        for table in Base.metadata.sorted_tables:
+            session.execute(select(table).limit(0))
         response.headers["Cache-Control"] = "no-store"
         return HealthStatus(status="ready")
 

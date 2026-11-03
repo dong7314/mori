@@ -22,9 +22,11 @@ PoC의 대시보드·스케줄·대화·기능·마이 화면을 위한 Mori API
 
 ### 구현 범위
 일정·메모·알림 목표·사용자 기능 정의와 체크리스트 결과를 저장합니다.
-별도 worker는 예약 실행·뉴스 수집·시세 수집·Web Push를 처리합니다.
-SearXNG, 시세 gateway, VAPID와 기기 구독은 서버 설정이 필요하며 capabilities에 반영됩니다.
-실제 결제와 Office 문서 변환은 아직 연결되지 않았습니다.
+별도 worker는 영속 채팅·예약 실행·뉴스 요약·시세 수집·Web Push·문서 작업·결제 갱신을 처리합니다.
+무료 계정은 사용자별 실행 문맥을 분리한 공용 Hermes에, Pro는 개인 Knative 환경에 연결합니다.
+Toss 웹 정기 결제, KIS 시세·국내 당일 1분봉, 문서 처리, 음성 전사는 각 서버 설정이 필요합니다.
+설정 여부와 worker 상태는 `/v1/capabilities`에서 구분합니다.
+외부 서비스 실연동은 배포 후 검증합니다.
 요청 실행은 현재 연결된 API의 데이터를 실제로 변경합니다.
 """
 
@@ -38,7 +40,11 @@ TAGS = [
     {"name": "automation", "description": "예약 실행의 상태·재시도·결과 이력"},
     {"name": "data", "description": "구조화 뉴스와 관심 종목·시세·일/주/월 캔들"},
     {"name": "notifications", "description": "Web Push 기기 구독 및 기기별 알림 전달 상태"},
-    {"name": "documents", "description": "TXT·MD·CSV 원문 보관 및 다운로드"},
+    {"name": "documents", "description": "텍스트·Office·PDF·한글 파일 보관과 문서 작업"},
+    {"name": "billing", "description": "웹 정기 결제·구독 해지·갱신·주문 검증"},
+    {"name": "runtime", "description": "개인 Hermes 배정·준비 상태·재시도"},
+    {"name": "capabilities", "description": "기능 설정과 worker 상태"},
+    {"name": "speech", "description": "음성을 텍스트로 전사"},
     {"name": "parking", "description": "사용자별 주차 위치 저장과 최신 위치 조회"},
     {"name": "account", "description": "마이: 내 정보·프로필 수정·테마·요금제와 결제 상태"},
     {"name": "auth", "description": "네이버·카카오 소셜 로그인과 Mori 인증 세션"},
