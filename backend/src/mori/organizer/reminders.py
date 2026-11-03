@@ -159,8 +159,10 @@ def resume(
     row = service.owned(session, Reminder, user.id, resource_id, lock=True)
     service.check_revision(row, payload.revision)
     now = datetime.now(UTC)
+    service.check_datetime(payload.target_at)
     if payload.target_at <= now:
         raise ApiError(422, "REMINDER_IN_PAST", "알림 목표 시각은 현재 이후여야 합니다.")
+    row.started_at = now
     row.target_at = payload.target_at
     row.cancelled = False
     row.revision += 1
@@ -181,7 +183,13 @@ def extend(
     row = service.owned(session, Reminder, user.id, resource_id, lock=True)
     service.check_revision(row, payload.revision)
     now = datetime.now(UTC)
-    row.target_at = max(now, row.target_at) + timedelta(minutes=payload.minutes)
+    try:
+        target_at = max(now, row.target_at) + timedelta(minutes=payload.minutes)
+    except OverflowError as exc:
+        raise ApiError(
+            422, "INVALID_REMINDER_TARGET", "연장한 알림 시각을 처리할 수 없습니다."
+        ) from exc
+    row.target_at = target_at
     row.cancelled = False
     row.revision += 1
     row.updated_at = now

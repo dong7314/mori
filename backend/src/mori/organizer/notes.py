@@ -36,7 +36,7 @@ def create(
 def list_items(
     user: CurrentUser,
     session: DatabaseSession,
-    q: str = Query("", max_length=200),
+    q: str = Query("", max_length=200, pattern=r"^[^\x00]*$"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0, le=100000),
 ):

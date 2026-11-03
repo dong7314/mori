@@ -14,7 +14,7 @@ from pydantic import (
 )
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
-Clock = Annotated[str, StringConstraints(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")]
+Clock = Annotated[str, StringConstraints(pattern=r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")]
 DOCUMENT_MAX_BYTES = 10_000_000
 
 
@@ -60,7 +60,9 @@ class NoteUpdate(NoteWrite, Revision):
 
 
 class NoteRead(NoteWrite, RecordRead):
-    pass
+    updated_at: AwareDatetime = Field(
+        description="Last content save time; deleting or restoring a note preserves this value."
+    )
 
 
 class EventWrite(Input):
@@ -82,7 +84,11 @@ class EventWrite(Input):
         if self.all_day:
             zone = ZoneInfo(self.timezone)
             for value in (self.starts_at, self.ends_at):
-                if value.astimezone(zone).time().isoformat() != "00:00:00":
+                try:
+                    midnight = value.astimezone(zone).time().isoformat() == "00:00:00"
+                except OverflowError as exc:
+                    raise ValueError("All-day boundaries must be representable locally") from exc
+                if not midnight:
                     raise ValueError("All-day boundaries must be local midnight; end is exclusive")
         return self
 
@@ -119,12 +125,24 @@ class ReminderExtend(Revision):
 
 
 class ReminderRead(ReminderWrite, RecordRead):
+    started_at: AwareDatetime = Field(
+        description="Current timer's progress origin. Reset on restart; preserved on extension."
+    )
     cancelled: bool
     delivery_status: Literal["unknown", "not_configured", "no_subscription", "ready"] = Field(
         default="unknown",
         description="Push channel readiness, not an individual device delivery receipt.",
     )
     deliveries_url: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def legacy_start(cls, value):
+        # Idempotent create receipts saved before this field still describe the
+        # original timer, not the current (possibly restarted) resource.
+        if isinstance(value, dict) and "started_at" not in value and "created_at" in value:
+            return {**value, "started_at": value["created_at"]}
+        return value
 
     @model_validator(mode="after")
     def delivery_link(self):
@@ -201,3 +219,8 @@ class LibraryItem(BaseModel):
     description: str
     updated_at: datetime
     detail_url: str
+    icon: str = Field(description="Record icon; feature results use the feature's current icon.")
+    filename: str | None = None
+    size_bytes: int | None = Field(default=None, ge=0)
+    item_count: int | None = Field(default=None, ge=0)
+    completed_count: int | None = Field(default=None, ge=0)
