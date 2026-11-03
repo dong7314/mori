@@ -39,6 +39,11 @@ def records(
     kind: Literal["note", "document", "feature_result"] | None = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0, le=100000),
-    q: str = Query("", max_length=200, description="Literal title or full-content search."),
+    q: str = Query(
+        "",
+        max_length=200,
+        pattern=r"^[^\x00]*$",
+        description="Literal title or full-content search.",
+    ),
 ):
     return library(session, user.id, kind, limit, offset, q=q)

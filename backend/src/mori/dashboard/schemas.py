@@ -17,6 +17,7 @@ class TimelineItem(BaseModel):
     key: str
     kind: Literal["event", "reminder", "parking", "feature"]
     resource_id: str
+    builtin_key: Literal["news", "stock"] | None = None
     title: str
     description: str
     at: datetime
@@ -56,4 +57,6 @@ class DashboardRead(BaseModel):
     count: int
     truncated: bool
     next_refresh_at: datetime
-    recent_records: list[LibraryItem]
+    recent_records: list[LibraryItem] = Field(
+        max_length=5, description="Up to five recent records; use /v1/library for the full list."
+    )

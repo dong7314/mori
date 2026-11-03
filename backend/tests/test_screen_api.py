@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
+from chat_test_support import running_chat_worker
 from pydantic import SecretStr, ValidationError
 from sqlalchemy import func, select
 from test_chat import SECRET, Agent, completed, conversation, events, send
@@ -27,7 +28,8 @@ def agent(client, accounts):
     settings.hermes_test_user_id = accounts["alice"]["user_id"]
     mock = Agent()
     client.app.dependency_overrides[get_chat_transport] = lambda: httpx.MockTransport(mock)
-    return mock
+    with running_chat_worker(client):
+        yield mock
 
 
 def create(client, accounts, path, payload, *, key=None, who="alice"):
@@ -331,6 +333,22 @@ def test_dashboard_windows_boundary_and_read_only(client, accounts):
         cards(client.get("/v1/dashboard", params=params, headers=accounts["bob"]["headers"])) == []
     )
     assert client.get("/v1/dashboard", params={**params, "hours": 2}, headers=h).status_code == 422
+
+
+def test_dashboard_current_event_includes_exact_display_start(client, accounts):
+    saved = create(client, accounts, "calendar/events", event()).json()
+    headers = accounts["alice"]["headers"]
+    for instant, visible in (
+        ("2026-10-01T06:29:59.999999+09:00", False),
+        ("2026-10-01T06:30:00+09:00", True),
+        ("2026-10-01T06:30:00.000001+09:00", True),
+        ("2026-10-01T10:00:00+09:00", False),
+    ):
+        rows = cards(
+            client.get("/v1/dashboard", params={"hours": 0, "at": instant}, headers=headers)
+        )
+        assert [row["resource_id"] for row in rows] == ([saved["id"]] if visible else [])
+        assert all(row["current"] for row in rows)
 
 
 def test_parking_display_uses_existing_assistant_context(client, accounts, sessions):

@@ -3,10 +3,13 @@
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, literal, select, union_all
+from sqlalchemy import Integer, String, cast, func, literal, select, union_all
+from sqlalchemy.dialects.postgresql import JSONPATH
 
+from mori.artifacts.models import StoredFile
 from mori.features.models import Feature, FeatureResult
 from mori.features.service import automation_available
+from mori.integrations.models import MarketWatch
 from mori.notifications.models import PushSubscription
 from mori.organizer.models import CalendarEvent, Document, Note, Reminder
 from mori.organizer.service import assistant_preferences
@@ -37,7 +40,45 @@ def library(session, user_id, kind, limit, offset, q=""):
             model.title,
             func.left(field, 160).label("description"),
             model.updated_at,
+            literal(
+                {"note": "notes", "document": "documents", "feature_result": "feature-results"}[
+                    name
+                ]
+            ).label("detail_path"),
+            (
+                func.coalesce(Feature.icon, "spark")
+                if model is FeatureResult
+                else literal("note" if model is Note else "file")
+            ).label("icon"),
+            (Document.filename if model is Document else cast(literal(None), String)).label(
+                "filename"
+            ),
+            (
+                func.octet_length(Document.text)
+                if model is Document
+                else cast(literal(None), Integer)
+            ).label("size_bytes"),
+            (
+                func.jsonb_array_length(FeatureResult.items)
+                if model is FeatureResult
+                else cast(literal(None), Integer)
+            ).label("item_count"),
+            (
+                func.jsonb_array_length(
+                    func.jsonb_path_query_array(
+                        FeatureResult.items, cast("$[*] ? (@.done == true)", JSONPATH)
+                    )
+                )
+                if model is FeatureResult
+                else cast(literal(None), Integer)
+            ).label("completed_count"),
         ).where(model.user_id == user_id, model.deleted_at.is_(None))
+        if model is FeatureResult:
+            query = query.outerjoin(
+                Feature,
+                (Feature.id == FeatureResult.feature_id)
+                & (Feature.user_id == FeatureResult.user_id),
+            )
         if term:
             matches = model.title.icontains(term, autoescape=True) | field.icontains(
                 term, autoescape=True
@@ -46,6 +87,24 @@ def library(session, user_id, kind, limit, offset, q=""):
                 matches |= Document.filename.icontains(term, autoescape=True)
             query = query.where(matches)
         queries.append(query)
+    if kind in (None, "document"):
+        files = select(
+            StoredFile.id,
+            literal("document").label("kind"),
+            StoredFile.filename.label("title"),
+            StoredFile.filename.label("description"),
+            StoredFile.created_at.label("updated_at"),
+            literal("files").label("detail_path"),
+            literal("file").label("icon"),
+            StoredFile.filename,
+            StoredFile.size_bytes,
+            cast(literal(None), Integer).label("item_count"),
+            cast(literal(None), Integer).label("completed_count"),
+        )
+        files = files.where(StoredFile.user_id == user_id, StoredFile.deleted_at.is_(None))
+        if term:
+            files = files.where(StoredFile.filename.icontains(term, autoescape=True))
+        queries.append(files)
     rows = union_all(*queries).subquery()
     total = session.scalar(select(func.count()).select_from(rows))
     selected = session.execute(
@@ -55,11 +114,11 @@ def library(session, user_id, kind, limit, offset, q=""):
         .limit(limit + 1)
     )
     items = []
-    paths = {"note": "notes", "document": "documents", "feature_result": "feature-results"}
     for row in selected.mappings():
         value = dict(row)
         value["description"] = value["description"][:160]
-        value["detail_url"] = f"/v1/{paths[row['kind']]}/{row['id']}"
+        path = value.pop("detail_path")
+        value["detail_url"] = f"/v1/{path}/{row['id']}"
         items.append(value)
     return {
         "items": items[:limit],
@@ -100,6 +159,7 @@ def timeline(session, user_id, hours, now, limit, *, settings=None, tier=None):
         url,
         availability="available",
         ongoing=None,
+        builtin_key=None,
     ):
         current = show_from <= now and (show_until is None or now < show_until)
         if not current and (hours == 0 or not now <= at < until):
@@ -109,6 +169,7 @@ def timeline(session, user_id, hours, now, limit, *, settings=None, tier=None):
                 key=f"{kind}:{resource_id}@{at.isoformat()}",
                 kind=kind,
                 resource_id=str(resource_id),
+                builtin_key=builtin_key,
                 title=title,
                 description=description,
                 at=at,
@@ -134,7 +195,7 @@ def timeline(session, user_id, hours, now, limit, *, settings=None, tier=None):
             CalendarEvent.user_id == user_id,
             CalendarEvent.deleted_at.is_(None),
             CalendarEvent.ends_at > now,
-            CalendarEvent.starts_at < until + timedelta(minutes=150),
+            CalendarEvent.starts_at <= until + timedelta(minutes=150),
         )
         .order_by(CalendarEvent.starts_at, CalendarEvent.id)
     )
@@ -187,7 +248,8 @@ def timeline(session, user_id, hours, now, limit, *, settings=None, tier=None):
             Feature.user_id == user_id,
             Feature.deleted_at.is_(None),
             Feature.status == "active",
-            Feature.schedule.is_not(None),
+            # JSONB null is distinct from SQL NULL for unscheduled features.
+            func.jsonb_typeof(Feature.schedule) == "object",
         )
         .order_by(Feature.id)
     )
@@ -249,11 +311,13 @@ def timeline(session, user_id, hours, now, limit, *, settings=None, tier=None):
                     "/v1/parking-records/latest",
                 )
         day += timedelta(days=1)
+    watch = session.scalar(select(MarketWatch).where(MarketWatch.user_id == user_id))
     for row in features:
         schedule = row.schedule
         fzone = ZoneInfo(schedule["timezone"])
         first_day = now.astimezone(fzone).date() - timedelta(days=1)
-        last_day = until.astimezone(fzone).date()
+        # A midnight briefing is visible during the previous day's final half hour.
+        last_day = (until + timedelta(minutes=30)).astimezone(fzone).date()
         day = first_day
         while day <= last_day:
             eligible = schedule["repeat"] != "weekdays" or day.weekday() < 5
@@ -261,19 +325,36 @@ def timeline(session, user_id, hours, now, limit, *, settings=None, tier=None):
                 eligible = day.isoformat() == schedule["date"]
             at = wall_time(day, schedule["time"], fzone) if eligible else None
             if at:
+                show_from, show_until = at, at + timedelta(minutes=90)
+                description, url, action = (
+                    row.description or row.work,
+                    f"/v1/features/{row.id}",
+                    "execute",
+                )
+                if row.builtin_key == "news":
+                    show_from, show_until = at - timedelta(minutes=30), at + timedelta(hours=3)
+                    description, url = row.work, "/v1/news"
+                elif row.builtin_key == "stock":
+                    close = wall_time(day, "16:00", fzone)
+                    # Keep explicitly chosen evening schedules usable; 16:00 is the
+                    # daytime card default, not a restriction on the user's start time.
+                    show_until = close if close is not None and close > at else show_until
+                    description = watch.symbol if watch else row.work
+                    url, action = "/v1/market/quote", "display"
                 add(
                     "feature",
                     row.id,
                     row.title,
-                    row.description,
+                    description,
                     at,
-                    at,
-                    at + timedelta(minutes=90),
-                    "execute",
-                    f"/v1/features/{row.id}",
+                    show_from,
+                    show_until,
+                    action,
+                    url,
                     "automation_configured"
-                    if automation_available(row, settings, tier)
+                    if automation_available(row, settings, tier, session=session)
                     else "automation_not_configured",
+                    builtin_key=row.builtin_key,
                 )
             day += timedelta(days=1)
     entries.sort(key=lambda x: (not x["current"], x["at"], x["key"]))
@@ -303,5 +384,5 @@ def timeline(session, user_id, hours, now, limit, *, settings=None, tier=None):
         "count": min(len(entries), limit),
         "truncated": more,
         "next_refresh_at": datetime.now(UTC) + timedelta(seconds=60),
-        "recent_records": library(session, user_id, None, 3, 0)["items"],
+        "recent_records": library(session, user_id, None, 5, 0)["items"],
     }
