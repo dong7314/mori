@@ -25,7 +25,7 @@ router = APIRouter(responses=PRIVATE_API_RESPONSES, prefix="/v1", tags=["feature
 
 
 @router.get("/feature-catalog", response_model=CatalogRead)
-def catalog(user: CurrentUser, request: Request):
+def catalog(user: CurrentUser, request: Request, session: DatabaseSession):
     settings = request.app.state.settings
     return {
         "items": service.CATALOG,
@@ -33,10 +33,11 @@ def catalog(user: CurrentUser, request: Request):
         "capabilities": {
             "scheduled_execution": settings.automation_enabled,
             "push_delivery": settings.push_enabled,
-            "market_data": bool(settings.market_data_base_url),
-            "office_conversion": False,
+            "market_data": bool(settings.market_data_base_url) or settings.kis_enabled,
+            "office_conversion": settings.documents_enabled,
             "text_document_storage": True,
-            "custom_chat_execution": service.chat_available(settings, user.id, user.tier),
+            "custom_chat_execution": settings.chat_worker_enabled
+            and service.chat_available(settings, user.id, user.tier, session=session),
             "news_collection": bool(settings.searxng_base_url),
         },
     }
@@ -57,7 +58,9 @@ def create(
         idempotency_key,
         payload,
         lambda: service.create_feature(session, user.id, payload),
-        lambda row: service.read_feature(row, request.app.state.settings, user.tier),
+        lambda row: service.read_feature(
+            row, request.app.state.settings, user.tier, session=session
+        ),
     )
 
 
@@ -70,7 +73,7 @@ def listing(
     offset: int = Query(0, ge=0, le=100000),
 ):
     return [
-        service.read_feature(row, request.app.state.settings, user.tier)
+        service.read_feature(row, request.app.state.settings, user.tier, session=session)
         for row in session.scalars(
             select(Feature)
             .where(
@@ -90,6 +93,7 @@ def detail(feature_id: UUID, user: CurrentUser, session: DatabaseSession, reques
         owned(session, Feature, user.id, feature_id),
         request.app.state.settings,
         user.tier,
+        session=session,
     )
 
 
@@ -103,7 +107,7 @@ def replace(
 ):
     row = service.update_feature(session, user.id, feature_id, payload)
     session.commit()
-    return service.read_feature(row, request.app.state.settings, user.tier)
+    return service.read_feature(row, request.app.state.settings, user.tier, session=session)
 
 
 @router.post("/features/{feature_id}/state", response_model=FeatureRead)
@@ -119,11 +123,16 @@ def state(
     if payload.status == "active" and not row.work:
         raise ApiError(409, "FEATURE_INCOMPLETE", "수행할 내용을 먼저 입력해 주세요.")
     if row.status != payload.status:
+        previous_revision = row.revision
         row.status = payload.status
         row.revision += 1
         row.updated_at = datetime.now(UTC)
+        if row.builtin_key == "news":
+            from mori.integrations.news import rebase_briefing
+
+            rebase_briefing(session, row, previous_revision)
     session.commit()
-    return service.read_feature(row, request.app.state.settings, user.tier)
+    return service.read_feature(row, request.app.state.settings, user.tier, session=session)
 
 
 @router.get("/features/{feature_id}/versions/{version}", response_model=FeatureRead)

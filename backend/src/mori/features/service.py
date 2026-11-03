@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from mori.errors import ApiError
 from mori.features.models import Feature, FeatureResult, SkillVersion
-from mori.features.schemas import FeatureRead
+from mori.features.schemas import FeatureRead, Schedule
 from mori.organizer.service import assistant_preferences, check_revision, lock_user, owned
 
 CATALOG = [
@@ -21,41 +21,50 @@ CATALOG = [
 ]
 
 
-def automation_available(row, settings, tier=None):
+def automation_available(row, settings, tier=None, session=None):
     if not settings or not settings.automation_enabled:
         return False
     if row.builtin_key == "news":
         return bool(settings.searxng_base_url)
     if row.builtin_key == "stock":
-        return bool(settings.market_data_base_url)
+        from mori.integrations.market import market_configured
+
+        return market_configured(settings)
     return (
-        chat_available(settings, row.user_id, tier) if tier is not None else settings.chat_enabled
+        chat_available(settings, row.user_id, tier, session=session)
+        if tier is not None
+        else settings.chat_enabled
     )
 
 
-def chat_available(settings, user_id, tier):
+def chat_available(settings, user_id, tier, session=None):
     from mori.chat.runtime import resolve_runtime
 
     try:
-        resolve_runtime(settings, user_id, tier)
+        resolve_runtime(settings, user_id, tier, session=session)
         return True
     except ApiError:
         return False
 
 
-def read_feature(row, settings=None, tier=None):
+def read_feature(row, settings=None, tier=None, session=None):
     result = FeatureRead.model_validate(row)
     result.automation_status = "not_configured" if row.schedule else "not_requested"
-    if row.schedule and automation_available(row, settings, tier):
+    if row.schedule and automation_available(row, settings, tier, session=session):
         result.automation_status = "configured"
     result.execution_available = (
         row.builtin_key != "stock" and bool(row.work) and row.status == "active"
     )
     if settings and tier is not None:
-        result.execution_available = result.execution_available and chat_available(
-            settings,
-            row.user_id,
-            tier,
+        result.execution_available = (
+            result.execution_available
+            and settings.chat_worker_enabled
+            and chat_available(
+                settings,
+                row.user_id,
+                tier,
+                session=session,
+            )
         )
     return result
 
@@ -97,6 +106,19 @@ def normalize_schedule(session, user_id, schedule, *, previous=None, now=None):
     return result
 
 
+def schedule_for_write(session, user_id, schedule, *, previous=None):
+    result = normalize_schedule(session, user_id, schedule, previous=previous)
+    if result is not None:
+        try:
+            # Resolve inherited timezone/date values before checking UTC bounds.
+            Schedule.model_validate(result).validate_utc_range()
+        except (ValueError, OverflowError) as exc:
+            raise ApiError(
+                422, "VALIDATION_ERROR", "예약 시각을 UTC와 현지 시각으로 표현할 수 없습니다."
+            ) from exc
+    return result
+
+
 def create_feature(session, user_id, payload):
     lock_user(session, user_id)
     if payload.builtin_key and session.scalar(
@@ -107,7 +129,7 @@ def create_feature(session, user_id, payload):
     ):
         raise ApiError(409, "FEATURE_EXISTS", "이미 등록한 기본 기능입니다.")
     definition = payload.model_dump(mode="json")
-    definition["schedule"] = normalize_schedule(session, user_id, payload.schedule)
+    definition["schedule"] = schedule_for_write(session, user_id, payload.schedule)
     row = Feature(
         user_id=user_id,
         **definition,
@@ -122,8 +144,9 @@ def create_feature(session, user_id, payload):
 def update_feature(session, user_id, feature_id, payload):
     row = owned(session, Feature, user_id, feature_id, lock=True)
     check_revision(row, payload.revision)
+    previous_work, previous_revision = row.work, row.revision
     definition = payload.model_dump(mode="json", exclude={"revision"})
-    definition["schedule"] = normalize_schedule(
+    definition["schedule"] = schedule_for_write(
         session, user_id, payload.schedule, previous=row.schedule
     )
     for key, value in definition.items():
@@ -132,6 +155,10 @@ def update_feature(session, user_id, feature_id, payload):
     row.version += 1
     row.revision += 1
     row.updated_at = datetime.now(UTC)
+    if row.builtin_key == "news" and row.work == previous_work:
+        from mori.integrations.news import rebase_briefing
+
+        rebase_briefing(session, row, previous_revision)
     session.flush()
     save_version(session, row)
     return row
