@@ -79,18 +79,67 @@ def read_input(root, file_id):
 
 def word(operation, source, spec):
     from docx import Document
+    from docx.oxml.ns import qn
+    from docx.text.paragraph import Paragraph
 
     doc = Document(source) if source else Document()
     if operation == "read":
-        values = [p.text for p in doc.paragraphs]
-        values.extend("\t".join(c.text for c in row.cells) for t in doc.tables for row in t.rows)
-        content = "\n".join(values)
+        # Keep edit indices tied to the original top-level body paragraphs.
+        # python-docx omits structured document tags and simple fields from
+        # block/run iteration. Expose only their cached display content in this
+        # read-only DOM; field instructions are never executed or refreshed.
+        body_paragraphs = doc.paragraphs
+        for control in doc._element.xpath(".//w:sdt | .//w:fldSimple"):
+            content = control.find(qn("w:sdtContent")) if control.tag == qn("w:sdt") else control
+            if content is not None:
+                for child in list(content):
+                    control.addprevious(child)
+                control.getparent().remove(control)
+
+        def fragments(container, depth=0):
+            if depth > 64:
+                raise ValueError("Word table nesting exceeds 64 levels")
+            first = True
+            for block in container.iter_inner_content():
+                if isinstance(block, Paragraph):
+                    if not first:
+                        yield "\n"
+                    yield block.text
+                    first = False
+                else:
+                    # row.cells expands merged cells into every occupied grid
+                    # position. Read their shared XML cell once, retaining blank
+                    # grid positions so column and row separators stay stable.
+                    seen_cells = set()
+                    for row in block.rows:
+                        if not first:
+                            yield "\n"
+                        first = False
+                        for column, cell in enumerate(row.cells):
+                            if column:
+                                yield "\t"
+                            if cell._tc in seen_cells:
+                                continue
+                            seen_cells.add(cell._tc)
+                            yield from fragments(cell, depth + 1)
+
+        # Preserve the paragraph/row separators without building an unbounded
+        # nested-table string. One extra character records a truncated preview.
+        values, remaining = [], MAX_TEXT + 1
+        for part in fragments(doc):
+            values.append(part[:remaining])
+            remaining -= len(values[-1])
+            if remaining == 0:
+                break
+        content = "".join(values)
         return {
             "text": content[:MAX_TEXT],
             "truncated": len(content) > MAX_TEXT,
             "body_paragraphs": [
-                {"index": i, "text": p.text[:1000]} for i, p in enumerate(doc.paragraphs[:100])
+                {"index": i, "text": p.text[:1000]} for i, p in enumerate(body_paragraphs[:100])
             ],
+            "body_paragraphs_truncated": len(body_paragraphs) > 100
+            or any(len(p.text) > 1000 for p in body_paragraphs[:100]),
         }, None
     if operation == "create":
         fields(spec, ("title", "paragraphs"))
