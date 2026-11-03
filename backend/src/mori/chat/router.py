@@ -6,9 +6,9 @@ from typing import Annotated
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import func, select, true
 
 from mori.auth.dependencies import CurrentUser
 from mori.chat import store
@@ -19,9 +19,11 @@ from mori.chat.runtime import resolve_runtime
 from mori.chat.schemas import (
     ChatMessage,
     ConversationCreate,
+    ConversationListRead,
     ConversationRead,
     ConversationUpdate,
     Decision,
+    RunAccepted,
 )
 from mori.database import DatabaseSession
 from mori.errors import ApiError
@@ -49,17 +51,34 @@ def create_conversation(payload: ConversationCreate, user: CurrentUser, session:
     return row
 
 
-@router.get("", response_model=list[ConversationRead])
+@router.get("", response_model=list[ConversationListRead])
 def list_conversations(
     user: CurrentUser,
     session: DatabaseSession,
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(0, ge=0, le=100000),
-    q: str = Query("", max_length=200),
+    q: str = Query("", max_length=200, pattern=r"^[^\x00]*$"),
 ):
-    return list(
-        session.scalars(
-            select(Conversation)
+    latest = (
+        select(
+            func.coalesce(ChatTurn.answer, ChatTurn.message).label("message"),
+            ChatTurn.created_at.label("at"),
+        )
+        .where(ChatTurn.conversation_id == Conversation.id)
+        .order_by(ChatTurn.created_at.desc(), ChatTurn.id.desc())
+        .limit(1)
+        .lateral()
+    )
+    activity = func.coalesce(latest.c.at, Conversation.created_at)
+    return [
+        {
+            **ConversationRead.model_validate(row).model_dump(),
+            "last_message": last_message,
+            "last_activity_at": last_activity_at,
+        }
+        for row, last_message, last_activity_at in session.execute(
+            select(Conversation, latest.c.message, activity)
+            .outerjoin(latest, true())
             .where(
                 Conversation.user_id == user.id,
                 Conversation.deleted_at.is_(None),
@@ -72,13 +91,11 @@ def list_conversations(
                 )
                 .exists(),
             )
-            .order_by(
-                Conversation.pinned.desc(), Conversation.updated_at.desc(), Conversation.id.desc()
-            )
+            .order_by(Conversation.pinned.desc(), activity.desc(), Conversation.id.desc())
             .offset(offset)
             .limit(limit)
         )
-    )
+    ]
 
 
 @router.get("/{conversation_id}/messages")
@@ -107,6 +124,7 @@ def list_messages(
         {
             "run_id": t.id,
             "message": t.message,
+            "attachments": t.attachments,
             "answer": t.answer,
             "status": t.status,
             "created_at": t.created_at,
@@ -131,7 +149,9 @@ async def get_run(
     )
 
 
-async def work(factory, run_id, user_id, settings, runtime, transport, message, history):
+async def work(
+    factory, run_id, user_id, settings, runtime, transport, message, history, *, lease_token=None
+):
     try:
         yield {
             "id": 1,
@@ -145,14 +165,22 @@ async def work(factory, run_id, user_id, settings, runtime, transport, message, 
             run_id,
             "runtime.connecting",
             message="모리에게 연결하고 있어요. 잠들어 있다면 깨울게요.",
+            lease_token=lease_token,
         )
         async with asyncio.timeout(settings.hermes_timeout_seconds):
+            from mori.chat.attachments import prepare_attachments
+
+            attachments = await asyncio.to_thread(
+                prepare_attachments, factory, settings, user_id, run_id, lease_token
+            )
             async with httpx.AsyncClient(
                 transport=transport, trust_env=False, follow_redirects=False
             ) as client:
                 # At most one selection round followed by the pinned skill execution.
                 for attempt in range(2):
-                    context = await asyncio.to_thread(execution_context, factory, user_id, run_id)
+                    context = await asyncio.to_thread(
+                        execution_context, factory, user_id, run_id, attachments=attachments
+                    )
                     selected = False
                     async with contextlib.aclosing(
                         interpret(client, runtime, settings, message, history, context)
@@ -164,7 +192,12 @@ async def work(factory, run_id, user_id, settings, runtime, transport, message, 
                                         502, "FEATURE_SELECTION_LOOP", "기능 선택을 확인해 주세요."
                                     )
                                 yield await asyncio.to_thread(
-                                    store.bind_feature, factory, user_id, run_id, item.feature_id
+                                    store.bind_feature,
+                                    factory,
+                                    user_id,
+                                    run_id,
+                                    item.feature_id,
+                                    lease_token=lease_token,
                                 )
                                 selected = True
                                 break
@@ -177,6 +210,13 @@ async def work(factory, run_id, user_id, settings, runtime, transport, message, 
                                         "event_save": "일정을 저장하고 있어요.",
                                         "reminder_save": "알림 목표 시각을 저장하고 있어요.",
                                         "feature_save": "내 기능에 저장하고 있어요.",
+                                        "feature_lookup": "내 기능의 상태를 확인하고 있어요.",
+                                        "batch": "요청한 내용을 함께 저장하고 있어요.",
+                                        "document_process": "문서 작업을 등록하고 있어요.",
+                                        "news_settings": "뉴스 설정을 저장하고 있어요.",
+                                        "news_refresh": "뉴스를 수집하고 있어요.",
+                                        "market_settings": "관심 종목을 저장하고 있어요.",
+                                        "market_lookup": "관심 종목의 시세를 확인하고 있어요.",
                                     }
                                     yield await asyncio.to_thread(
                                         store.progress,
@@ -185,15 +225,43 @@ async def work(factory, run_id, user_id, settings, runtime, transport, message, 
                                         "action.started",
                                         action=item.action,
                                         message=labels[item.action],
+                                        lease_token=lease_token,
                                     )
+                                from mori.chat.integrations import prepare
+
+                                prepared = await prepare(
+                                    factory,
+                                    settings,
+                                    run_id,
+                                    user_id,
+                                    item,
+                                    lease_token=lease_token,
+                                    transport=transport,
+                                )
                                 for event in await asyncio.to_thread(
-                                    store.finish, factory, run_id, user_id, item
+                                    store.finish,
+                                    factory,
+                                    run_id,
+                                    user_id,
+                                    item,
+                                    lease_token=lease_token,
+                                    settings=settings,
+                                    runtime_url=runtime.url,
+                                    prepared=prepared,
+                                    feature_context_ids=[
+                                        feature["id"] for feature in json.loads(context)["features"]
+                                    ],
                                 ):
                                     yield event
                             else:
                                 kind = item.pop("type")
                                 yield await asyncio.to_thread(
-                                    store.progress, factory, run_id, kind, **item
+                                    store.progress,
+                                    factory,
+                                    run_id,
+                                    kind,
+                                    lease_token=lease_token,
+                                    **item,
                                 )
                     if not selected:
                         break
@@ -209,14 +277,17 @@ async def work(factory, run_id, user_id, settings, runtime, transport, message, 
                 else "CHAT_FAILED"
             )
         )
+        if lease_token is not None:
+            raise ApiError(502, code, "작업을 완료하지 못했습니다.") from exc
         event = await asyncio.to_thread(store.fail, factory, run_id, code)
         if event:
             yield event
     finally:
-        # Cancellation closes the upstream stream. A DB action already committed stays committed.
-        await asyncio.shield(
-            asyncio.to_thread(store.fail, factory, run_id, "CLIENT_DISCONNECTED", True)
-        )
+        # Legacy callers own this generator; durable jobs are fenced and recovered by their worker.
+        if lease_token is None:
+            await asyncio.shield(
+                asyncio.to_thread(store.fail, factory, run_id, "CLIENT_DISCONNECTED", True)
+            )
 
 
 async def with_heartbeats(iterator):
@@ -244,50 +315,55 @@ async def with_heartbeats(iterator):
         await iterator.aclose()
 
 
-@router.post(
-    "/{conversation_id}/messages",
-    response_class=StreamingResponse,
-    responses={200: {"content": {"text/event-stream": {}}}},
-)
-async def send_message(
-    conversation_id: UUID,
-    payload: ChatMessage,
-    user: CurrentUser,
-    session: DatabaseSession,
-    request: Request,
-    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
-    transport: Annotated[httpx.AsyncBaseTransport | None, Depends(get_chat_transport)],
-):
+def enqueue(request, session, user, conversation_id, payload, idempotency_key):
     settings = request.app.state.settings
+    store.owned(session, conversation_id, user.id)
+    resolve_runtime(settings, user.id, user.tier, session=session)
+    if not settings.chat_worker_enabled:
+        raise ApiError(503, "CHAT_WORKER_DISABLED", "채팅 작업 실행이 아직 활성화되지 않았습니다.")
+    if any(ref.kind == "file" for ref in payload.attachments) and not settings.documents_enabled:
+        raise ApiError(503, "DOCUMENTS_NOT_CONFIGURED", "문서 처리가 설정되지 않았습니다.")
     user_id = user.id
-    # Check ownership before agent routing and before reserving a run.
-    store.owned(session, conversation_id, user_id)
-    runtime = resolve_runtime(settings, user_id, user.tier)
     session.rollback()
-    factory = request.app.state.session_factory
-    run_id, replay, history = await asyncio.to_thread(
-        store.claim,
-        factory,
+    return store.claim(
+        request.app.state.session_factory,
         user_id,
         conversation_id,
         idempotency_key,
         payload.message,
         settings.hermes_timeout_seconds,
         payload.feature_id,
-    )
-    if replay is not None:
+        durable=True,
+        attachments=[ref.model_dump(mode="json") for ref in payload.attachments],
+    )[0]
 
-        async def replay_events():
-            for event in replay:
-                yield frame(event)
 
-        stream = replay_events()
-    else:
-        stream = with_heartbeats(
-            work(factory, run_id, user_id, settings, runtime, transport, payload.message, history)
+async def observe(factory, user_id, conversation_id, run_id, *, after=0, seconds=25):
+    deadline = asyncio.get_running_loop().time() + seconds
+    while True:
+        snapshot = await asyncio.to_thread(
+            store.snapshot, factory, user_id, conversation_id, run_id
         )
+        for event in snapshot["events"]:
+            if event["id"] > after:
+                after = event["id"]
+                yield frame({**event, "run_id": str(run_id)})
+        if snapshot["status"] != "running" or asyncio.get_running_loop().time() >= deadline:
+            return
+        yield ": keepalive\n\n"
+        await asyncio.sleep(0.25)
+
+
+def stream_response(request, user_id, conversation_id, run_id, after=0):
     return StreamingResponse(
-        stream,
+        observe(
+            request.app.state.session_factory,
+            user_id,
+            conversation_id,
+            run_id,
+            after=after,
+            seconds=request.app.state.settings.chat_stream_seconds,
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-store",
@@ -295,6 +371,82 @@ async def send_message(
             "X-Mori-Run-ID": str(run_id),
         },
     )
+
+
+@router.post(
+    "/{conversation_id}/messages",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/event-stream": {}}}},
+)
+def send_message(
+    conversation_id: UUID,
+    payload: ChatMessage,
+    user: CurrentUser,
+    session: DatabaseSession,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+):
+    user_id = user.id
+    run_id = enqueue(request, session, user, conversation_id, payload, idempotency_key)
+    return stream_response(request, user_id, conversation_id, run_id)
+
+
+@router.post("/{conversation_id}/runs", status_code=202, response_model=RunAccepted)
+def submit_run(
+    conversation_id: UUID,
+    payload: ChatMessage,
+    user: CurrentUser,
+    session: DatabaseSession,
+    request: Request,
+    idempotency_key: Annotated[UUID, Header(alias="Idempotency-Key")],
+):
+    run_id = enqueue(request, session, user, conversation_id, payload, idempotency_key)
+    path = f"/v1/conversations/{conversation_id}/runs/{run_id}"
+    return {"run_id": str(run_id), "status_url": path, "events_url": path + "/events"}
+
+
+@router.get(
+    "/{conversation_id}/runs/{run_id}/events",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/event-stream": {}}}},
+)
+def run_events(
+    conversation_id: UUID,
+    run_id: UUID,
+    user: CurrentUser,
+    session: DatabaseSession,
+    request: Request,
+    after: int = Query(0, ge=0, le=10000),
+    last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
+):
+    user_id = user.id
+    store.owned(session, conversation_id, user_id)
+    session.rollback()
+    store.snapshot(request.app.state.session_factory, user_id, conversation_id, run_id)
+    if last_event_id:
+        try:
+            previous_run, cursor = last_event_id.rsplit(":", 1)
+            if UUID(previous_run) != run_id or not 0 <= int(cursor) <= 10000:
+                raise ValueError
+            after = max(after, int(cursor))
+        except (ValueError, TypeError) as exc:
+            raise ApiError(422, "INVALID_EVENT_CURSOR", "이벤트 위치를 확인해 주세요.") from exc
+    return stream_response(request, user_id, conversation_id, run_id, after)
+
+
+@router.post("/{conversation_id}/runs/{run_id}/cancel")
+def cancel_run(
+    conversation_id: UUID,
+    run_id: UUID,
+    user: CurrentUser,
+    session: DatabaseSession,
+    request: Request,
+):
+    from mori.chat.jobs import cancel
+
+    user_id = user.id
+    session.rollback()
+    return cancel(request.app.state.session_factory, user_id, conversation_id, run_id)
 
 
 @router.patch("/{conversation_id}", response_model=ConversationRead)

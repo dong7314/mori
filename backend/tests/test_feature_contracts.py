@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from chat_test_support import running_chat_worker
 from pydantic import SecretStr, ValidationError
 from sqlalchemy import text
 from test_chat import SECRET, Agent, conversation, events
@@ -44,7 +45,8 @@ def agent(client, accounts):
     settings.hermes_test_user_id = accounts["alice"]["user_id"]
     mock = Agent()
     client.app.dependency_overrides[get_chat_transport] = lambda: httpx.MockTransport(mock)
-    return mock
+    with running_chat_worker(client):
+        yield mock
 
 
 def create(client, accounts, payload, *, key=None):

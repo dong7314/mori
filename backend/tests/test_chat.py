@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from chat_test_support import running_chat_worker
 from pydantic import SecretStr
 from sqlalchemy import func, select
 
@@ -84,7 +85,8 @@ def agent(client, accounts):
     settings.hermes_test_user_id = accounts["alice"]["user_id"]
     agent = Agent()
     client.app.dependency_overrides[get_chat_transport] = lambda: httpx.MockTransport(agent)
-    return agent
+    with running_chat_worker(client):
+        yield agent
 
 
 def conversation(client, accounts, who="alice"):
