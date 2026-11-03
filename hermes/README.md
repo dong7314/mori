@@ -47,7 +47,15 @@ docker run --rm --platform linux/amd64 \
 - SearXNG 고정 이미지에 실제 settings를 넣고 외부 네트워크 없이 다섯 내장 엔진 로딩·한국어 기본값·JSON 활성화를 확인했다.
 - 실제 Harbor push, 홈 k3s 재배포, GPU 모델 호출, 외부 엔진 검색 결과와 사진 로딩은 이 로컬 검사에 포함하지 않았다. 재배포 후 master 검사 CLI로 확인한다.
 
-이번 목적은 재현 가능한 개발 실행 환경이다. 공식 base의 불필요한 패키지를 제거한 경량 버전이나 다중 사용자 격리 구현은 아니다. 향후 base digest를 바꿀 때 provider/plugin API와 foreground 옵션까지 다시 검증한다.
+위 기록은 재현 가능한 단일 사용자 개발 실행 환경에 대한 검사다. 공식 base의 불필요한 패키지를 제거한 경량 버전은 아니다. 향후 base digest를 바꿀 때 provider/plugin API와 foreground 옵션까지 다시 검증한다.
+
+## Free 공유 Pod 모드
+
+`MORI_SHARED_GATEWAY_ENABLED=true`이면 공식 초기화·권한 하강 뒤 `shared_gateway.py`가 실행된다. Mori API가 인증한 UUID별로 `/opt/data/tenants/<uuid>` HOME·HERMES_HOME, 별도 Hermes 자식 프로세스와 매번 새 API 키를 만든다. 자식은 loopback에서만 수신한다. 서버 전용 공유 키와 UUID가 없는 요청은 받지 않고, `/v1/toolsets`와 무상태 스트리밍 `/v1/responses`만 전달한다.
+
+검색·추출·이미지 검색 도구만 활성화한다. 프로세스 상한, 유휴 회수, 사용자별 요청 직렬화, 프로필 수·저장량 검사를 적용한다. 같은 Unix UID의 논리적 프로필 분리이며 임의 코드 실행에 대한 보안 샌드박스가 아니다. Free마다 새 Pod를 만들지 않는다. [설정·제약·검증 절차](../infra/k3s/shared-gateway.md)를 따른다.
+
+로컬 HTTP·실제 자식 프로세스 테스트는 `python -m pytest hermes/tests/test_shared_gateway.py`로 실행한다(`aiohttp`, `PyYAML`, `pytest` 필요). 이 검사는 고정 Hermes 이미지의 실제 기동이나 클러스터 배포를 대체하지 않는다.
 
 ## 문서 생성·편집 확장
 

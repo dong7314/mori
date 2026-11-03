@@ -5,4 +5,7 @@ set -eu
 export PATH="/command:/package/admin/s6/command:$PATH"
 export HERMES_GATEWAY_NO_SUPERVISE=1
 /opt/hermes/docker/stage2-hook.sh
+if [ "${MORI_SHARED_GATEWAY_ENABLED:-false}" = "true" ]; then
+    exec /opt/hermes/docker/main-wrapper.sh python /opt/mori/shared_gateway.py
+fi
 exec /opt/hermes/docker/main-wrapper.sh "$@"

@@ -16,8 +16,10 @@ RUN python3 -m venv /opt/mori/documents-venv && \
     uv --no-config pip check --python /opt/mori/documents-venv/bin/python
 COPY plugins /opt/mori/plugins
 COPY bootstrap.py /opt/mori/bootstrap.py
+COPY shared_gateway.py /opt/mori/shared_gateway.py
 COPY checks /opt/mori/checks
-RUN chmod -R a+rX /opt/mori && \
+RUN /opt/hermes/.venv/bin/python -c "import aiohttp, yaml; import sys; sys.path.insert(0, '/opt/mori'); from shared_gateway import validate_base_environment; validate_base_environment()" && \
+    chmod -R a+rX /opt/mori && \
     /opt/mori/extract-venv/bin/python -c "from importlib.metadata import version; assert version('trafilatura') == '2.2.0'" && \
     python -c "from agent.web_search_provider import WebSearchProvider; from hermes_cli.plugins import PluginContext; assert hasattr(PluginContext, 'register_web_search_provider')"
 # The base's /usr/bin/tini is an s6 compatibility shell script, not real tini.
