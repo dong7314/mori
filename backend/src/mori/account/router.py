@@ -1,9 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from sqlalchemy import select
 
 from mori.account.models import AccountSettings
 from mori.account.schemas import PlanRead, SettingsRead, SettingsWrite, SubscriptionRead
 from mori.auth.dependencies import CurrentUser
+from mori.billing.service import public_subscription
 from mori.database import DatabaseSession
 from mori.errors import PRIVATE_API_RESPONSES, ApiError
 from mori.organizer.service import lock_user
@@ -34,7 +35,8 @@ def update_settings(payload: SettingsWrite, user: CurrentUser, session: Database
 
 
 @router.get("/v1/plans", response_model=list[PlanRead], summary="무료·Pro 요금제 안내")
-def plans():
+def plans(request: Request):
+    settings = request.app.state.settings
     # No price, checkout URL, or paid entitlement is invented before a provider is configured.
     return [
         PlanRead(
@@ -47,21 +49,17 @@ def plans():
         PlanRead(
             id="pro",
             name="Pro",
-            description="개인 비서 환경을 위한 요금제 · 준비 중",
-            amount=None,
-            status="coming_soon",
+            description="개인 비서 환경을 위한 요금제"
+            if settings.billing_enabled
+            else "개인 비서 환경을 위한 요금제 · 준비 중",
+            amount=settings.billing_pro_amount if settings.billing_enabled else None,
+            billing_interval="month" if settings.billing_enabled else None,
+            checkout_available=settings.billing_enabled,
+            status="available" if settings.billing_enabled else "coming_soon",
         ),
     ]
 
 
 @router.get("/v1/me/subscription", response_model=SubscriptionRead, summary="내 요금제와 결제 상태")
-def subscription(user: CurrentUser):
-    return SubscriptionRead(
-        plan=user.tier,
-        access_source="admin_approval" if user.tier == "pro" else "free",
-        message=(
-            "관리자 승인으로 Pro를 이용 중이며 결제된 구독은 없어요."
-            if user.tier == "pro"
-            else "무료로 이용 중이에요. Pro 결제는 준비 중이에요."
-        ),
-    )
+def subscription(user: CurrentUser, session: DatabaseSession, request: Request):
+    return public_subscription(session, user, request.app.state.settings)

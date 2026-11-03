@@ -38,8 +38,14 @@ def change_pro_access(
     user = locked.get(user_id)
     if user is None or not has_social_identity(session, user_id):
         raise ApiError(404, "USER_NOT_FOUND", "소셜 가입한 사용자를 찾을 수 없습니다.")
-    if user.tier != tier:
-        user.tier = tier
+    from mori.billing.models import BillingEntitlement
+    from mori.billing.service import set_admin_access
+
+    entitlement = session.get(BillingEntitlement, user.id)
+    was_admin = entitlement.admin_granted if entitlement is not None else user.tier == "pro"
+    enabled = tier == AccountTier.PRO
+    set_admin_access(session, user, enabled)
+    if was_admin != enabled:
         session.add(
             AccessChange(
                 user_id=user_id,

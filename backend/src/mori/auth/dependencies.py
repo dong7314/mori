@@ -53,7 +53,12 @@ def get_auth_context(
 CurrentAuth = Annotated[AuthContext, Depends(get_auth_context)]
 
 
-def get_current_user(auth: CurrentAuth) -> User:
+def get_current_user(auth: CurrentAuth, session: DatabaseSession) -> User:
+    from sqlalchemy.orm.attributes import set_committed_value
+
+    from mori.billing.service import effective_tier
+
+    set_committed_value(auth.user, "tier", effective_tier(session, auth.user))
     return auth.user
 
 

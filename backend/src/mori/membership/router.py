@@ -1,10 +1,12 @@
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Query
-from sqlalchemy import select
+from sqlalchemy import and_, case, or_, select
 
 from mori.auth.models import SocialIdentity, User
+from mori.billing.models import BillingEntitlement, Subscription
 from mori.database import DatabaseSession
 from mori.errors import ErrorResponse
 from mori.membership.dependencies import CurrentSuperAdmin
@@ -28,17 +30,45 @@ def list_members(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     tier: AccountTier | None = None,
 ):
-    query = select(User).where(
-        select(SocialIdentity.id).where(SocialIdentity.user_id == User.id).exists()
+    # Apply the same expiry rules as authorization before filtering and pagination;
+    # User.tier can remain stale while the billing worker is unavailable.
+    effective_tier = case(
+        (BillingEntitlement.user_id.is_(None), User.tier),
+        (
+            or_(
+                BillingEntitlement.admin_granted.is_(True),
+                and_(
+                    Subscription.status.in_(("active", "past_due")),
+                    Subscription.current_period_end > datetime.now(UTC),
+                ),
+            ),
+            "pro",
+        ),
+        else_="free",
+    )
+    query = (
+        select(User, effective_tier)
+        .outerjoin(BillingEntitlement, BillingEntitlement.user_id == User.id)
+        .outerjoin(Subscription, Subscription.user_id == User.id)
+        .where(select(SocialIdentity.id).where(SocialIdentity.user_id == User.id).exists())
     )
     if cursor is not None:
         query = query.where(User.id > cursor)
     if tier is not None:
-        query = query.where(User.tier == tier)
-    users = session.scalars(query.order_by(User.id).limit(limit + 1)).all()
+        query = query.where(effective_tier == tier)
+    users = session.execute(query.order_by(User.id).limit(limit + 1)).all()
     return MemberPage(
-        items=[MemberResponse.model_validate(user) for user in users[:limit]],
-        next_cursor=users[limit - 1].id if len(users) > limit else None,
+        items=[
+            MemberResponse(
+                id=user.id,
+                display_name=user.display_name,
+                tier=resolved_tier,
+                role=user.role,
+                created_at=user.created_at,
+            )
+            for user, resolved_tier in users[:limit]
+        ],
+        next_cursor=users[limit - 1][0].id if len(users) > limit else None,
     )
 
 

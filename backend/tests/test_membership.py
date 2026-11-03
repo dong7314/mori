@@ -1,5 +1,6 @@
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
 from uuid import uuid4
@@ -184,6 +185,56 @@ def test_member_listing_is_bounded_filterable_and_paginated(client, accounts, ad
     filtered = client.get("/v1/admin/users?tier=pro", headers=administrator["headers"]).json()
     assert [user["id"] for user in filtered["items"]] == [str(accounts["bob"]["user_id"])]
     assert "subject" not in str(filtered) and "token" not in str(filtered)
+
+
+@pytest.mark.parametrize(
+    "admin_granted,status,period_days,expected",
+    [
+        (False, "active", -1, "free"),
+        (False, "past_due", -1, "free"),
+        (False, "canceled", 1, "free"),
+        (False, "active", 1, "pro"),
+        (False, "past_due", 1, "pro"),
+        (True, "active", -1, "pro"),
+    ],
+)
+def test_member_listing_and_filters_use_effective_paid_access(
+    client, accounts, administrator, sessions, admin_granted, status, period_days, expected
+):
+    from mori.billing.models import BillingEntitlement, Subscription
+
+    member_id = accounts["bob"]["user_id"]
+    with sessions.begin() as session:
+        session.get(User, member_id).tier = "pro"
+        session.add(BillingEntitlement(user_id=member_id, admin_granted=admin_granted))
+        session.add(
+            Subscription(
+                user_id=member_id,
+                customer_key="member-list-test",
+                amount=10000,
+                status=status,
+                current_period_end=datetime.now(UTC) + timedelta(days=period_days),
+            )
+        )
+
+    headers = administrator["headers"]
+    listed = client.get("/v1/admin/users", headers=headers).json()["items"]
+    member = next(item for item in listed if item["id"] == str(member_id))
+    assert member["tier"] == expected
+    for tier in ("free", "pro"):
+        identifiers = []
+        params = {"tier": tier, "limit": 1}
+        while True:
+            page = client.get("/v1/admin/users", headers=headers, params=params).json()
+            assert all(item["tier"] == tier for item in page["items"])
+            identifiers.extend(item["id"] for item in page["items"])
+            if page["next_cursor"] is None:
+                break
+            params["cursor"] = page["next_cursor"]
+        assert (str(member_id) in identifiers) == (tier == expected)
+        assert (str(administrator["user_id"]) in identifiers) == (tier == "free")
+    with sessions() as session:
+        assert session.get(User, member_id).tier == "pro"
 
 
 def test_cli_bootstraps_and_revokes_only_existing_social_users(

@@ -22,6 +22,7 @@ from mori.auth.schemas import (
     TokenResponse,
 )
 from mori.auth.sessions import exchange_login, refresh_session, revoke_session
+from mori.billing.service import effective_tier
 from mori.database import DatabaseSession
 from mori.errors import ApiError, ErrorResponse
 
@@ -143,7 +144,7 @@ def me(auth: CurrentAuth, session: DatabaseSession):
         id=auth.user.id,
         display_name=auth.user.display_name,
         providers=providers,
-        tier=auth.user.tier,
+        tier=effective_tier(session, auth.user),
         role=auth.user.role,
         revision=auth.user.profile_revision,
         created_at=auth.user.created_at,
