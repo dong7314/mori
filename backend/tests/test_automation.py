@@ -3,6 +3,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from threading import Barrier, Event
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -107,6 +108,45 @@ def create_scheduled_feature(sessions, accounts, now, *, repeat="once", schedule
         session.add(feature)
         session.flush()
         return feature.id
+
+
+@pytest.mark.parametrize("clock", ["0٩:00", "09:0９"])
+def test_non_ascii_clock_cannot_block_other_scheduled_features(client, accounts, sessions, clock):
+    response = client.post(
+        "/v1/features",
+        headers={**accounts["alice"]["headers"], "Idempotency-Key": str(uuid4())},
+        json={"work": "예약 정리", "schedule": {"time": clock, "repeat": "daily"}},
+    )
+    now = datetime.now(UTC)
+    feature_id = create_scheduled_feature(sessions, accounts, now)
+    assert enqueue_due(sessions, now=now) == 1
+    assert response.status_code == 422
+    claim = claim_job(sessions, now=now)
+    assert claim is not None and claim.feature_id == feature_id
+
+
+def test_invalid_stored_schedule_is_isolated_until_definition_changes(sessions, accounts):
+    now = datetime.now(UTC)
+    invalid_id = create_scheduled_feature(
+        sessions,
+        accounts,
+        now,
+        schedule={"time": "0٩:00", "timezone": "UTC", "repeat": "daily", "date": None},
+    )
+    valid_id = create_scheduled_feature(sessions, accounts, now)
+    assert enqueue_due(sessions, now=now) == 1
+    assert enqueue_due(sessions, now=now) == 0
+    claim = claim_job(sessions, now=now)
+    assert claim is not None and claim.feature_id == valid_id
+    with sessions.begin() as session:
+        state = session.get(AutomationScheduleState, invalid_id)
+        feature = session.get(Feature, invalid_id)
+        assert state.feature_revision == feature.revision and state.next_at is None
+        feature.schedule = {**feature.schedule, "time": now.strftime("%H:%M")}
+        feature.revision += 1
+    assert enqueue_due(sessions, now=now) == 1
+    claim = claim_job(sessions, now=now)
+    assert claim is not None and claim.feature_id == invalid_id
 
 
 def reply():
@@ -395,7 +435,7 @@ def article(title):
 
 
 def test_scheduled_news_uses_provider_and_persists_structured_articles(
-    sessions, accounts, settings
+    client, sessions, accounts, settings
 ):
     now = datetime.now(UTC)
     feature_id = create_scheduled_feature(sessions, accounts, now)
@@ -427,6 +467,20 @@ def test_scheduled_news_uses_provider_and_persists_structured_articles(
         assert row.articles[0]["summary"] == "검색 발췌"
         assert session.scalar(select(AutomationJob.status)) == "completed"
         assert session.scalar(select(func.count()).select_from(FeatureResult)) == 0
+        turn = session.scalar(select(ChatTurn))
+        conversation_id = turn.conversation_id
+    messages = client.get(
+        f"/v1/conversations/{conversation_id}/messages", headers=accounts["alice"]["headers"]
+    )
+    assert messages.status_code == 200
+    assert messages.json()[0]["result_refs"] == [
+        {"resource_id": str(feature_id), "kind": "news", "detail_url": "/v1/news"}
+    ]
+    briefing = client.get(
+        messages.json()[0]["result_refs"][0]["detail_url"], headers=accounts["alice"]["headers"]
+    )
+    assert briefing.status_code == 200
+    assert briefing.json()["articles"][0]["title"] == "새 기사"
 
 
 def test_new_manual_news_refresh_fences_older_scheduled_response(sessions, accounts):

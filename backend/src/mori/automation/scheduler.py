@@ -14,7 +14,7 @@ from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 import httpx
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from mori.auth.models import User
@@ -43,6 +43,7 @@ def next_occurrence(schedule: dict, not_before: datetime) -> datetime | None:
     if not_before.tzinfo is None:
         raise ValueError("Scheduling requires a timezone-aware instant")
     value = Schedule.model_validate(schedule)
+    value.validate_utc_range()
     if value.repeat == "once" and value.date is None:
         raise ValueError("Stored one-off schedules require an explicit date")
     zone = ZoneInfo(value.timezone)
@@ -70,7 +71,7 @@ def enqueue_due(factory, *, now=None, limit=100):
     now = now or datetime.now(UTC)
     count = 0
     with factory.begin() as session:
-        features = session.scalars(
+        due_features = (
             select(Feature)
             .outerjoin(AutomationScheduleState, AutomationScheduleState.feature_id == Feature.id)
             .where(
@@ -83,6 +84,23 @@ def enqueue_due(factory, *, now=None, limit=100):
                     AutomationScheduleState.next_at <= now,
                 ),
             )
+        )
+        # Match manual feature/news writes: User precedes Feature. Inserting an
+        # occurrence also takes a User foreign-key lock, so enqueue needs the
+        # same order even though it does not change the user itself.
+        user_ids = list(
+            session.scalars(
+                select(User.id)
+                .where(due_features.where(Feature.user_id == User.id).exists())
+                .order_by(User.id)
+                .limit(limit)
+                .with_for_update(skip_locked=True)
+            )
+        )
+        if not user_ids:
+            return 0
+        features = session.scalars(
+            due_features.where(Feature.user_id.in_(user_ids))
             .order_by(Feature.id)
             .limit(limit)
             .with_for_update(of=Feature, skip_locked=True)
@@ -94,7 +112,17 @@ def enqueue_due(factory, *, now=None, limit=100):
                 session.add(state)
             if state.feature_revision != feature.revision:
                 state.feature_revision = feature.revision
-                state.next_at = next_occurrence(feature.schedule, feature.updated_at)
+                try:
+                    state.next_at = next_occurrence(feature.schedule, feature.updated_at)
+                except (ValueError, OverflowError):
+                    # Older validators accepted invalid clocks and date/zone combinations
+                    # that overflow UTC conversion. Isolate the definition until its next
+                    # edit so one stored invalid schedule cannot roll back every tick.
+                    state.next_at = None
+                    logger.warning(
+                        "Skipping invalid automation schedule for feature %s", feature.id
+                    )
+                    continue
             while state.next_at is not None and state.next_at <= now and count < limit:
                 instant = state.next_at
                 session.execute(
@@ -140,12 +168,25 @@ def _close_turn(session, job, code, *, cancelled=False):
             store.append(
                 turn, "run." + turn.status, code=code, message="예약 실행을 마치지 못했어요."
             )
+    _fail_news_refresh(session, job, code)
+
+
+def _fail_news_refresh(session, job, code):
     if job.news_generation is not None:
         from mori.integrations.models import NewsBriefing
 
-        row = session.get(NewsBriefing, job.feature_id)
-        if row is not None and row.generation == job.news_generation and row.status == "loading":
-            row.status, row.error_code = "failed", code
+        # Cancellation does not hold the feature lock used by manual refreshes.
+        # Check the generation in the write itself so a newer result cannot be
+        # overwritten between a stale read and this transaction's commit.
+        session.execute(
+            update(NewsBriefing)
+            .where(
+                NewsBriefing.feature_id == job.feature_id,
+                NewsBriefing.generation == job.news_generation,
+                NewsBriefing.status == "loading",
+            )
+            .values(status="failed", error_code=code)
+        )
 
 
 def _cancel(session, job, now, code):
@@ -156,7 +197,26 @@ def _cancel(session, job, now, code):
     _close_turn(session, job, code, cancelled=True)
 
 
+def cancel_job(session, user_id, job_id, *, now=None):
+    """Cancel one occurrence without changing the feature's future schedule."""
+    job = session.scalar(
+        select(AutomationJob)
+        .where(AutomationJob.id == job_id, AutomationJob.user_id == user_id)
+        .with_for_update()
+    )
+    if job is None:
+        raise ApiError(404, "AUTOMATION_JOB_NOT_FOUND", "예약 실행을 찾을 수 없습니다.")
+    if job.status in {"pending", "running"}:
+        _cancel(session, job, now or datetime.now(UTC), "USER_CANCELLED")
+    return job
+
+
 def _active_feature(session, job):
+    # Manual chat/news publication locks User before Feature. Claiming also
+    # inserts a conversation with a User foreign key, so use this order for
+    # every worker path, not just final publication.
+    if session.get(User, job.user_id, with_for_update=True) is None:
+        return None
     feature = session.get(Feature, job.feature_id, with_for_update=True)
     return (
         feature
@@ -172,8 +232,11 @@ def _active_feature(session, job):
 def claim_job(factory, *, now=None, lease_seconds=900, max_attempts=3):
     """SKIP LOCKED allows competing workers; expired leases are reclaimable."""
     now = now or datetime.now(UTC)
-    with factory.begin() as session:
-        for _ in range(100):
+    for _ in range(100):
+        # Commit each discarded occurrence before examining another user's job.
+        # Retaining its User lock lets competing workers acquire users in reverse
+        # order despite SKIP LOCKED on the individual job rows.
+        with factory.begin() as session:
             job = session.scalar(
                 select(AutomationJob)
                 .where(
@@ -193,6 +256,12 @@ def claim_job(factory, *, now=None, lease_seconds=900, max_attempts=3):
                 _cancel(session, job, now, "FEATURE_CHANGED_OR_PAUSED")
                 session.flush()
                 continue
+            if job.run_id is not None:
+                turn = session.get(ChatTurn, job.run_id, with_for_update=True)
+                if turn is None or turn.status != "running":
+                    _cancel(session, job, now, "RUN_ENDED")
+                    session.flush()
+                    continue
             if job.attempts >= max_attempts:
                 job.status = "failed"
                 job.error_code = "AUTOMATION_ATTEMPTS_EXHAUSTED"
@@ -217,6 +286,7 @@ def claim_job(factory, *, now=None, lease_seconds=900, max_attempts=3):
                     feature_snapshot=job.feature_snapshot,
                     message=f"예약한 기능을 실행해 주세요. ({job.scheduled_at.isoformat()})",
                     status="running",
+                    durable=True,
                     events=[],
                     deadline=job.lease_until,
                 )
@@ -224,10 +294,13 @@ def claim_job(factory, *, now=None, lease_seconds=900, max_attempts=3):
                 session.flush()
                 job.run_id = turn.id
             else:
-                turn = session.get(ChatTurn, job.run_id, with_for_update=True)
-                turn.status = "running"
+                turn.durable = True
                 turn.deadline = job.lease_until
-            store.append(turn, "run.accepted", message="예약한 기능을 실행하고 있어요.")
+            store.append(
+                turn,
+                "run.accepted" if job.attempts == 1 else "run.retrying",
+                message="예약한 기능을 실행하고 있어요.",
+            )
             return JobClaim(
                 job.id,
                 job.lease_token,
@@ -254,7 +327,7 @@ def _leased(session, claim, now):
 
 def begin_news_refresh(factory, claim, *, now=None):
     """Share the manual refresh generation fence before starting provider I/O."""
-    from mori.integrations.models import NewsBriefing
+    from mori.integrations.news import begin_briefing
 
     now = now or datetime.now(UTC)
     with factory.begin() as session:
@@ -265,14 +338,8 @@ def begin_news_refresh(factory, claim, *, now=None):
         if feature is None:
             _cancel(session, job, now, "FEATURE_CHANGED_OR_PAUSED")
             return None
-        row = session.get(NewsBriefing, feature.id)
-        if row is None:
-            row = NewsBriefing(feature_id=feature.id, generation=0, articles=[])
-            session.add(row)
-        row.generation += 1
+        row = begin_briefing(session, feature)
         job.news_generation = row.generation
-        row.feature_revision = feature.revision
-        row.status, row.error_code = "loading", None
         return row.generation
 
 
@@ -282,9 +349,12 @@ def complete_job(
     decision=None,
     *,
     articles=None,
+    news_summary=None,
     news_generation=None,
     quote=None,
     watch_revision=None,
+    settings=None,
+    runtime_url=None,
     now=None,
 ):
     """Fence the provider response, then commit the result and completed job together."""
@@ -298,6 +368,9 @@ def complete_job(
             _cancel(session, job, now, "FEATURE_CHANGED_OR_PAUSED")
             return False
         turn = session.get(ChatTurn, job.run_id, with_for_update=True)
+        if turn is None or turn.status != "running":
+            _cancel(session, job, now, "RUN_ENDED")
+            return False
         if articles is not None:
             from mori.integrations.models import NewsBriefing
             from mori.integrations.news import store_briefing
@@ -311,11 +384,34 @@ def complete_job(
             ):
                 _cancel(session, job, now, "NEWS_REFRESH_SUPERSEDED")
                 return False
-            store_briefing(session, feature, articles, now)
-            answer = "뉴스 브리핑을 수집했어요."
+            briefing = store_briefing(session, feature, articles, now, summary=news_summary)
+            if news_summary and news_summary.error:
+                answer = (
+                    "뉴스 요약을 완료하지 못해 이전 브리핑을 유지했어요."
+                    if briefing.summary_text
+                    else "기사는 수집했지만 요약을 완료하지 못했어요."
+                )
+            else:
+                answer = (
+                    news_summary.text
+                    if news_summary and news_summary.text
+                    else "뉴스 브리핑을 수집했어요."
+                )
+            store.append(
+                turn,
+                "result.saved",
+                feature_id=str(job.feature_id),
+                detail_url="/v1/news",
+                result_ref={
+                    "resource_id": str(job.feature_id),
+                    "kind": "news",
+                    "detail_url": "/v1/news",
+                },
+            )
         else:
             if quote is not None:
                 from mori.integrations.models import MarketWatch
+                from mori.integrations.service import store_market_snapshot
 
                 watch = session.scalar(
                     select(MarketWatch).where(MarketWatch.user_id == job.user_id).with_for_update()
@@ -327,18 +423,42 @@ def complete_job(
                 ):
                     _cancel(session, job, now, "MARKET_TARGET_CHANGED")
                     return False
-                watch.snapshot = quote.model_dump(mode="json")
-                watch.collected_at = now
+                store_market_snapshot(watch, quote, now)
                 answer = (
                     f"{quote.symbol}: {quote.price:g} {quote.currency} "
                     f"(시세 기준 {quote.as_of.isoformat()}, 제공자 {quote.provider})"
                 )
+                # The stock detail opens the latest snapshot; the FeatureResult
+                # below retains this occurrence's original quote and provenance.
+                store.append(
+                    turn,
+                    "result.saved",
+                    feature_id=str(job.feature_id),
+                    detail_url="/v1/market/snapshot",
+                    result_ref={
+                        "resource_id": str(watch.id),
+                        "kind": "stock",
+                        "detail_url": "/v1/market/snapshot",
+                    },
+                )
             else:
-                if decision is None or decision.action != "reply" or not decision.reply:
+                from mori.features.policy import permitted_actions
+
+                actions = permitted_actions(job.feature_snapshot, decision)
+                if settings is not None:
+                    user = session.get(User, job.user_id, with_for_update=True)
+                    if user is None:
+                        raise ApiError(404, "USER_NOT_FOUND", "사용자를 찾을 수 없습니다.")
+                    runtime = resolve_runtime(settings, user.id, user.tier, session=session)
+                    if runtime_url is not None and runtime.url != runtime_url:
+                        raise ApiError(
+                            409, "CHAT_RUNTIME_CHANGED", "에이전트 배정이 변경되었습니다."
+                        )
+                elif any(action.action != "reply" for action in actions):
                     raise ApiError(
-                        502, "FEATURE_ACTION_NOT_ALLOWED", "기능 실행은 결과 작성만 지원합니다."
+                        503, "FEATURE_EXECUTION_NOT_CONFIGURED", "기능 실행 환경이 필요합니다."
                     )
-                answer = decision.reply
+                answer, _ = store.execute_actions(session, turn, job.user_id, decision, settings)
             result = create_feature_result(
                 session,
                 user_id=job.user_id,
@@ -385,18 +505,40 @@ def retry_job(factory, claim, code, *, now=None, max_attempts=3):
         job.available_at = now + timedelta(seconds=min(300, 15 * 2 ** (job.attempts - 1)))
         job.completed_at = now if job.status == "failed" else None
         job.lease_token = job.lease_until = None
-        _close_turn(session, job, code)
+        if job.status == "failed":
+            _close_turn(session, job, code)
+        else:
+            turn = session.get(ChatTurn, job.run_id, with_for_update=True)
+            if turn is None or turn.status != "running":
+                _cancel(session, job, now, "RUN_ENDED")
+                return False
+            store.append(
+                turn,
+                "run.retrying",
+                code=code,
+                message="예약 실행을 다시 시도할게요.",
+                next_attempt_at=job.available_at.isoformat(),
+            )
+            _fail_news_refresh(session, job, code)
         return True
 
 
 async def _execute(factory, settings, claim, transport, news_generation=None):
     if claim.feature_snapshot.get("builtin_key") == "news":
-        from mori.integrations.news import fetch_articles
+        from mori.integrations.news import fetch_articles, summarize_articles
 
         topic = claim.feature_snapshot.get("work") or claim.feature_snapshot["title"]
         articles = await fetch_articles(settings, topic, transport=transport)
+        summary = await summarize_articles(
+            factory, settings, claim.user_id, topic, articles, transport=transport
+        )
         return await asyncio.to_thread(
-            complete_job, factory, claim, articles=articles, news_generation=news_generation
+            complete_job,
+            factory,
+            claim,
+            articles=articles,
+            news_generation=news_generation,
+            news_summary=summary,
         )
     if claim.feature_snapshot.get("builtin_key") == "stock":
         from mori.integrations.market import fetch_market
@@ -415,10 +557,18 @@ async def _execute(factory, settings, claim, transport, news_generation=None):
         user = session.get(User, claim.user_id)
         if user is None:
             raise ApiError(404, "USER_NOT_FOUND", "사용자를 찾을 수 없습니다.")
-        runtime = resolve_runtime(settings, user.id, user.tier)
-    context = await asyncio.to_thread(execution_context, factory, claim.user_id, claim.run_id)
+        runtime = resolve_runtime(settings, user.id, user.tier, session=session)
+    context = await asyncio.to_thread(
+        execution_context,
+        factory,
+        claim.user_id,
+        claim.run_id,
+        reference_at=claim.scheduled_at,
+    )
     async with asyncio.timeout(settings.hermes_timeout_seconds):
-        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+        async with httpx.AsyncClient(
+            transport=transport, follow_redirects=False, trust_env=False
+        ) as client:
             async for value in interpret(
                 client,
                 runtime,
@@ -428,7 +578,14 @@ async def _execute(factory, settings, claim, transport, news_generation=None):
                 context,
             ):
                 if isinstance(value, Decision):
-                    return await asyncio.to_thread(complete_job, factory, claim, value)
+                    return await asyncio.to_thread(
+                        complete_job,
+                        factory,
+                        claim,
+                        value,
+                        settings=settings,
+                        runtime_url=runtime.url,
+                    )
     raise ApiError(502, "INVALID_AGENT_RESPONSE", "실행 결과를 받지 못했습니다.")
 
 

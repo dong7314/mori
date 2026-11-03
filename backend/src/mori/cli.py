@@ -24,6 +24,8 @@ def main() -> None:
     revoke.add_argument("--session-id", required=True, type=UUID)
     commands.add_parser("prune-auth", help="만료된 로그인 요청·교환 코드·세션 정리")
     worker = commands.add_parser("worker", help="예약 실행 및 Web Push worker")
+    health = commands.add_parser("worker-health", help="필수 worker DB heartbeat 확인")
+    health.add_argument("--components", help="쉼표로 구분한 검사 대상 (기본: 활성화된 worker)")
     worker.add_argument("--once", action="store_true", help="한 처리 주기 후 종료")
     for name in ("grant-super-admin", "revoke-super-admin"):
         role_command = commands.add_parser(name, help="기존 소셜 가입자의 최고 관리자 역할 변경")
@@ -33,6 +35,20 @@ def main() -> None:
     settings = Settings()
     engine = build_engine(settings)
     try:
+        if args.command == "worker-health":
+            from mori.operations.service import enabled_worker_components, worker_status
+
+            components = (
+                [name.strip() for name in args.components.split(",") if name.strip()]
+                if args.components is not None
+                else enabled_worker_components(settings)
+            )
+            with build_session_factory(engine)() as session:
+                statuses = {name: worker_status(session, name)["status"] for name in components}
+            print(json.dumps(statuses))
+            if not statuses or any(value != "running" for value in statuses.values()):
+                parser.exit(1, "Worker heartbeat unavailable\n")
+            return
         if args.command == "worker":
             from mori.worker import run_cycle, run_worker
 
