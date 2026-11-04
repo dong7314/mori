@@ -1,0 +1,19 @@
+# 설치한 패키지와 로컬 패키지 저장소
+node_modules/
+.pnpm-store/
+
+# 빌드 결과, 테스트 보고서와 TypeScript 캐시
+dist/
+dist-ssr/
+coverage/
+*.tsbuildinfo
+
+# 로컬 환경 설정
+.env
+.env.*
+!.env.example
+
+# 로그와 운영체제가 생성한 파일
+*.log
+.DS_Store
+Thumbs.db

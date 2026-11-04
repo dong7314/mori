@@ -1,0 +1,11 @@
+{
+  "name": "mori-frontend",
+  "private": true,
+  "packageManager": "pnpm@12.16.1",
+  "scripts": {
+    "dev": "pnpm --filter web run dev",
+    "typecheck": "pnpm --filter web run typecheck",
+    "build": "pnpm --filter web run build",
+    "lint": "pnpm --filter web run lint"
+  }
+}

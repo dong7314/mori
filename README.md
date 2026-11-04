@@ -8,7 +8,7 @@
 | --- | --- |
 | [`backend/`](backend/README.md) | FastAPI API, DB 마이그레이션, worker와 테스트 |
 | [`backend/hermes/`](backend/hermes/README.md) | AI 에이전트 이미지, 플러그인, 실행 검사 |
-| [`frontend/`](frontend/README.md) | 사용자가 직접 개발할 React 웹과 후속 RN 앱 |
+| [`frontend/`](frontend/) | 사용자가 직접 개발할 React 웹과 후속 RN 앱 |
 | [`infra/`](infra/README.md) | 로컬 Compose, Kubernetes 배포 설정과 운영 스크립트 |
 
 최상단에는 이 세 영역과 저장소 안내·Git 설정만 둔다. GitHub Actions는 GitHub가 인식하는 `.github/workflows/`에 유지한다.

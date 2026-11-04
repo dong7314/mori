@@ -1,6 +1,6 @@
 # Mori 인프라
 
-Compose, Kubernetes 배포 설정과 운영 스크립트를 이 폴더에서 관리한다. API와 Hermes 이미지 소스는 [backend/](../backend/README.md), 제품 화면은 [frontend/](../frontend/README.md)에 둔다.
+Compose, Kubernetes 배포 설정과 운영 스크립트를 이 폴더에서 관리한다. API와 Hermes 이미지 소스는 [backend/](../backend/README.md), 제품 화면은 [frontend/](../frontend/)에 둔다.
 
 | 경로 | 용도 |
 | --- | --- |
