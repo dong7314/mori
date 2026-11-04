@@ -1,6 +1,6 @@
 # Mori Hermes image
 
-[홈 k3s 배포 절차](../infra/k3s/hermes-shared.md)
+[홈 k3s 배포 절차](../../infra/k3s/hermes-shared.md)
 
 공식 Hermes에 기존 현장 시험의 검색·본문 추출 도구와 문서 실행 환경을 포함한다. LLM 가중치, SearXNG 서버, 사용자 데이터는 이미지에 포함하지 않는다.
 
@@ -24,7 +24,7 @@
 ```sh
 # 저장소 루트, Docker 사용 가능 환경. lock 갱신은 의도적인 의존성 변경이다.
 docker run --rm --platform linux/amd64 \
-  --mount "type=bind,src=$PWD/hermes,dst=/work" --workdir /work \
+  --mount "type=bind,src=$PWD/backend/hermes,dst=/work" --workdir /work \
   --entrypoint uv \
   nousresearch/hermes-agent@sha256:d43ac4ef5c76ec063342cd1cb1c1f839ce73acffa9445bee87bbccfd39ccb808 \
   pip compile --no-config --generate-hashes --python-version 3.13 \
@@ -35,7 +35,7 @@ docker run --rm --platform linux/amd64 \
 
 `dumb-init --single-child --rewrite 15:2`는 Kubernetes의 SIGTERM을 gateway 한 프로세스에 SIGINT로 전달한다. 고정 Hermes는 SIGINT를 계획된 종료로 처리하므로 기존 drain/저장/정리 후 코드 0을 반환한다. 도구 자식 전체에 인터럽트를 전파하지 않는다. 실제 실패 코드와 SIGKILL은 성공으로 바꾸지 않는다. SIGTERM이 도착하기 전 준비 완료 상태의 종료와 강제 종료 후 복구를 검사하며, 추론/문서/cron 작업 중 drain 보장은 별도 통합 검증 대상이다.
 
-[0.1.0 → 0.1.1 교체 절차](../infra/k3s/hermes-lifecycle-upgrade.md).
+[0.1.0 → 0.1.1 교체 절차](../../infra/k3s/hermes-lifecycle-upgrade.md).
 
 ## 초기 검증 기록 — 2026-09-28
 
@@ -53,9 +53,9 @@ docker run --rm --platform linux/amd64 \
 
 `MORI_SHARED_GATEWAY_ENABLED=true`이면 공식 초기화·권한 하강 뒤 `shared_gateway.py`가 실행된다. Mori API가 인증한 UUID별로 `/opt/data/tenants/<uuid>` HOME·HERMES_HOME, 별도 Hermes 자식 프로세스와 매번 새 API 키를 만든다. 자식은 loopback에서만 수신한다. 서버 전용 공유 키와 UUID가 없는 요청은 받지 않고, `/v1/toolsets`와 무상태 스트리밍 `/v1/responses`만 전달한다.
 
-검색·추출·이미지 검색 도구만 활성화한다. 프로세스 상한, 유휴 회수, 사용자별 요청 직렬화, 프로필 수·저장량 검사를 적용한다. 같은 Unix UID의 논리적 프로필 분리이며 임의 코드 실행에 대한 보안 샌드박스가 아니다. Free마다 새 Pod를 만들지 않는다. [설정·제약·검증 절차](../infra/k3s/shared-gateway.md)를 따른다.
+검색·추출·이미지 검색 도구만 활성화한다. 프로세스 상한, 유휴 회수, 사용자별 요청 직렬화, 프로필 수·저장량 검사를 적용한다. 같은 Unix UID의 논리적 프로필 분리이며 임의 코드 실행에 대한 보안 샌드박스가 아니다. Free마다 새 Pod를 만들지 않는다. [설정·제약·검증 절차](../../infra/k3s/shared-gateway.md)를 따른다.
 
-로컬 HTTP·실제 자식 프로세스 테스트는 `python -m pytest hermes/tests/test_shared_gateway.py`로 실행한다(`aiohttp`, `PyYAML`, `pytest` 필요). 이 검사는 고정 Hermes 이미지의 실제 기동이나 클러스터 배포를 대체하지 않는다.
+로컬 HTTP·실제 자식 프로세스 테스트는 `python -m pytest backend/hermes/tests/test_shared_gateway.py`로 실행한다(`aiohttp`, `PyYAML`, `pytest` 필요). 이 검사는 고정 Hermes 이미지의 실제 기동이나 클러스터 배포를 대체하지 않는다.
 
 ## 문서 생성·편집 확장
 

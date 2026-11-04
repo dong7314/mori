@@ -12,21 +12,21 @@ API **0.9.0**은 [백그라운드 실행과 PoC 기능 연결](docs/poc-backend-
 
 ## Docker로 실행
 
-저장소 루트에서 실행한다. CLI 플러그인 환경에서는 `docker compose`로 바꿔 실행한다.
+저장소 루트에서 실행한다. Compose 설정과 환경 파일은 `infra/`에서 관리한다.
 
 ```sh
-cp .env.example .env
-# .env에 Naver/Kakao 앱 키와 콜백 주소 설정
-# 개발자 콘솔 등록은 docs/social-login.md 참고
-docker-compose up --build -d
-docker-compose ps
+cp infra/.env.example infra/.env
+# infra/.env에 Naver/Kakao 앱 키와 콜백 주소 설정
+# 개발자 콘솔 등록은 backend/docs/social-login.md 참고
+docker compose -f infra/compose.yaml up --build -d
+docker compose -f infra/compose.yaml ps
 curl --fail http://localhost:8000/health/ready
 curl --fail http://localhost:8000/v1/auth/providers
 ```
 
 DB 준비 → 마이그레이션 성공 → API 시작 순서다. 키가 없는 제공자는 `enabled: false`이며 로그인 시작 시 `503 SOCIAL_LOGIN_NOT_CONFIGURED`를 반환한다. 관리 CLI로 계정이나 토큰을 발급할 수 없다.
 
-기본 주소는 API `localhost:8000`, PostgreSQL `127.0.0.1:55432`다. 충돌하면 `MORI_API_PORT`, `MORI_DB_PORT`를 바꾸고 공개 API 주소·개발자 콘솔 콜백도 같은 포트로 맞춘다. DB 데이터는 Compose 볼륨에 남는다. 평소 종료는 `docker-compose down`을 사용한다. `down -v`는 저장 데이터까지 삭제한다.
+기본 주소는 API `localhost:8000`, PostgreSQL `127.0.0.1:55432`다. 충돌하면 `MORI_API_PORT`, `MORI_DB_PORT`를 바꾸고 공개 API 주소·개발자 콘솔 콜백도 같은 포트로 맞춘다. DB 데이터는 Compose 볼륨에 남는다. 평소 종료는 `docker compose -f infra/compose.yaml down`을 사용한다. `down -v`는 저장 데이터까지 삭제한다.
 
 ## Swagger / Scalar 명세서
 
@@ -54,7 +54,7 @@ API 요청은 같은 서버로 직접 보내며 외부 Scalar 프록시를 사�
 
 ```sh
 # 저장소 루트에서 로컬 PostgreSQL 시작
-docker-compose up -d --wait db
+docker compose -f infra/compose.yaml up -d --wait db
 cd backend
 cp .env.example .env
 uv sync --frozen
@@ -62,7 +62,7 @@ uv run alembic upgrade head
 uv run uvicorn mori.main:create_app --factory --reload --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
-Python 실행은 `backend/.env`, Compose는 루트 `.env`를 읽는다. 실제 키는 로컬 파일이나 운영 Secret에 설정하고 커밋하지 않는다. `MORI_DATABASE_URL`은 `postgresql+psycopg://` 연결 문자열이며 비밀번호의 URI 예약 문자는 percent-encoding한다. `MORI_CORS_ORIGINS`는 프론트 origin의 JSON 배열이다. 기본값은 빈 배열이며 `*`는 허용하지 않는다.
+Python 실행은 `backend/.env`, 저장소 루트에서 `-f infra/compose.yaml`로 실행하는 Compose는 `infra/.env`를 읽는다. Compose 프로젝트 이름은 기존 DB 볼륨을 유지하도록 `mori-master`로 고정한다. 실제 키는 로컬 파일이나 운영 Secret에 설정하고 커밋하지 않는다. `MORI_DATABASE_URL`은 `postgresql+psycopg://` 연결 문자열이며 비밀번호의 URI 예약 문자는 percent-encoding한다. `MORI_CORS_ORIGINS`는 프론트 origin의 JSON 배열이다. 기본값은 빈 배열이며 `*`는 허용하지 않는다.
 
 ## 소셜 가입과 인증
 
@@ -79,7 +79,7 @@ Python 실행은 `backend/.env`, Compose는 루트 `.env`를 읽는다. 실제 �
 ```sh
 uv run mori revoke-session --session-id <SESSION_UUID>
 uv run mori prune-auth
-# Compose에서는 docker-compose exec api mori prune-auth
+# 저장소 루트에서 Compose로 실행: docker compose -f infra/compose.yaml exec api mori prune-auth
 ```
 
 `prune-auth`는 만료된 로그인 요청·교환 코드·세션과 그 세션의 토큰을 제거한다. 운영 스케줄러에서 하루 한 번 등 주기적으로 실행한다. 활성 세션의 사용한 갱신 토큰은 재사용 감지를 위해 유지한다.

@@ -10,14 +10,14 @@
 
 | 대상 | 관리 위치 |
 | --- | --- |
-| Hermes 이미지·플러그인·추출 의존성 | `hermes/` |
+| Hermes 이미지·플러그인·추출 의존성 | `backend/hermes/` |
 | Hermes 실행 설정 | [base/hermes/config.yaml](base/hermes/config.yaml) |
 | SearXNG 엔진·언어·JSON 설정 | [base/searxng/settings.yml](base/searxng/settings.yml) |
 | Deployment·Service 및 ConfigMap 원본 | `base/hermes/`, `base/searxng/` |
 | 홈 worker 배치 | 각 Deployment의 `nodeSelector`·`tolerations` |
 | PVC | [storage/hermes-home.yaml](storage/hermes-home.yaml), 앱 YAML과 별도 적용 |
-| 적용할 일반 YAML | `configure.py`가 만드는 `.local/manifests/hermes.yaml`, `.local/manifests/searxng.yaml` |
-| 실행 후 검사 | [../../scripts/smoke/runtime.py](../../scripts/smoke/runtime.py) |
+| 적용할 일반 YAML | `configure.py`가 만드는 `infra/.local/manifests/hermes.yaml`, `infra/.local/manifests/searxng.yaml` |
+| 실행 후 검사 | [../scripts/smoke/runtime.py](../scripts/smoke/runtime.py) |
 
 - **개발 PC/빌드 머신:** 코드 검증, linux/amd64 이미지 빌드·Harbor push.
 - **k3s master `192.168.0.100`:** 저장소의 같은 코드 버전에서 Secret 준비, YAML 적용, 검사.
@@ -50,7 +50,7 @@ CPU/RAM은 기존 시험의 시작값을 사용한다. Hermes requests 250m/512M
 MORI_REGISTRY='harbor.example.com'
 MORI_IMAGE="$MORI_REGISTRY/mori/mori-hermes:0.1.0"
 docker login "$MORI_REGISTRY"
-docker buildx build --platform linux/amd64 --tag "$MORI_IMAGE" --push hermes
+docker buildx build --platform linux/amd64 --tag "$MORI_IMAGE" --push backend/hermes
 docker buildx imagetools inspect "$MORI_IMAGE"
 ```
 
@@ -66,7 +66,7 @@ SearXNG는 YAML에 고정한 공식 digest를 직접 받으므로 추가 빌드�
 
 ```sh
 sudo k3s kubectl apply -f infra/k3s/namespaces.yaml
-python3 scripts/runtime/create_secrets.py --registry 'harbor.example.com'
+python3 infra/scripts/runtime/create_secrets.py --registry 'harbor.example.com'
 sudo k3s kubectl apply -f infra/k3s/storage/hermes-home.yaml
 ```
 
@@ -87,28 +87,28 @@ PVC는 5Gi `local-path`, 이름은 `mori-hermes-shared-home`이다. StorageClass
 빌드한 이미지의 실제 digest를 넣는다. `...`는 교체할 자리이며 실제 값으로 사용할 수 없다.
 
 ```sh
-python3 scripts/runtime/configure.py \
+python3 infra/scripts/runtime/configure.py \
   --image 'harbor.example.com/mori/mori-hermes@sha256:...' \
   --pull-secret harbor-pull
 ```
 
-이 명령은 `.local/manifests/hermes.yaml`과 `.local/manifests/searxng.yaml`을 생성하며 클러스터를 바꾸지 않는다. 과거 Kustomize 생성물의 경로 `.local/runtime/`과 분리했다. 각 파일은 Namespace·PVC·Secret과도 분리된다. `.local/`은 Git 제외 경로이고 비밀 값을 넣지 않는다. 공개 레지스트리를 쓰면 `--pull-secret`도 생략한다. init container와 본체의 이미지가 함께 교체된다.
+이 명령은 `infra/.local/manifests/hermes.yaml`과 `infra/.local/manifests/searxng.yaml`을 생성하며 클러스터를 바꾸지 않는다. 과거 Kustomize 생성물의 경로 `infra/.local/runtime/`과 분리했다. 각 파일은 Namespace·PVC·Secret과도 분리된다. `infra/.local/`은 Git 제외 경로이고 비밀 값을 넣지 않는다. 공개 레지스트리를 쓰면 `--pull-secret`도 생략한다. init container와 본체의 이미지가 함께 교체된다.
 
 ```sh
-python3 scripts/runtime/validate_manifests.py \
+python3 infra/scripts/runtime/validate_manifests.py \
   --image 'harbor.example.com/mori/mori-hermes@sha256:...' \
-  --pull-secret harbor-pull --output-dir .local/manifests
-sudo k3s kubectl apply --dry-run=server -f .local/manifests/searxng.yaml
-sudo k3s kubectl apply --dry-run=server -f .local/manifests/hermes.yaml
-sudo k3s kubectl diff -f .local/manifests/searxng.yaml
-sudo k3s kubectl diff -f .local/manifests/hermes.yaml
+  --pull-secret harbor-pull --output-dir infra/.local/manifests
+sudo k3s kubectl apply --dry-run=server -f infra/.local/manifests/searxng.yaml
+sudo k3s kubectl apply --dry-run=server -f infra/.local/manifests/hermes.yaml
+sudo k3s kubectl diff -f infra/.local/manifests/searxng.yaml
+sudo k3s kubectl diff -f infra/.local/manifests/hermes.yaml
 ```
 
 `diff`의 종료 코드 1은 변경점이 있다는 뜻이다. 변경 대상을 확인한 뒤 적용한다.
 
 ```sh
-sudo k3s kubectl apply -f .local/manifests/searxng.yaml
-sudo k3s kubectl apply -f .local/manifests/hermes.yaml
+sudo k3s kubectl apply -f infra/.local/manifests/searxng.yaml
+sudo k3s kubectl apply -f infra/.local/manifests/hermes.yaml
 sudo k3s kubectl -n search rollout status deployment/searxng --timeout=300s
 sudo k3s kubectl -n mori rollout status deployment/mori-hermes-shared --timeout=600s
 sudo k3s kubectl -n mori get pods,pvc -o wide
@@ -130,18 +130,18 @@ http://searxng.search.svc.cluster.local:8080
 
 ```sh
 # 추론/외부 검색 없이: health, API 키 거부, 도구/provider 설정
-python3 scripts/smoke/runtime.py --mode health
+python3 infra/scripts/smoke/runtime.py --mode health
 
 # 모델 추론 없이 SearXNG 직접 검색과 두 이미지 엔진
-python3 scripts/smoke/runtime.py --mode search-direct
-python3 scripts/smoke/runtime.py --mode images-direct --engine google
-python3 scripts/smoke/runtime.py --mode images-direct --engine naver
+python3 infra/scripts/smoke/runtime.py --mode search-direct
+python3 infra/scripts/smoke/runtime.py --mode images-direct --engine google
+python3 infra/scripts/smoke/runtime.py --mode images-direct --engine naver
 
 # 실제 GPU 추론 + 도구 호출
-python3 scripts/smoke/runtime.py --mode search
-python3 scripts/smoke/runtime.py --mode images --engine google
-python3 scripts/smoke/runtime.py --mode extract
-python3 scripts/smoke/runtime.py --mode search-extract
+python3 infra/scripts/smoke/runtime.py --mode search
+python3 infra/scripts/smoke/runtime.py --mode images --engine google
+python3 infra/scripts/smoke/runtime.py --mode extract
+python3 infra/scripts/smoke/runtime.py --mode search-extract
 ```
 
 한 단계씩 결과를 확인한다. 모델 검사는 최대 300초 기다리며 timeout이 원격 작업 취소를 보장하지 않으므로 곧바로 반복 요청하지 않는다. 검사기는 직접 호출·단일 `tool_call` 간접 호출·외부 데이터 태그를 지원하고 호출 ID/성공 결과/최종 출처를 대조한다. 복수 도구를 묶은 아직 미지원 bridge 형식은 자동 성공 처리하지 않는다. PASS가 답변 사실 정확성이나 사진 로딩까지 증명하지 않는다.
@@ -165,16 +165,16 @@ init container는 ConfigMap을 home에 적용하고 이미지의 플러그인 �
 
 ```sh
 # 개발 환경: 별도 venv, Python 3.13 권장
-python3 -m venv .local/runtime-venv
-.local/runtime-venv/bin/pip install --require-hashes -r hermes/requirements.lock
-.local/runtime-venv/bin/pip install --require-hashes -r hermes/documents-requirements.lock
-.local/runtime-venv/bin/pip install ruff==0.16.8 PyYAML==6.0.3
-.local/runtime-venv/bin/ruff check --config hermes/ruff.toml hermes scripts/runtime scripts/smoke
-.local/runtime-venv/bin/python -m unittest discover -s hermes/tests -v
-.local/runtime-venv/bin/python scripts/runtime/validate_manifests.py
+python3 -m venv infra/.local/runtime-venv
+infra/.local/runtime-venv/bin/pip install --require-hashes -r backend/hermes/requirements.lock
+infra/.local/runtime-venv/bin/pip install --require-hashes -r backend/hermes/documents-requirements.lock
+infra/.local/runtime-venv/bin/pip install ruff==0.16.8 PyYAML==6.0.3
+infra/.local/runtime-venv/bin/ruff check --no-cache --config backend/hermes/ruff.toml backend/hermes infra/scripts/runtime infra/scripts/smoke
+infra/.local/runtime-venv/bin/python -m unittest discover -s backend/hermes/tests -v
+infra/.local/runtime-venv/bin/python infra/scripts/runtime/validate_manifests.py
 
-docker build --platform linux/amd64 -t mori-hermes:runtime-check hermes
-python3 scripts/runtime/check_image.py --image mori-hermes:runtime-check
+docker build --platform linux/amd64 -t mori-hermes:runtime-check backend/hermes
+python3 infra/scripts/runtime/check_image.py --image mori-hermes:runtime-check
 ```
 
 컨테이너 검사는 자체 생성한 임시 volume/container만 만들고 제거한다. `--network none`에서 초기화 두 번, 실제 gateway 3회 기동, TERM 코드 0, KILL 후 복구, 파일 보존, 단일 비특권 gateway, 실패 코드 전달, plugin/provider 로딩과 API 인증을 확인하며 홈 GPU나 외부 검색을 호출하지 않는다. 실제 k3s 배포·Harbor push·검색 품질 확인은 위 운영 절차의 별도 결과로 기록한다.
@@ -183,4 +183,4 @@ python3 scripts/runtime/check_image.py --image mori-hermes:runtime-check
 
 ## 문서 도구를 포함한 이미지
 
-같은 Dockerfile에 Word·Excel·PDF 라이브러리와 한국어 PDF 폰트, `mori_documents` 플러그인이 포함된다. 기존 검색 toolset은 유지한다. 문서 도구의 명시적 활성화 및 `documents-direct` 검사는 [문서 작업 가이드](../../hermes/documents.md)를 따른다. 현재 채팅 어댑터는 문서 toolset을 허용하지 않으므로 문서 기능의 제품 API 연결은 별도 단계다.
+같은 Dockerfile에 Word·Excel·PDF 라이브러리와 한국어 PDF 폰트, `mori_documents` 플러그인이 포함된다. 기존 검색 toolset은 유지한다. 문서 도구의 명시적 활성화 및 `documents-direct` 검사는 [문서 작업 가이드](../../backend/hermes/documents.md)를 따른다. 현재 채팅 어댑터는 문서 toolset을 허용하지 않으므로 문서 기능의 제품 API 연결은 별도 단계다.

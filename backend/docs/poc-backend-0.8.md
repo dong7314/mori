@@ -34,7 +34,7 @@ uv run mori worker
 uv run mori worker --once
 ```
 
-Compose의 worker는 `automation` profile로 제공한다. `.env`에 설정을 넣고 `docker compose --profile automation up -d --build`로 실행한다. API readiness는 DB 스키마 검사이며 worker 생존을 보장하지 않는다. 운영 배포는 이번에 수행하지 않았다.
+Compose의 worker는 `automation` profile로 제공한다. 저장소 루트의 `infra/.env`에 설정을 넣고 `docker compose -f infra/compose.yaml --profile automation up -d --build`로 실행한다. API readiness는 DB 스키마 검사이며 worker 생존을 보장하지 않는다. 운영 배포는 이번에 수행하지 않았다.
 
 - 기본 poll 15초, lease 900초, 최대 시도 3회. AI 실행 lease는 Hermes timeout+60초 이상이다.
 - timezone의 once/daily/weekdays를 계산한다. DST에 없는 시각은 건너뛰고 중복 시각은 첫 번째를 선택한다.
@@ -107,4 +107,4 @@ sent는 공급자 수락이며 OS 표시 확인이 아니다. 수락 직후 프�
 
 별도 PostgreSQL 전체 pytest, upgrade/check/0007 downgrade/re-upgrade, server default 포함 모델 비교, Ruff/포맷/OpenAPI/고정 의존성을 검증한다. 공급자/Hermes HTTP 및 푸시는 테스트 transport로 대체하며 실제 계정·시세 업체·검색·OS 표시의 운영 E2E는 별도다. 실제 결제, Office/PDF 변환, 서버 STT, PoC BFF 연결은 이번 변경에 포함하지 않는다.
 
-2026-11-01 결과: **323 passed, 0 failed**. Ruff/포맷(109개 파일)/OpenAPI/고정 의존성/마이그레이션 왕복/서버 기본값 포함 모델 비교를 통과했다. Compose 설정 검증도 통과했다. Docker 엔진이 실행되지 않아 이미지 빌드는 검증하지 않았다. 격리 PostgreSQL은 종료했고 임시 테스트 DB는 모두 제거했다. 상세 로그와 요약은 `output/poc-backend-20261101/validation-final.json`에 있다.
+2026-11-01 결과: **323 passed, 0 failed**. Ruff/포맷(109개 파일)/OpenAPI/고정 의존성/마이그레이션 왕복/서버 기본값 포함 모델 비교를 통과했다. Compose 설정 검증도 통과했다. Docker 엔진이 실행되지 않아 이미지 빌드는 검증하지 않았다. 격리 PostgreSQL은 종료했고 임시 테스트 DB는 모두 제거했다. 상세 로그와 요약은 `backend/output/poc-backend-20261101/validation-final.json`에 있다.

@@ -16,17 +16,17 @@
 sudo k3s kubectl -n knative-serving get pods
 sudo k3s kubectl -n kourier-system get pods,svc
 sudo k3s kubectl -n knative-serving get configmap config-autoscaler -o yaml
-python3 scripts/runtime/prepare_knative.py
+python3 infra/scripts/runtime/prepare_knative.py
 ```
 
-모든 시스템 Pod가 Ready여야 한다. `config-autoscaler`의 실제 `data.enable-scale-to-zero`가 `false`라면 중단하고 확인한다(설정 생략 시 기본 true, `_example` 문자열은 실제 설정이 아님). 생성기는 기존 Bound PVC와 digest 고정 이미지를 확인하고 JSON 형식의 Kubernetes 매니페스트를 `.local/knative/`에 쓴다. JSON도 `kubectl apply -f`로 적용할 수 있다. 비밀 값은 읽거나 쓰지 않는다. 기존 Knative Service가 있으면 새 Revision을 만들지 않도록 실패한다.
+모든 시스템 Pod가 Ready여야 한다. `config-autoscaler`의 실제 `data.enable-scale-to-zero`가 `false`라면 중단하고 확인한다(설정 생략 시 기본 true, `_example` 문자열은 실제 설정이 아님). 생성기는 기존 Bound PVC와 digest 고정 이미지를 확인하고 JSON 형식의 Kubernetes 매니페스트를 `infra/.local/knative/`에 쓴다. JSON도 `kubectl apply -f`로 적용할 수 있다. 비밀 값은 읽거나 쓰지 않는다. 기존 Knative Service가 있으면 새 Revision을 만들지 않도록 실패한다.
 
 ## 2. 필요한 Knative 필드 허용·서버 검증
 
 ```sh
 sudo k3s kubectl -n knative-serving patch configmap config-features \
-  --type merge --patch-file .local/knative/features-patch.json
-sudo k3s kubectl apply --dry-run=server -f .local/knative/hermes-service.json
+  --type merge --patch-file infra/.local/knative/features-patch.json
+sudo k3s kubectl apply --dry-run=server -f infra/.local/knative/hermes-service.json
 ```
 
 nodeSelector/tolerations/initContainers/securityContext/PVC/PVC 쓰기 플래그만 병합하며 다른 설정은 보존한다. 이 기능 허용은 클러스터 전체에 적용된다. webhook이 설정을 인지하는 데 잠깐 시간이 걸릴 수 있다. 거절되면 원본 Deployment를 내리지 말고 오류를 확인한다.
@@ -36,25 +36,25 @@ nodeSelector/tolerations/initContainers/securityContext/PVC/PVC 쓰기 플래그
 ## 3. 저장 보존 기준 파일과 독립 클라이언트 준비
 
 ```sh
-python3 scripts/smoke/knative.py --mode marker-create
-sudo k3s kubectl apply -f .local/knative/client.json
+python3 infra/scripts/smoke/knative.py --mode marker-create
+sudo k3s kubectl apply -f infra/.local/knative/client.json
 sudo k3s kubectl -n mori wait --for=condition=Ready pod/mori-hermes-coldstart-client --timeout=300s
 ```
 
-`/opt/data/.mori-coldstart-probe`만 생성하고 해시를 서버의 `.local/knative/marker.sha256`에 기록한다. 기존 대화/기억 파일은 수정하지 않는다. 클라이언트는 이미 캐시된 Hermes 이미지를 쓰되 gateway 대신 sleep만 실행하고 요청할 때 Python 검사기를 실행한다. PVC/GPU 키는 연결하지 않으며 Hermes API Secret만 환경변수로 받는다. 테스트 동안 상시 실행되는 보조 Pod이며 Hermes가 아니다. 하루 뒤 종료되므로 끝나면 삭제한다.
+`/opt/data/.mori-coldstart-probe`만 생성하고 해시를 서버의 `infra/.local/knative/marker.sha256`에 기록한다. 기존 대화/기억 파일은 수정하지 않는다. 클라이언트는 이미 캐시된 Hermes 이미지를 쓰되 gateway 대신 sleep만 실행하고 요청할 때 Python 검사기를 실행한다. PVC/GPU 키는 연결하지 않으며 Hermes API Secret만 환경변수로 받는다. 테스트 동안 상시 실행되는 보조 Pod이며 Hermes가 아니다. 하루 뒤 종료되므로 끝나면 삭제한다.
 
 ## 4. 기존 작성자를 멈춘 뒤 전환
 
 ```sh
 sudo k3s kubectl -n mori scale deployment/mori-hermes-shared --replicas=0
 sudo k3s kubectl -n mori wait --for=delete pod -l app=mori-hermes-shared --timeout=300s
-python3 scripts/smoke/knative.py --mode check-stopped
-sudo k3s kubectl apply -f .local/knative/hermes-service.json
+python3 infra/scripts/smoke/knative.py --mode check-stopped
+sudo k3s kubectl apply -f infra/.local/knative/hermes-service.json
 sudo k3s kubectl -n mori wait --for=condition=Ready ksvc/mori-hermes-knative --timeout=600s
 sudo k3s kubectl -n mori get ksvc mori-hermes-knative
 ```
 
-`check-stopped`가 실패하면 apply하지 않는다. 같은 PVC의 모든 Pod(종료 중 포함)가 사라진 것을 확인한다. 새 Pod의 labels에는 기존 `app=mori-hermes-shared`를 복사하지 않으므로 구형 Service가 Knative Pod로 우회 연결되지 않는다. PVC/Secret/기존 Deployment·Service는 삭제하지 않는다. 재설치용 `.local/manifests/hermes.yaml`을 적용하면 기존 replicas 1이 다시 살아나므로 전환 중/전환 후에는 적용하지 않는다.
+`check-stopped`가 실패하면 apply하지 않는다. 같은 PVC의 모든 Pod(종료 중 포함)가 사라진 것을 확인한다. 새 Pod의 labels에는 기존 `app=mori-hermes-shared`를 복사하지 않으므로 구형 Service가 Knative Pod로 우회 연결되지 않는다. PVC/Secret/기존 Deployment·Service는 삭제하지 않는다. 재설치용 `infra/.local/manifests/hermes.yaml`을 적용하면 기존 replicas 1이 다시 살아나므로 전환 중/전환 후에는 적용하지 않는다.
 
 ## 5. 자동 1→0 관찰
 
@@ -74,8 +74,8 @@ Pod 0개와 PVC Bound를 확인한다. 이 단계에서 수동 Pod 삭제/Deploy
 ## 6. 0개에서 깨우기·저장 보존
 
 ```sh
-python3 scripts/smoke/knative.py --mode health --require-zero
-python3 scripts/smoke/knative.py --mode marker-check
+python3 infra/scripts/smoke/knative.py --mode health --require-zero
+python3 infra/scripts/smoke/knative.py --mode marker-check
 ```
 
 검사는 기존 Deployment 중지와 Knative Pod 0개를 확인하고, **독립 클라이언트 → status.url의 cluster-local Route → Knative → Hermes**로 인증된 요청을 보낸다. 반복 HTTP 재시도 없이 최대 300초 기다린다. Pod가 남아 있으면 cold PASS 대신 중단한다. 요청부터 응답까지 걸린 시간, 새 Pod 이름·생성/Ready 시각을 출력한다. health는 LLM 추론 없이 기동+라우팅+API 응답 시간을 재고, 다음 model 검사는 추론 시간까지 포함한다. 한 번의 수치는 평균/p95가 아니다.
@@ -87,17 +87,17 @@ python3 scripts/smoke/knative.py --mode marker-check
 다시 5번처럼 자동으로 Pod가 없어질 때까지 기다린 뒤 실행한다.
 
 ```sh
-python3 scripts/smoke/knative.py --mode search --require-zero
-python3 scripts/smoke/knative.py --mode marker-check
+python3 infra/scripts/smoke/knative.py --mode search --require-zero
+python3 infra/scripts/smoke/knative.py --mode marker-check
 ```
 
 검색 요청 자체가 Pod를 깨우며 사전 health 요청을 보내지 않는다. 실제 web_search 호출/성공 결과/답변 출처를 이미지에 포함된 검증기로 확인한다. 이어서 일반 기동 상태에서 본문 추출도 확인할 수 있다.
 
 ```sh
-python3 scripts/smoke/knative.py --mode extract
+python3 infra/scripts/smoke/knative.py --mode extract
 ```
 
-기존 `scripts/smoke/runtime.py`는 일반 Deployment의 Ready Pod를 대상으로 하므로 이 전환 테스트에는 사용하지 않는다. model 응답 300초 제한/네트워크/도구 실패는 로그와 구분한다.
+기존 `infra/scripts/smoke/runtime.py`는 일반 Deployment의 Ready Pod를 대상으로 하므로 이 전환 테스트에는 사용하지 않는다. model 응답 300초 제한/네트워크/도구 실패는 로그와 구분한다.
 
 ## 8. 실패 원인 확인·원래 Deployment로 복구
 
@@ -111,7 +111,7 @@ sudo k3s kubectl -n mori get events --sort-by=.lastTimestamp
 
 ```sh
 sudo k3s kubectl -n mori delete ksvc mori-hermes-knative --cascade=foreground --timeout=300s
-python3 scripts/smoke/knative.py --mode check-stopped
+python3 infra/scripts/smoke/knative.py --mode check-stopped
 sudo k3s kubectl -n mori scale deployment/mori-hermes-shared --replicas=1
 sudo k3s kubectl -n mori rollout status deployment/mori-hermes-shared --timeout=600s
 ```

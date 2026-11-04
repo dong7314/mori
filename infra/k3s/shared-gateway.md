@@ -37,7 +37,7 @@ upstream이 자식 환경을 덮어쓸 수 있는 `/opt/hermes/.env`, `/etc/herm
 
 현재 파일은 로컬 구현·검증 대상이다. 아래 절차는 운영자가 실제 배포할 때 실행하며, 이 변경에서 배포·Secret 생성·이미지 push는 수행하지 않았다.
 
-1. `hermes/Dockerfile`로 이미지를 다시 빌드하고 실제 digest를 `shared-gateway.yaml`의 이미지에 넣는다. 기존 `mori-hermes:dev`나 과거 단일 사용자 이미지로 배포하지 않는다. private registry이면 `imagePullSecrets`도 설정한다.
+1. `backend/hermes/Dockerfile`로 이미지를 다시 빌드하고 실제 digest를 `shared-gateway.yaml`의 이미지에 넣는다. 기존 `mori-hermes:dev`나 과거 단일 사용자 이미지로 배포하지 않는다. private registry이면 `imagePullSecrets`도 설정한다.
 2. `mori` namespace, `local-path` StorageClass와 `k3s-infra` 배치를 확인한다. `replicas: 1`, `Recreate`, 전용 PVC를 유지한다. 이전 단일 사용자 `/opt/data` PVC를 공유 프로필 PVC로 재활용하지 않는다.
 3. 운영 설정을 반영한 `infra/k3s/base/hermes/config.yaml`로 `mori-hermes-config` ConfigMap을 준비한다. 기본 모델/GPU 주소를 실제 환경과 맞춘다. `mori-hermes` Secret에는 `LLAMA_API_KEY`가 필요하며 `SEARXNG_URL`은 기존 공용 검색 Service를 가리킨다.
 4. 안전한 난수 생성기로 최소 32자의 서버 전용 키를 만든다. `mori-hermes-shared-gateway` Secret의 `MORI_SHARED_GATEWAY_KEY`와 API/worker의 `MORI_SHARED_HERMES_API_KEY`에 같은 값을 저장한다. Git·명령 기록·프론트 설정에 키를 남기지 않는다.
@@ -54,6 +54,6 @@ MORI_SHARED_HERMES_API_KEY=<위에서 만든 서버 전용 키>
 
 ## 검증 범위
 
-`hermes/tests/test_shared_gateway.py`는 로컬 HTTP 서버와 실제 OS 자식 프로세스로 인증·라우팅·환경·메모리 파일 분리, 도구 정책, 재시도, SSE 사용 중 회수 방지·연결 종료, 유휴 회수, 프로필 수·기록량 제한을 검사한다. 이미지 entrypoint의 stage2/권한 하강 경로는 소스 계약을 확인한다. Docker daemon을 사용할 수 없는 환경에서 작성했으므로 **새 공유 이미지의 실제 기동, UID·신호 전달, Kubernetes/CNI, GPU 모델 호출은 아직 통합 검증하지 않았다**. 배포 전 새 이미지로 이 검증을 수행해야 한다.
+`backend/hermes/tests/test_shared_gateway.py`는 로컬 HTTP 서버와 실제 OS 자식 프로세스로 인증·라우팅·환경·메모리 파일 분리, 도구 정책, 재시도, SSE 사용 중 회수 방지·연결 종료, 유휴 회수, 프로필 수·기록량 제한을 검사한다. 이미지 entrypoint의 stage2/권한 하강 경로는 소스 계약을 확인한다. Docker daemon을 사용할 수 없는 환경에서 작성했으므로 **새 공유 이미지의 실제 기동, UID·신호 전달, Kubernetes/CNI, GPU 모델 호출은 아직 통합 검증하지 않았다**. 배포 전 새 이미지로 이 검증을 수행해야 한다.
 
-기존 [단일 사용자 이미지 검사](../../scripts/runtime/check_image.py)는 기본 실행 모드의 회귀 검사다. 공유 모드를 검증했다는 증거로 대신 사용하지 않는다. 고정 upstream을 바꾸면 HOME·dotenv·플러그인 로딩과 loopback API 설정을 다시 검토한다.
+기존 [단일 사용자 이미지 검사](../scripts/runtime/check_image.py)는 기본 실행 모드의 회귀 검사다. 공유 모드를 검증했다는 증거로 대신 사용하지 않는다. 고정 upstream을 바꾸면 HOME·dotenv·플러그인 로딩과 loopback API 설정을 다시 검토한다.

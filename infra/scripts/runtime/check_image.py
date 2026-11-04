@@ -10,7 +10,7 @@ import time
 import uuid
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 VERIFY_PROCESS = r"""
 import json
 from pathlib import Path
@@ -81,7 +81,7 @@ def main():
     args = parser.parse_args()
     name = "mori-image-check-" + uuid.uuid4().hex[:12]
     volume = name + "-home"
-    scratch = ROOT / ".local"
+    scratch = ROOT / "infra/.local"
     scratch.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="mori-image-config-", dir=scratch) as temporary:
         config_path = Path(temporary) / "config.yaml"

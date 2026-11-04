@@ -7,8 +7,8 @@ import re
 import subprocess
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / ".local/knative"
+ROOT = Path(__file__).resolve().parents[3]
+OUT = ROOT / "infra/.local/knative"
 SERVICE = "mori-hermes-knative"
 CLIENT = "mori-hermes-coldstart-client"
 FEATURES = (
@@ -149,7 +149,7 @@ def main():
     }
     for name, obj in objects.items():
         (OUT / name).write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n")
-    print("Prepared .local/knative/{hermes-service,client,features-patch}.json")
+    print("Prepared infra/.local/knative/{hermes-service,client,features-patch}.json")
     print(
         "No cluster changes. Secret references only. Source image:",
         service["spec"]["template"]["spec"]["containers"][0]["image"],

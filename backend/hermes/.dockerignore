@@ -2,6 +2,7 @@
 !Dockerfile
 !requirements.lock
 !bootstrap.py
+!shared_gateway.py
 !plugins/
 !plugins/**
 !checks/

@@ -13,5 +13,8 @@ htmlcov/
 dist/
 build/
 
-# Generated standalone deployment YAML; registry-specific values stay local.
-.local/
+# Generated deployment YAML and local tools; registry-specific values stay local.
+/infra/.local/
+
+# Backend verification logs and generated reports.
+/backend/output/

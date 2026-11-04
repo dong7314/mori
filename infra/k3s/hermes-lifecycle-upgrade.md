@@ -18,8 +18,8 @@
 
 ```sh
 cd /Users/ldong-yeop/Desktop/private/mori-master
-docker build --platform linux/amd64 -t mori-hermes:0.1.1 hermes
-python3 scripts/runtime/check_image.py --image mori-hermes:0.1.1 --documents
+docker build --platform linux/amd64 -t mori-hermes:0.1.1 backend/hermes
+python3 infra/scripts/runtime/check_image.py --image mori-hermes:0.1.1 --documents
 docker tag mori-hermes:0.1.1 harbor.ldy-studio.com/mori/mori-hermes:0.1.1
 docker push harbor.ldy-studio.com/mori/mori-hermes:0.1.1
 docker buildx imagetools inspect harbor.ldy-studio.com/mori/mori-hermes:0.1.1
@@ -37,10 +37,10 @@ git status --short
 git pull --ff-only origin master
 # 아래 sha256 부분은 Harbor inspect에서 확인한 새 Digest로 채운다.
 MORI_HERMES_IMAGE='harbor.ldy-studio.com/mori/mori-hermes@sha256:새로운_64자리_digest'
-python3 scripts/runtime/prepare_knative_upgrade.py --image "$MORI_HERMES_IMAGE"
+python3 infra/scripts/runtime/prepare_knative_upgrade.py --image "$MORI_HERMES_IMAGE"
 ```
 
-생성기는 현재 서비스의 PVC/Secret 참조·배치·자원 설정을 보존하고 init/main 이미지를 함께 바꾼다. 임시 `/bin/sh -ec ...` command를 제거하여 새 이미지 ENTRYPOINT가 실행되게 한다. 아직 클러스터는 변경하지 않는다. 생성된 `.local/knative/hermes-service-upgrade.json`을 기존 서비스 위에 바로 apply하지 않는다. 동일 PVC를 쓰는 이전 Revision과 새 Revision이 겹칠 수 있다.
+생성기는 현재 서비스의 PVC/Secret 참조·배치·자원 설정을 보존하고 init/main 이미지를 함께 바꾼다. 임시 `/bin/sh -ec ...` command를 제거하여 새 이미지 ENTRYPOINT가 실행되게 한다. 아직 클러스터는 변경하지 않는다. 생성된 `infra/.local/knative/hermes-service-upgrade.json`을 기존 서비스 위에 바로 apply하지 않는다. 동일 PVC를 쓰는 이전 Revision과 새 Revision이 겹칠 수 있다.
 
 ## 3. k3s master: 이전 작성자 종료 후 교체
 
@@ -49,19 +49,19 @@ python3 scripts/runtime/prepare_knative_upgrade.py --image "$MORI_HERMES_IMAGE"
 ```sh
 sudo k3s kubectl -n mori delete ksvc mori-hermes-knative \
   --cascade=foreground --timeout=300s
-python3 scripts/smoke/knative.py --mode check-stopped
+python3 infra/scripts/smoke/knative.py --mode check-stopped
 ```
 
 `PASS: source replicas=0; no Pod references Hermes PVC` 확인 후:
 
 ```sh
 sudo k3s kubectl -n mori patch deployment mori-hermes-shared \
-  --type=strategic --patch-file .local/knative/deployment-image-patch.json
-sudo k3s kubectl apply --dry-run=server -f .local/knative/hermes-service-upgrade.json
-sudo k3s kubectl apply -f .local/knative/hermes-service-upgrade.json
+  --type=strategic --patch-file infra/.local/knative/deployment-image-patch.json
+sudo k3s kubectl apply --dry-run=server -f infra/.local/knative/hermes-service-upgrade.json
+sudo k3s kubectl apply -f infra/.local/knative/hermes-service-upgrade.json
 sudo k3s kubectl -n mori wait --for=condition=Ready \
   ksvc/mori-hermes-knative --timeout=180s
-python3 scripts/smoke/knative.py --mode health
+python3 infra/scripts/smoke/knative.py --mode health
 ```
 
 Deployment 패치는 replicas=0을 유지하고 향후 복구용 이미지도 수정한다. PVC/Secret/ConfigMap은 삭제하지 않는다. 기존 보조 client Pod는 gateway를 실행하지 않으므로 이전 이미지로 검사해도 된다. client가 하루 만료로 Completed이거나 없으면 기존 client.json으로 client Pod만 삭제·재생성한다.
@@ -69,7 +69,7 @@ Deployment 패치는 replicas=0을 유지하고 향후 복구용 이미지도 �
 ```sh
 # client가 없거나 Completed일 때만 실행
 sudo k3s kubectl -n mori delete pod mori-hermes-coldstart-client --ignore-not-found
-sudo k3s kubectl apply -f .local/knative/client.json
+sudo k3s kubectl apply -f infra/.local/knative/client.json
 sudo k3s kubectl -n mori wait --for=condition=Ready \
   pod/mori-hermes-coldstart-client --timeout=180s
 ```
@@ -87,15 +87,15 @@ sudo k3s kubectl -n mori get pods \
 기대 결과는 hermes,queue-proxy의 종료 코드 `0,0`. 삭제까지 확인하고 Ctrl+C 후:
 
 ```sh
-python3 scripts/smoke/knative.py --mode health --require-zero
+python3 infra/scripts/smoke/knative.py --mode health --require-zero
 # 이전 실험에서 marker-create로 기준 파일을 만든 경우
-python3 scripts/smoke/knative.py --mode marker-check
+python3 infra/scripts/smoke/knative.py --mode marker-check
 ```
 
 다시 자동 축소 후 실제 모델 호출을 확인한다.
 
 ```sh
-python3 scripts/smoke/knative.py --mode search --require-zero
+python3 infra/scripts/smoke/knative.py --mode search --require-zero
 ```
 
-실패하면 연속 재요청하거나 기존 Deployment를 켜지 말고 현재 Pod의 hermes/queue-proxy 로그와 종료 코드를 수집한다. image pull/Ready 오류는 이번 종료 코드 문제와 구분한다. 정상 종료·저장 보존·0→1 요청 성공이 모두 확인된 뒤에만 현장 검증 완료로 기록한다.
+실패하면 연속 재요청하거나 기존 Deployment를 켜지 말고 현재 Pod의 hermes·queue-proxy 컨테이너 로그와 종료 코드를 수집한다. image pull/Ready 오류는 이번 종료 코드 문제와 구분한다. 정상 종료·저장 보존·0→1 요청 성공이 모두 확인된 뒤에만 현장 검증 완료로 기록한다.

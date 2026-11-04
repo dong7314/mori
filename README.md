@@ -1,45 +1,41 @@
 # Mori
 
-휴대폰·태블릿에서 쓰는 개인 비서 서비스다.
+휴대폰·태블릿에서 쓰는 개인 비서 서비스다. 제품 코드는 `master`, 화면 실험은 `poc`, 제품·아키텍처 계획은 `plan` 브랜치에서 관리한다.
 
-- `master`: 실제 서비스 구현. 소셜 가입·로그인, 무료·프로 권한, 주차 API, Hermes 채팅 연동.
-- `poc`: HTML·JavaScript·SCSS 화면 실험.
-- `plan`: 제품·아키텍처·프론트·백엔드 설계.
+## 디렉터리
 
-## 현재 구현
+| 위치 | 역할 |
+| --- | --- |
+| [`backend/`](backend/README.md) | FastAPI API, DB 마이그레이션, worker와 테스트 |
+| [`backend/hermes/`](backend/hermes/README.md) | AI 에이전트 이미지, 플러그인, 실행 검사 |
+| [`frontend/`](frontend/README.md) | 사용자가 직접 개발할 React 웹과 후속 RN 앱 |
+| [`infra/`](infra/README.md) | 로컬 Compose, Kubernetes 배포 설정과 운영 스크립트 |
 
-- FastAPI + PostgreSQL, Alembic 마이그레이션.
-- 네이버 또는 카카오 인증을 완료한 계정만 가입. 일반 회원가입·수동 사용자 생성·수동 토큰 발급 경로 없음.
-- 일회용 로그인 코드 교환, 액세스·갱신 토큰, 세션별 로그아웃, 내 정보 조회.
-- 기본 무료 사용자, 최고 관리자 승인에 따른 프로 전환·회수, 권한 변경 이력. 결제·구독은 없음.
-- `POST /v1/parking-records`: 주차 위치 저장, 재전송·동시 요청 중복 방지.
-- `GET /v1/parking-records/latest`: 내 최신 주차 위치 조회.
-- `POST /v1/conversations/{id}/messages`: 일반 대화·웹 검색·자연어 주차 요청과 SSE 진행 상태.
-- 사용자별 대화 목록·메시지·실행 기록 조회.
-- OpenAPI 계약, PostgreSQL 통합 테스트, Docker·Compose, k3s 배포 예시.
-- Hermes 이미지에 이미지 검색·HTML 추출 플러그인과 의존성 포함, Hermes/SearXNG 일반 YAML 배포와 master용 검사 CLI. [재배포 절차](infra/k3s/hermes-shared.md).
+최상단에는 이 세 영역과 저장소 안내·Git 설정만 둔다. GitHub Actions는 GitHub가 인식하는 `.github/workflows/`에 유지한다.
 
-채팅 연동은 기본 비활성이다. 공용 Hermes는 home을 소유한 테스트 계정 한 명에게만 연결한다.
-미리 준비한 Pro 개인 런타임 연결도 지원하지만 Pod 자동 생성과 다중 사용자 공용 home 격리는 미구현이다.
-AI 요청은 채팅 API로 통일하며 검색 여부는 Hermes가 판단한다. 별도 검색 API와 임시 검색 토큰은 제거했다.
-설정·프론트 계약·터미널 검사는 [채팅 연동](backend/docs/chat.md)을 참고한다.
-
-Word·Excel·PDF 기본 생성·편집을 위한 이미지 확장도 제공한다. 문서 도구는 명시적 활성화가 필요하며, 파일 업로드/다운로드 API는 아직 없다. [문서 도구 안내](hermes/documents.md).
-
-## 공용 검색 서비스 설치
-
-SearXNG는 공식 이미지를 사용하며 다른 프로젝트와 공유할 수 있다. GitHub에서 YAML과 스크립트를 받고 Secret은 서버에서 생성한다. [Git 기반 SearXNG 설치](infra/k3s/searxng-shared.md)를 먼저 따른다. Hermes 배포·인증 정보 없이 검색 서비스만 설치할 수 있다.
-
-검색·본문 추출 연결 확인 후 [실제 Hermes의 Knative 콜드 스타트 검사](infra/k3s/hermes-knative.md)를 진행한다. 기존 PVC를 보존하며 일반 Deployment를 중단한 뒤 전환하는 절차이고, 현장 검증은 별도로 수행한다.
+로컬 실행 설정은 `infra/.env`, 생성한 배포 YAML과 로컬 도구는 `infra/.local/`, 백엔드 검증 로그는 `backend/output/`에 둔다. 이 파일들은 Git에서 제외한다. Python으로 API를 직접 실행할 때 쓰는 설정은 `backend/.env`다.
 
 ## 로컬 실행
 
-```sh
-cp .env.example .env
-# .env에 소셜 앱 키와 콜백 주소를 설정한 뒤 실행한다.
-docker-compose up --build -d
+저장소 루트에서 실행한다. 최초 설정 시 `infra/.env.example`을 `infra/.env`로 복사하고 소셜 앱 키와 콜백 주소를 설정한다. 기존 `.env`가 있으면 그대로 사용한다.
+
+```powershell
+if (!(Test-Path infra/.env)) {
+    Copy-Item infra/.env.example infra/.env
+}
+docker compose -f infra/compose.yaml up --build -d
+docker compose -f infra/compose.yaml ps
 ```
 
-환경에 따라 `docker-compose` 대신 `docker compose`를 사용한다. API는 `http://localhost:8000`, Swagger UI는 `http://localhost:8000/docs`다. DB 자격 증명은 로컬 개발 전용이며 API·DB 포트는 루프백에만 공개한다. 키를 설정하지 않아도 서버는 시작하지만 해당 소셜 로그인은 비활성화된다.
+독립 실행 파일을 사용하는 환경에서는 `docker compose`를 `docker-compose`로 바꾼다. Compose는 `infra/.env`를 읽는다. 기본 프로젝트 이름 `mori-master`를 유지해 디렉터리 이동 전의 DB 볼륨을 계속 사용한다. 기존에 `-p` 또는 `COMPOSE_PROJECT_NAME`을 사용했다면 같은 값을 유지한다.
 
-[소셜 로그인·프론트 연결](backend/docs/social-login.md), [프로 승인·관리자 설정](backend/docs/pro-access.md), [백엔드 실행·테스트](backend/README.md), [주차 API](backend/docs/parking-api.md), [OpenAPI JSON](backend/docs/openapi.json), [k3s 배포](infra/k3s/README.md)를 참고한다.
+기본 API는 `http://localhost:8000`, Swagger UI는 `http://localhost:8000/docs`다. API·DB 포트는 루프백에만 공개한다. 종료 명령은 `docker compose -f infra/compose.yaml down`이며, DB 데이터는 볼륨에 남는다.
+
+## 구현과 계약
+
+현재 백엔드 계약은 [API 0.9 안내](backend/docs/poc-backend-0.9.md)와 [OpenAPI](backend/docs/openapi.json)를 따른다. 소셜 로그인·계정, 주차·기록·일정·기능, 채팅 작업과 SSE, 문서 작업, 예약·알림·외부 서비스 연결 코드를 포함한다. 외부 공급자 설정과 worker 실행, 실제 서비스 배포·기기 검증은 별도로 진행한다.
+
+- [백엔드 실행·검사](backend/README.md)
+- [소셜 로그인과 프론트 연결](backend/docs/social-login.md)
+- [화면별 API 대응](backend/docs/poc-parity-map-0.9.md)
+- [인프라 구성과 배포](infra/README.md)

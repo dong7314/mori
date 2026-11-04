@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def load(relative, name):
@@ -18,8 +18,8 @@ def load(relative, name):
     return module
 
 
-prepare = load("scripts/runtime/prepare_knative.py", "prepare_knative")
-smoke = load("scripts/smoke/knative.py", "smoke_knative")
+prepare = load("infra/scripts/runtime/prepare_knative.py", "prepare_knative")
+smoke = load("infra/scripts/smoke/knative.py", "smoke_knative")
 
 
 class KnativeTests(unittest.TestCase):
@@ -120,7 +120,7 @@ class KnativeTests(unittest.TestCase):
 
 class KnativeUpgradeTests(unittest.TestCase):
     def test_upgrade_preserves_data_and_removes_temporary_entrypoint(self):
-        upgrade = load("scripts/runtime/prepare_knative_upgrade.py", "upgrade")
+        upgrade = load("infra/scripts/runtime/prepare_knative_upgrade.py", "upgrade")
         original = KnativeTests()
         original.setUp()
         service, _ = prepare.render(original.source)

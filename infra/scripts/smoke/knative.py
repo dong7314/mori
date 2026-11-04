@@ -7,8 +7,8 @@ import os
 import subprocess
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-MARKER_HASH = ROOT / ".local/knative/marker.sha256"
+ROOT = Path(__file__).resolve().parents[3]
+MARKER_HASH = ROOT / "infra/.local/knative/marker.sha256"
 KUBE = ([] if os.geteuid() == 0 else ["sudo"]) + ["k3s", "kubectl"]
 SERVICE = "mori-hermes-knative"
 SELECTOR = "serving.knative.dev/service=" + SERVICE

@@ -11,12 +11,12 @@ from docx import Document
 from openpyxl import load_workbook
 from pypdf import PdfReader, PdfWriter
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def load(name, filename):
     spec = importlib.util.spec_from_file_location(
-        name, ROOT / "hermes/plugins/mori_documents" / filename
+        name, ROOT / "backend/hermes/plugins/mori_documents" / filename
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

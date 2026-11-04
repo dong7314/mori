@@ -16,9 +16,9 @@ import yaml
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 spec = importlib.util.spec_from_file_location(
-    "mori_shared_gateway", ROOT / "hermes/shared_gateway.py"
+    "mori_shared_gateway", ROOT / "backend/hermes/shared_gateway.py"
 )
 gateway = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = gateway
@@ -523,7 +523,7 @@ with socket.socket() as server:
                     await process.wait()
 
     def test_entrypoint_preserves_upstream_setup_and_image_checks_dependencies(self):
-        entrypoint = ROOT / "hermes/entrypoint.sh"
+        entrypoint = ROOT / "backend/hermes/entrypoint.sh"
         subprocess.run(["sh", "-n", str(entrypoint)], check=True)
         source = entrypoint.read_text()
         self.assertLess(
@@ -534,7 +534,7 @@ with socket.socket() as server:
             "exec /opt/hermes/docker/main-wrapper.sh python /opt/mori/shared_gateway.py", source
         )
         self.assertIn('exec /opt/hermes/docker/main-wrapper.sh "$@"', source)
-        dockerfile = (ROOT / "hermes/Dockerfile").read_text()
+        dockerfile = (ROOT / "backend/hermes/Dockerfile").read_text()
         self.assertIn("COPY shared_gateway.py /opt/mori/shared_gateway.py", dockerfile)
         self.assertIn("import aiohttp, yaml", dockerfile)
 

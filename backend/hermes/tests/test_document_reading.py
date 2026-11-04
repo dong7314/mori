@@ -10,8 +10,8 @@ from docx import Document
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-ROOT = Path(__file__).resolve().parents[2]
-WORKER = ROOT / "hermes/plugins/mori_documents/worker.py"
+ROOT = Path(__file__).resolve().parents[3]
+WORKER = ROOT / "backend/hermes/plugins/mori_documents/worker.py"
 
 
 def field(paragraph, value):

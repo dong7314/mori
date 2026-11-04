@@ -37,8 +37,8 @@
 # backend 디렉터리, 운영 DB 환경 설정 후
 uv run mori grant-super-admin --user-id <USER_UUID> --reason "최초 운영 관리자 지정"
 
-# Compose
-# docker-compose exec api mori grant-super-admin --user-id <USER_UUID> --reason "최초 운영 관리자 지정"
+# 저장소 루트에서 Compose로 실행
+# docker compose -f infra/compose.yaml exec api mori grant-super-admin --user-id <USER_UUID> --reason "최초 운영 관리자 지정"
 ```
 
 회원 생성·토큰 발급 없이 이미 소셜 가입한 계정의 역할만 변경한다. 첫 가입자를 자동으로 최고 관리자로 만들지 않는다. 이메일이나 닉네임 대신 `/v1/me`의 UUID를 정확히 지정한다. 지정 후 재로그인할 필요 없이 기존 토큰으로 관리자 API를 사용할 수 있다.

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def load(name, path):
@@ -14,8 +14,8 @@ def load(name, path):
     return module
 
 
-bootstrap = load("bootstrap", ROOT / "hermes/bootstrap.py")
-configure = load("configure", ROOT / "scripts/runtime/configure.py")
+bootstrap = load("bootstrap", ROOT / "backend/hermes/bootstrap.py")
+configure = load("configure", ROOT / "infra/scripts/runtime/configure.py")
 
 
 class BootstrapTests(unittest.TestCase):

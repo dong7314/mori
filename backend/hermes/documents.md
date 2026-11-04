@@ -30,12 +30,12 @@
 
 ## 이미지 빌드와 로컬 검사
 
-저장소 루트에서 실행한다. 새 도구는 `hermes/` 빌드에 자동 포함된다.
+저장소 루트에서 실행한다. 새 도구는 `backend/hermes/` 빌드에 자동 포함된다.
 
 ```sh
-docker build --platform linux/amd64 -t mori-hermes:documents-check hermes
-python3 scripts/runtime/check_image.py --image mori-hermes:documents-check
-python3 scripts/runtime/check_image.py --image mori-hermes:documents-check --documents
+docker build --platform linux/amd64 -t mori-hermes:documents-check backend/hermes
+python3 infra/scripts/runtime/check_image.py --image mori-hermes:documents-check
+python3 infra/scripts/runtime/check_image.py --image mori-hermes:documents-check --documents
 ```
 
 첫 검사는 기존 검색 전용 설정의 기동을 확인한다. 두 번째는 **검사 전용 임시 설정**에 문서 toolset을 켜고 정상 gateway의 toolset 목록을 확인한 뒤, 실제 플러그인→문서 venv subprocess로 세 형식의 생성→읽기→수정→재읽기를 실행한다. 한국어 텍스트, 수정 내용, 원본 유지도 검사한다. 시험 파일과 컨테이너/볼륨은 자체 생성한 대상만 정리한다.
@@ -56,12 +56,12 @@ platform_toolsets:
     - mori_documents
 ```
 
-이후 [일반 YAML 배포 안내](../infra/k3s/hermes-shared.md)에 따라 새 이미지 digest로 YAML을 다시 만들고 validate/dry-run/diff/apply한다. 설정만 변경한 경우에도 해당 Deployment를 재시작한다.
+이후 [일반 YAML 배포 안내](../../infra/k3s/hermes-shared.md)에 따라 새 이미지 digest로 YAML을 다시 만들고 validate/dry-run/diff/apply한다. 설정만 변경한 경우에도 해당 Deployment를 재시작한다.
 
 ```sh
 sudo k3s kubectl -n mori rollout restart deployment/mori-hermes-shared
 sudo k3s kubectl -n mori rollout status deployment/mori-hermes-shared --timeout=600s
-python3 scripts/smoke/runtime.py --mode documents-direct
+python3 infra/scripts/smoke/runtime.py --mode documents-direct
 ```
 
 **현재 Mori 채팅 어댑터는 검색·이미지 외 toolset을 거부한다.** 문서 toolset을 켠 인스턴스는 준비 검사에서 거부된다. 기본 도구 설정을 유지하고 문서 기능은 로컬 `--documents` 검사로 확인한다. 실제 서비스 문서 연동에는 파일 소유권과 결과 전달 계약이 필요하다.
@@ -84,16 +84,16 @@ DOCX 읽기는 문단·표·중첩 표를 원래 순서대로 추출하고 콘�
 
 가로·세로로 병합한 셀은 같은 XML 셀의 본문을 한 번만 읽는다. 병합 범위의 나머지 칸은 빈칸으로 남겨 탭과 행 구분을 유지한다. 서로 다른 셀에 같은 문구를 적었거나 한 셀 안에 같은 문구를 반복한 경우에는 모두 보존한다.
 
-기존 로컬 파일을 시험하려면 운영자가 확장자가 맞는 `32자리 소문자 hex.docx/xlsx/pdf` 이름으로 이 전용 문서 폴더에 복사하고 UID 10000이 읽을 수 있게 준비할 수 있다. 모델에게 호스트 경로·URL 다운로드를 맡기는 기능은 없다. 이 단일 운영자용 플러그인은 HTTP 파일 전달을 제공하지 않는다. Mori 앱의 사용자별 파일 소유권·작업·다운로드는 별도의 [backend 0.9 문서 API](../backend/docs/poc-backend-0.9.md)를 사용한다.
+기존 로컬 파일을 시험하려면 운영자가 확장자가 맞는 `32자리 소문자 hex.docx/xlsx/pdf` 이름으로 이 전용 문서 폴더에 복사하고 UID 10000이 읽을 수 있게 준비할 수 있다. 모델에게 호스트 경로·URL 다운로드를 맡기는 기능은 없다. 이 단일 운영자용 플러그인은 HTTP 파일 전달을 제공하지 않는다. Mori 앱의 사용자별 파일 소유권·작업·다운로드는 별도의 [backend 0.9 문서 API](../docs/poc-backend-0.9.md)를 사용한다.
 
 ## 개발 검증
 
 기존 런타임 검증 venv에 문서 의존성도 설치한다.
 
 ```sh
-python -m pip install --require-hashes -r hermes/requirements.lock
-python -m pip install --require-hashes -r hermes/documents-requirements.lock
-python -m unittest discover -s hermes/tests -v
+python -m pip install --require-hashes -r backend/hermes/requirements.lock
+python -m pip install --require-hashes -r backend/hermes/documents-requirements.lock
+python -m unittest discover -s backend/hermes/tests -v
 ```
 
 문서 테스트는 DOCX/표 보존, XLSX 셀·수식 저장, PDF 페이지/회전, 원본 보존, 잘못된 경로·symlink·매크로·암호화 PDF·입력 크기·인덱스·timeout 거부를 확인한다. 전체 기능 인수에는 GPU 모델의 실제 문서 도구 호출, 결과 화면 검토 및 Mori 파일 전달 검증을 추가해야 한다.

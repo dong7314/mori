@@ -2,9 +2,9 @@ name: Hermes runtime
 on:
   push:
     branches: [master]
-    paths: ["hermes/**", "scripts/runtime/**", "scripts/smoke/**", "infra/k3s/base/**", "infra/k3s/namespaces.yaml", "infra/k3s/storage/**", ".github/workflows/runtime.yml"]
+    paths: ["backend/hermes/**", "infra/scripts/runtime/**", "infra/scripts/smoke/**", "infra/k3s/base/**", "infra/k3s/namespaces.yaml", "infra/k3s/storage/**", ".github/workflows/runtime.yml"]
   pull_request:
-    paths: ["hermes/**", "scripts/runtime/**", "scripts/smoke/**", "infra/k3s/base/**", "infra/k3s/namespaces.yaml", "infra/k3s/storage/**", ".github/workflows/runtime.yml"]
+    paths: ["backend/hermes/**", "infra/scripts/runtime/**", "infra/scripts/smoke/**", "infra/k3s/base/**", "infra/k3s/namespaces.yaml", "infra/k3s/storage/**", ".github/workflows/runtime.yml"]
 permissions:
   contents: read
 jobs:
@@ -16,14 +16,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: python -m pip install --require-hashes -r hermes/requirements.lock
-      - run: python -m pip install --require-hashes -r hermes/documents-requirements.lock
+      - run: python -m pip install --require-hashes -r backend/hermes/requirements.lock
+      - run: python -m pip install --require-hashes -r backend/hermes/documents-requirements.lock
       - run: python -m pip install ruff==0.16.8 PyYAML==6.0.3
-      - run: ruff check --config hermes/ruff.toml hermes scripts/runtime scripts/smoke
-      - run: ruff format --config hermes/ruff.toml --check hermes scripts/runtime scripts/smoke
-      - run: python -m unittest discover -s hermes/tests -v
-      - run: python scripts/runtime/configure.py --image registry.example/mori/hermes@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --pull-secret harbor-pull
-      - run: python scripts/runtime/validate_manifests.py --image registry.example/mori/hermes@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --pull-secret harbor-pull --output-dir .local/manifests
-      - run: docker build --platform linux/amd64 -t mori-hermes:ci hermes
-      - run: python scripts/runtime/check_image.py --image mori-hermes:ci
-      - run: python scripts/runtime/check_image.py --image mori-hermes:ci --documents
+      - run: ruff check --no-cache --config backend/hermes/ruff.toml backend/hermes infra/scripts/runtime infra/scripts/smoke
+      - run: ruff format --no-cache --config backend/hermes/ruff.toml --check backend/hermes infra/scripts/runtime infra/scripts/smoke
+      - run: python -m unittest discover -s backend/hermes/tests -v
+      - run: python infra/scripts/runtime/configure.py --image registry.example/mori/hermes@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --pull-secret harbor-pull
+      - run: python infra/scripts/runtime/validate_manifests.py --image registry.example/mori/hermes@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --pull-secret harbor-pull --output-dir infra/.local/manifests
+      - run: docker build --platform linux/amd64 -t mori-hermes:ci backend/hermes
+      - run: python infra/scripts/runtime/check_image.py --image mori-hermes:ci
+      - run: python infra/scripts/runtime/check_image.py --image mori-hermes:ci --documents

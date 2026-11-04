@@ -6,11 +6,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def load_module(name):
-    spec = importlib.util.spec_from_file_location(name, ROOT / f"scripts/runtime/{name}.py")
+    spec = importlib.util.spec_from_file_location(name, ROOT / f"infra/scripts/runtime/{name}.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

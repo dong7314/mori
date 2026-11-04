@@ -137,10 +137,10 @@ KIS 어댑터는 국내 주식의 당일 차트에 완료된 1분봉을 반환�
 ## 배포 순서
 
 1. 새 backend/Hermes 이미지를 빌드·게시하고 digest를 정한다. 이 변경은 이미지 파일과 manifest만 제공하며 서버에 적용하지 않는다.
-2. DB·인증·제공자 설정은 서버 Secret에 저장한다. `.env.example`은 키 이름과 기본값만 담는다. `MORI_RUNTIME_MASTER_KEY`, `MORI_BILLING_ENCRYPTION_KEY`는 서로 다른 Fernet 키를 사용하고 분실·임의 교체하지 않는다.
+2. DB·인증·제공자 설정은 서버 Secret에 저장한다. Compose용 `infra/.env.example`과 로컬 Python용 `backend/.env.example`은 키 이름과 기본값만 담는다. `MORI_RUNTIME_MASTER_KEY`, `MORI_BILLING_ENCRYPTION_KEY`는 서로 다른 Fernet 키를 사용하고 분실·임의 교체하지 않는다.
 3. `uv run alembic upgrade head` 또는 기존 migration Job으로 `0017_news_refresh_deadline`까지 적용한다. 먼저 API·worker 버전과 migration 호환성을 맞춘다. 알림의 기존 시작 시각은 최초 생성 시각으로 채우며 재시작부터 새 시작 시각을 저장한다.
 4. API를 실행한다. Kubernetes 토큰을 마운트하지 않는다. `/health/ready`는 DB 스키마 준비를 확인한다.
-5. 필요한 기능을 켜고 `mori worker`를 별도 실행한다. Compose에서는 `docker compose --profile automation up -d --build`를 사용한다. k3s는 [backend-worker.yaml](../../infra/k3s/backend-worker.yaml)의 이미지·Secret 참조를 채운다. 최소 채팅은 `MORI_CHAT_ENABLED=true`, `MORI_CHAT_WORKER_ENABLED=true`가 함께 필요하다.
+5. 필요한 기능을 켜고 `mori worker`를 별도 실행한다. 저장소 루트의 Compose에서는 `docker compose -f infra/compose.yaml --profile automation up -d --build`를 사용한다. k3s는 [backend-worker.yaml](../../infra/k3s/backend-worker.yaml)의 이미지·Secret 참조를 채운다. 최소 채팅은 `MORI_CHAT_ENABLED=true`, `MORI_CHAT_WORKER_ENABLED=true`가 함께 필요하다.
 6. 공용 gateway와 Pro provisioner를 배포한다. provisioner만 제한된 Kubernetes 권한을 갖는다. Knative/PVC 설정과 네트워크 정책을 별도 검증한다.
 7. 예약은 `MORI_AUTOMATION_ENABLED`, 알림은 `MORI_PUSH_ENABLED`, 문서는 `MORI_DOCUMENTS_ENABLED`, 결제는 `MORI_BILLING_ENABLED`를 각각 켠다. 각 제공자의 필수 값이 없으면 기능을 켜지 않는다.
 8. `/v1/capabilities`에서 `configured`와 worker heartbeat 상태를 확인한다. 설정만 되어 있고 worker가 없으면 정상 실행 중이라고 해석하지 않는다. `mori worker-health`는 설정에서 활성화한 worker만 검사하며 결제 worker도 포함한다. 특정 대상만 확인하려면 `mori worker-health --components chat,billing`처럼 지정한다. 기본 검사에서 활성화된 대상이 없으면 실패로 종료한다.

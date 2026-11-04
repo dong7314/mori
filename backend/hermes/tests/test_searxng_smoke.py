@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location(
-    "searxng_smoke", Path(__file__).resolve().parents[2] / "scripts/smoke/searxng.py"
+    "searxng_smoke", Path(__file__).resolve().parents[3] / "infra/scripts/smoke/searxng.py"
 )
 smoke = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(smoke)

@@ -4,9 +4,9 @@ import argparse
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 INFRA = ROOT / "infra/k3s/base"
-DEFAULT_OUTPUT = ROOT / ".local/manifests"
+DEFAULT_OUTPUT = ROOT / "infra/.local/manifests"
 IMAGE_PLACEHOLDER = "image: mori-hermes:dev"
 PULL_SECRETS_PLACEHOLDER = "imagePullSecrets: []"
 
@@ -98,7 +98,7 @@ def main():
     for name, content in manifests.items():
         (DEFAULT_OUTPUT / name).write_text(content, encoding="utf-8")
     for name in manifests:
-        print(f"Prepared .local/manifests/{name} (no cluster changes)")
+        print(f"Prepared infra/.local/manifests/{name} (no cluster changes)")
 
 
 if __name__ == "__main__":

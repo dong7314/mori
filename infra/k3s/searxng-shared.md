@@ -32,7 +32,7 @@ git rev-parse HEAD
 
 ```sh
 sudo k3s kubectl apply -f infra/k3s/base/searxng/namespace.yaml
-python3 scripts/runtime/create_secrets.py --component searxng
+python3 infra/scripts/runtime/create_secrets.py --component searxng
 ```
 
 `search/searxng-secret`의 `SEARXNG_SECRET`을 난수로 생성한다. 값은 출력하거나 로컬 파일에 저장하지 않는다. 정상 Secret이 있으면 변경하지 않고 재사용한다. SearXNG 전용 모드에서는 GPU 키/Harbor 인증을 묻지 않는다.
@@ -42,14 +42,14 @@ Secret은 Kubernetes에 저장되는 값이다. Git에서 제외하는 것이 et
 ## 3. YAML 생성 및 적용
 
 ```sh
-python3 scripts/runtime/configure.py --component searxng
-sudo k3s kubectl apply --dry-run=server -f .local/manifests/searxng.yaml
-sudo k3s kubectl apply -f .local/manifests/searxng.yaml
+python3 infra/scripts/runtime/configure.py --component searxng
+sudo k3s kubectl apply --dry-run=server -f infra/.local/manifests/searxng.yaml
+sudo k3s kubectl apply -f infra/.local/manifests/searxng.yaml
 sudo k3s kubectl -n search rollout status deployment/searxng --timeout=300s
 sudo k3s kubectl -n search get pods,svc -o wide
 ```
 
-생성 YAML에는 ConfigMap·Deployment·Service만 있다. `.local/`은 Git 제외 경로이며 원본은 `infra/k3s/base/searxng/`이다. 다른 컴포넌트의 생성물이 있을 수 있으므로 `.local/manifests/` 전체를 apply하지 않는다.
+생성 YAML에는 ConfigMap·Deployment·Service만 있다. `infra/.local/`은 Git 제외 경로이며 원본은 `infra/k3s/base/searxng/`이다. 다른 컴포넌트의 생성물이 있을 수 있으므로 `infra/.local/manifests/` 전체를 apply하지 않는다.
 
 이전 ZIP 구성 또는 기존 배포의 설정을 갱신하는 경우, 고정 ConfigMap을 시작 시 복사하므로 apply 후 재시작도 실행한다. 첫 설치에는 불필요하다.
 
@@ -70,9 +70,9 @@ sudo k3s kubectl -n search logs deployment/searxng -c searxng --tail=100
 ## 4. 검색 검사 — 포트포워딩 없이
 
 ```sh
-python3 scripts/smoke/searxng.py --query '국립중앙박물관'
-python3 scripts/smoke/searxng.py --mode images --engine google --query '경복궁 전경'
-python3 scripts/smoke/searxng.py --mode images --engine naver --query '경복궁 전경'
+python3 infra/scripts/smoke/searxng.py --query '국립중앙박물관'
+python3 infra/scripts/smoke/searxng.py --mode images --engine google --query '경복궁 전경'
+python3 infra/scripts/smoke/searxng.py --mode images --engine naver --query '경복궁 전경'
 sudo k3s kubectl -n search top pods --containers
 ```
 
@@ -83,8 +83,8 @@ sudo k3s kubectl -n search top pods --containers
 ```sh
 git status --short
 git pull --ff-only origin master
-python3 scripts/runtime/configure.py --component searxng
-sudo k3s kubectl diff -f .local/manifests/searxng.yaml
+python3 infra/scripts/runtime/configure.py --component searxng
+sudo k3s kubectl diff -f infra/.local/manifests/searxng.yaml
 ```
 
 `diff` 종료 코드 1은 변경점이 있다는 뜻이다. 차이를 검토한 다음 apply하고 설정이 바뀌었다면 rollout restart한다. `create_secrets.py`를 반복 실행해도 정상 Secret은 회전하지 않는다. 소스 설정 변경은 Git에서 수정·커밋하고 서버에서는 pull한다. Secret 값을 바꿀 때는 서버에서 갱신 후 해당 Deployment를 재시작한다.

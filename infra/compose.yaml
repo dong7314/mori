@@ -1,4 +1,6 @@
 # Local development only; these credentials are not production credentials.
+name: mori-master
+
 services:
   db:
     image: postgres:16-alpine
@@ -17,7 +19,7 @@ services:
       retries: 20
 
   migrate:
-    build: ./backend
+    build: ../backend
     image: mori-backend:dev
     environment:
       MORI_DATABASE_URL: postgresql+psycopg://mori:mori-local-only@db:5432/mori
@@ -29,7 +31,7 @@ services:
       - no-new-privileges:true
 
   api:
-    build: ./backend
+    build: ../backend
     image: mori-backend:dev
     environment: &backend-environment
       MORI_DATABASE_URL: postgresql+psycopg://mori:mori-local-only@db:5432/mori
@@ -143,7 +145,7 @@ services:
 
   worker:
     profiles: [automation]
-    build: ./backend
+    build: ../backend
     image: mori-backend:dev
     environment: *backend-environment
     command: ["mori", "worker"]

@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 
-OUT = Path(__file__).resolve().parents[2] / ".local/knative"
+OUT = Path(__file__).resolve().parents[3] / "infra/.local/knative"
 SERVICE = "mori-hermes-knative"
 
 
@@ -88,7 +88,7 @@ def main():
         ("deployment-image-patch.json", patch),
     ):
         (OUT / name).write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n")
-    print("Prepared .local/knative/{hermes-service-upgrade,deployment-image-patch}.json")
+    print("Prepared infra/.local/knative/{hermes-service-upgrade,deployment-image-patch}.json")
     print("No cluster changes. FIRST delete the old Knative service, then run check-stopped.")
     print("Only after it passes: patch the stopped Deployment and apply the new service.")
 
