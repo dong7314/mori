@@ -1,6 +1,6 @@
 # React 웹과 React Native 앱 구현 계획
 
-초안: 2026-10-02 · 갱신일: 2026-11-03 · 상태: 설계 방향 확정/제품 React·RN 구현 전
+초안: 2026-10-02 · 갱신일: 2026-11-04 · 상태: 설계 방향 확정/제품 React·RN 구현 전
 
 [프론트 화면 계획](plan.md) · [당근 조사](daangn-app-research-2026-10-02.md) · [배포·버전 관리](../architecture/app-release-versioning.md) · [모바일 백엔드 계약](../back/mobile-client-contracts.md)
 
@@ -75,7 +75,7 @@ PoC의 화면·마스코트·시나리오·인수 사례를 참고해 옮긴다.
 - safe area와 키보드 여백의 적용 주체를 한 곳으로 정한다. 앱이 제공하는 inset과 웹의 CSS inset을 중복 더하지 않는다. 브라우저에서는 웹 어댑터가 처리한다.
 - 기존 공통 select/바텀시트·spacing·letter spacing·터치 영역을 디자인 토큰으로 옮긴다. 다크 모드·글자 확대·모션 감소를 웹과 RN에서 일치시킨다.
 - 애니메이션은 패널·카드·녹음의 상태 전환에 집중한다. 이미지 크기 지정, 목록 페이지 처리, 화면 단위 코드 분할로 초기 로딩과 메모리를 줄인다.
-- Stackflow는 상세 뒤로가기·스크롤 복원·채팅 패널 중첩을 소규모로 검증한 후 채택한다. 도입 시 라우터/화면 스택의 주체를 하나로 유지한다. [공식 소개](https://stackflow.so/docs/get-started/introduction)
+- Stackflow를 단일 화면 스택의 기본안으로 선택하고, 01~03에서 상세 뒤로가기·스크롤 복원·채팅 패널 중첩을 검증한 버전을 고정한다. 실패한 조합은 ADR로 대체안을 정하고 중복 라우터를 남기지 않는다. 도입 시 라우터/화면 스택의 주체를 하나로 유지한다. [공식 소개](https://stackflow.so/docs/get-started/introduction)
 
 ## 5. 브리지 계약 v1 초안
 
@@ -180,3 +180,12 @@ F-09에서는 fixture로 프레임워크 경계를 확인할 수 있지만 F-10 
 | 앱 배포/OTA | 독립 웹 배포 방향과 호환 계획만 있음 | 서명된 앱·내부 테스트·구/신 호환·웹 복귀 구현; OTA 채택 시 지원 범위 별도 검증 |
 
 서버 726개·Hermes 91개 통과와 1개 skip·43 subtest 결과는 2026-11-03 master 검증 기록이다. RN 프로젝트·실기기·앱스토어·native 모듈 검증 결과로 옮겨 적지 않는다. 앱/웹/브리지의 실제 구현은 [01~12 실행 계획](implementation-roadmap-2026-10-06.md)을 따른다.
+
+
+## 12. 직접 구현할 패키지·컴포넌트와 릴리스 연결
+
+[구현 기준](frontend-engineering-guide-2026-11-04.md)에 폴더/의존성·서버/폼/UI/실행 상태·typed API·날짜·테스트 선택을 구체화했다. [UI 규격](component-system-2026-11-04.md)은 페이지/시트/선택창·고정 composer·card morph의 서로 다른 책임을 정의한다. 기존 PoC UI는 React로 이식하되 브라우저의 가짜 AI/예약·예시 시세를 제품 데이터로 옮기지 않는다.
+
+[58개 FE 작업](poc-to-react-work-breakdown-2026-11-04.md)과 [R-01~R-10 릴리스 작업](../architecture/release-playbook-2026-11-04.md)을 연결해 구현/검토한다. client-config·WebView 세션 교환과 native 기기 계약은 여전히 서버 후속이다. 기존 개인 runtime·예약·결제 서버 완료를 앱 build·브리지·실기기 UI 완료로 표시하지 않는다.
+
+정확한 라이브러리 patch는 관측값을 출발점으로 peer/typecheck·두 OS build 후 고정한다. 앱 build·web release·bridge protocol·API 계약과 service version은 각자 추적하며, 초기는 원격 HTTPS 웹만 독립 배포하고 RN JS는 앱 바이너리에 묶는다. 추가 native 기능을 앱 업데이트 없이 웹으로만 제공한다고 가정하지 않는다.

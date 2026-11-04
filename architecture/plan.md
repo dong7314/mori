@@ -1,6 +1,6 @@
 # Architecture — 시스템·인프라 설계
 
-갱신일: 2026-11-03 · [전체 계획](../plan.md) · [운영 적용·검증 순서](runtime-operations-roadmap-2026-11-03.md)
+갱신일: 2026-11-04 · [전체 계획](../plan.md) · [운영 적용·검증 순서](runtime-operations-roadmap-2026-11-03.md)
 
 ## 1. 현재 기준과 상태 구분
 
@@ -131,3 +131,10 @@ GPU 모델은 공용 서버에 적재하고 Hermes마다 복제하지 않는다.
 | A-06/A-07 | 웹·앱 호환과 출시 | 실제 클라이언트 계약·서명 build·스토어/기기 검증 |
 
 기존 A-01~A-05의 실험과 설계는 [과거 설치](knative-validation-2026-09-21.md), [Hermes 연결](hermes-shared-validation-2026-09-23.md), [콜드 스타트 기록](hermes-knative-validation-2026-09-29.md)에 보존한다. 새 코드의 운영 인수는 A-08 이후의 체크리스트로 별도 증거를 남긴다. 자세한 설정·배포 순서·장애 행렬은 [운영 로드맵](runtime-operations-roadmap-2026-11-03.md)을 따른다.
+
+
+## 8. 프론트 운영 경계의 상세 실행 계획
+
+2026-11-04 [공식 서비스 조사](../front/industry-architecture-research-2026-11-04.md)에서 당근의 네이티브/React 웹뷰/일부 Lynx와 토스의 RN/WebView 혼합, Bluesky의 RN Web을 구분했다. Mori는 React DOM 웹 + RN 주 WebView 방향을 유지한다. [구현·라이브러리 기준](../front/frontend-engineering-guide-2026-11-04.md)과 [릴리스 실행서](release-playbook-2026-11-04.md)에 단일 탐색·인증 경계·버전/호환·서명/캐시·실패 복귀를 구체화했다.
+
+R-01~R-10의 제품 웹/앱 배포와 A-08~A-12의 backend/Hermes 운영 적용은 다른 인수 범위다. 웹 release를 게시하려면 B-18 세션/client-config와 실제 API 환경이 필요하며, RN JS OTA·추가 렌더러·대규모 마이크로 프론트엔드는 초기 범위에서 제외한다. 이번에는 문서와 browser/source 확인만 수행했으며 새 이미지·CI·실제 배포는 실행하지 않았다.

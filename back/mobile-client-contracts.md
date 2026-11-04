@@ -1,6 +1,6 @@
 # React 웹·RN 앱을 위한 백엔드 확장 계약
 
-갱신일: 2026-11-03 · 기준: master 6285aba / API 0.9.0 · 상태: B-18/B-19 신규 경로는 설계 초안
+갱신일: 2026-11-04 · 기준: master 6285aba / API 0.9.0 · 상태: B-18/B-19 신규 경로는 설계 초안
 
 [백엔드 계획](plan.md) · [앱 구조](../front/react-native-webview-plan.md) · [배포 정책](../architecture/app-release-versioning.md)
 
@@ -104,3 +104,10 @@ client-config는 구/신 앱 조합, 지원하지 않는 protocol, 없는 releas
 3. client-config의 앱/웹 release 호환 정책과 네이티브 브리지 capability 협상을 실제 배포 구조에 맞춰 구현한다. `/v1/capabilities`의 worker/제공자 준비 상태를 client-config로 오인하지 않는다.
 4. B-19 APNs/FCM·위젯 snapshot/제한 세션과 앱 계정 전환을 구현하고 실제 iOS/Android에서 검증한다.
 5. 스토어 결제를 사용할 경우 구매 검증·복원·갱신/취소 통지를 별도로 연결하고 웹 구독·관리자 승인과 같은 유효 이용권 판정으로 합친다.
+
+
+## 7. 프론트 상세 계획과 확정할 계약
+
+2026-11-04의 [릴리스 실행서](../architecture/release-playbook-2026-11-04.md)는 client-config 응답에 `schema_version`, `api_contract`, `api_contract_revision` 등을 제안하고, app build/web release/bridge 호환과 실패 상태를 세분화했다. 이 문서의 기존 후보와 함께 B-18 구현 때 하나의 스키마로 확정한다. 현재 0.9 OpenAPI에 해당 경로·필드가 이미 존재하는 것으로 사용하지 않는다.
+
+[58개 프론트 작업](../front/poc-to-react-work-breakdown-2026-11-04.md)의 FE-04 세션·FE-12 기기 작업이 해당 서버 계약의 소비자다. [typed API 기준](../front/frontend-engineering-guide-2026-11-04.md)에 따라 기존 도메인 DTO는 현재 OpenAPI에서 생성하고, 후보 client-config/bridge는 구현 전에 별도 버전 스키마와 실패 fixture를 만든다. 프론트 담당은 사용자가, 요청된 서버 계약 보완·검토는 AI가 맡는다.
