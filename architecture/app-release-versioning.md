@@ -1,143 +1,143 @@
-# 웹·앱 배포와 버전 호환 계획
+# 웹·앱 버전과 독립 배포 계획
 
-갱신일: 2026-11-03 · 상태: 웹/앱 release·호환 설계, 제품 배포 자동화 미구현 · 서버 기준: master 6285aba/API 0.9.0
+갱신일: 2026-11-04 · 상태: 제품 배포 설계, 실제 React/RN·client-config·배포 workflow 구현 전 · 서버 기준: master `6285aba` / API 0.9.0
 
-[전체 계획](../plan.md) · [앱 구조](../front/react-native-webview-plan.md) · [모바일 API 계약](../back/mobile-client-contracts.md)
+[전체 계획](../plan.md) · [React/RN 구조](../front/react-native-webview-plan.md) · [단계별 릴리스 실행서](release-playbook-2026-11-04.md) · [모바일 서버 계약](../back/mobile-client-contracts.md)
 
-이 문서는 Mori의 운영 규칙이다. 당근의 독립적인 화면 배포 사례는 [조사 기록](../front/daangn-app-research-2026-10-02.md)에 있고, 아래의 버전 번호·지원 기간·강제 업데이트 정책은 Mori에 제안하는 설계다.
+이 문서는 Mori에 적용할 버전·호환·배포 규칙이다. 아래 숫자와 산출물 예시는 아직 발급하거나 배포한 값이 아니다. 당근 사례에서 확인한 사실은 [공식 자료 재조사](../front/industry-architecture-research-2026-11-04.md)로 분리하며, 당근의 내부 앱 버전·지원 종료 정책을 추정해 Mori의 근거로 쓰지 않는다.
 
-## 1. 서로 다른 네 가지 배포 단위
+## 1. 웹과 앱이 함께 배포되는 방식
 
-| 단위 | 포함 내용 | 배포 대상 | 갱신 방식 |
+Mori는 React 웹 화면을 RN의 주 WebView 한 개에서 연다. RN JS와 네이티브 모듈은 앱 바이너리에 묶고, 원격 HTTPS 웹은 독립 배포한다. 초기에는 **RN JavaScript OTA를 도입하지 않는다.** 원격 웹 갱신과 RN JS OTA는 다른 경로다. Expo/EAS는 후속 도입 여부를 별도 결정하며 첫 출시의 필수 서비스가 아니다.
+
+| 변경 대상 | 산출물 | 사용자에게 전달되는 경로 | 새 앱 build 필요 |
 | --- | --- | --- | --- |
-| React 웹 | 5탭·카드·상세·캘린더·웹 채팅 | k3s 웹 서비스 | 새 정적 빌드 게시 후 호환되는 웹 release 선택 |
-| RN 앱 바이너리 | RN JS와 native 모듈·권한·위젯 확장·앱 설정 | App Store / Google Play | 서명한 앱 빌드와 스토어 배포 |
-| Mori API/worker | 인증·도메인·예약·클라이언트 정책 | k3s API/worker | Harbor 이미지 digest + YAML, 필요 시 migration |
-| Hermes/SearXNG | 에이전트·도구·검색 runtime | 기존 내부 서비스 | 기존 이미지/YAML 수명주기 |
+| 웹 카드·목록·폼·카피·CSS | React 정적 release | HTTPS에서 호환 release 선택 | 기존 bridge/API만 쓰면 불필요 |
+| 웹의 새 API 사용 | 웹 release와 API 계약 | 서버 선배포 후 웹 공개 | 기기 기능이 같으면 불필요 |
+| 녹음 SDK·네이티브 모듈·권한·로그인 복귀 설정 | 서명 iOS/Android 앱 | TestFlight/Play 내부 테스트 후 스토어 | 필요 |
+| RN JS·WebView 설정·native 오류 화면 | RN JS를 포함한 앱 바이너리 | 스토어 앱 갱신 | 초기 정책상 필요 |
+| OS 위젯 UI·앱 확장 | 앱 바이너리/확장 | 스토어 앱 갱신 | 필요 |
+| Mori API·worker·DB | backend 이미지·migration | k3s 서버 배포 | API 호환성에 따라 판단 |
+| Hermes 도구·gateway·문서 worker | Hermes 이미지·설정 | 내부 runtime 배포 | 클라이언트 계약이 같으면 불필요 |
+| 검색 엔진 설정 | SearXNG 이미지/설정 | 내부 서비스 배포 | 불필요 |
 
-웹 카드 디자인만 바뀌고 API/브리지가 호환되면 웹만 배포한다. 새 위젯·native 모듈·OS 권한·소셜 SDK 변경은 앱 빌드가 필요하다. 웹 배포만으로 구버전 앱에 새 native 기능을 설치할 수 없다. 제품 화면 변경마다 Hermes 이미지를 다시 만들 필요도 없다.
+웹 버튼 하나를 추가한다고 모두 앱 업데이트가 되는 것은 아니다. 반대로 웹만 바꿔 설치된 앱에 녹음 모듈이나 새 OS 권한을 추가할 수는 없다. RN의 스토어 배포도 플랫폼 서명과 release build를 거친다. [RN iOS 배포](https://reactnative.dev/docs/publishing-to-app-store) · [RN Android 배포](https://reactnative.dev/docs/signed-apk-android).
 
-**초기에는 RN JavaScript OTA 업데이트를 사용하지 않는다.** RN JS도 앱 빌드에 묶고 원격 React 웹만 독립 배포한다. 이후 OTA가 필요해지면 Expo Updates 등 별도 런타임 호환/서명/복귀 체계를 검증한다. OTA는 원격 WebView 페이지 갱신과 다르며 native 코드 변경을 대신하지 않는다. [Expo runtimeVersion](https://docs.expo.dev/eas-update/runtime-versions/)
+## 2. 따로 관리할 버전
 
-## 2. 버전 이름과 변경 규칙
+| 구분 | Mori 규칙·예시 | 바꾸는 시점 | 비교 방법 |
+| --- | --- | --- | --- |
+| 제품 앱 표시 버전 | 초기 예시 `0.1.0`, 이후 `1.0.0` | 사용자에게 알릴 제품 기능/수정 묶음 | major/minor/patch 숫자 비교 |
+| iOS build | `CFBundleVersion=1`, 다음 업로드 `2` | 새 iOS 바이너리를 생성·업로드할 때 | 해당 앱 식별자의 증가 정수 |
+| Android build | `versionCode=1`, 다음 업로드 `2` | 새 Android 바이너리를 생성·업로드할 때 | 해당 applicationId의 증가 정수 |
+| 웹 release | `web-<Git SHA 12자리>-<build ID>` | 새 정적 산출물을 만들 때 | 순서 비교 없이 불변 ID로 식별 |
+| API URL 계약 | `/v1` | 기존 클라이언트를 깨는 공개 계약 재설계 시 | 지원 계약 목록으로 판단 |
+| API 서비스 버전 | 현행 `0.9.0` | backend 구현 릴리스 | 서비스 추적용, 앱 호환을 이것만으로 판정하지 않음 |
+| bridge protocol | 초기 `1` | 메시지 envelope/필수 의미가 비호환 변경될 때 | 지원 major의 교집합 |
+| capability | 예: `audio.record.v1` | 개별 native 기능의 입력/결과 계약 변경 | 정확한 이름/버전 포함 여부 |
+| client-config schema | 초기 제안 `schema_version=1` | 설정 응답 구조가 비호환 변경될 때 | RN bootstrap이 지원하는 schema |
+| 정책 revision | 증가 정수 | release 선택·최소 build·기능 공개 정책 변경 | 이전 revision과 유효기간 확인 |
 
-| 값 | 예시 | 의미/변경 기준 |
-| --- | --- | --- |
-| 앱 표시 버전 | `1.2.0` | 사용자에게 보이는 기능 릴리스 버전. 예시이며 아직 앱 출시 전 |
-| Android build | `versionCode=42` | 업로드할 때 증가하는 정수 |
-| iOS build | `CFBundleVersion=42` | Mori 정책상 새 업로드마다 증가시키는 숫자 build |
-| 웹 release ID | `web-<git-sha>` | 수정하지 않는 빌드 식별자; 동일 ID 덮어쓰기 금지 |
-| bridge protocol | `1` | 메시지 규약의 호환성 경계 |
-| capability | `audio.record.v1` | 설치된 native 구현이 제공하는 기능/계약 |
-| API 서비스 버전 | 현재 `0.9.0` / `6285aba` | 서버 구현 릴리스. URL의 `/v1`과 별개 |
-| 정책 revision | 증가하는 정수 | 앱별 웹 선택·최소 build·기능 중지 정책 변경 |
-| OTA runtimeVersion | 초기에는 없음 | OTA 도입 시 native runtime과 JS 번들의 호환 단위 |
+iOS 표시 버전은 `CFBundleShortVersionString`, Android 표시 버전은 `versionName`에 넣는다. Apple 표시값은 점으로 구분한 숫자 3개 형식이므로 `0.1.0-beta.1` 같은 문구를 해당 필드에 넣지 않는다. `internal/staging/production`은 별도 채널 metadata다. [Apple 표시 버전](https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleshortversionstring).
 
-앱 버전과 build 번호는 플랫폼별로 관리한다. 같은 앱 버전이라도 iOS·Android build가 같을 필요는 없다. `1.10.0`과 `1.9.0`을 문자열 사전순으로 비교하지 않는다. 강제 업데이트 판단은 플랫폼별 정수 build를 기준으로 한다. [앱 버전 필드 설명](https://docs.expo.dev/build-reference/app-versions/)
+Apple build 값은 숫자 1~3부분 형식을 지원하지만 Mori는 관리가 단순한 증가 정수 한 개로 통일한다. Android `versionCode`는 이미 사용한 값을 재사용하지 않고 증가시킨다. Play의 상한 2,100,000,000 안에서 관리하며 긴 날짜·시각 문자열을 정수로 붙여 만들지 않는다. 두 플랫폼의 build 번호가 같을 필요는 없다. **플랫폼을 넘어 같은 counter를 공유한다는 요구도 없다.** [Apple build 값](https://developer.apple.com/documentation/bundleresources/information-property-list/cfbundleversion) · [Android 버전 지정](https://developer.android.com/studio/publish/versioning).
 
-웹 배포 기록에는 Git SHA·이미지 digest·호환 bridge 범위·필수 capability·지원 API 계약·이전 정상 release를 남긴다. `latest`는 사람이 확인할 별칭으로만 둘 수 있고 운영 YAML은 검증한 digest로 고정한다. 앱 build에도 Git SHA와 빌드 도구 버전을 추적 가능하게 남긴다.
+Mori의 앱 SemVer는 제품 정책이다. 큰 사용자 경험/호환 변경은 major, 호환되는 기능 추가는 minor, 수정은 patch로 묶는다. 이 값이 bridge나 API major를 자동으로 바꾸지는 않는다. 버전 비교에서 `1.10.0`을 `1.9.0`보다 작게 읽는 문자열 비교를 쓰지 않는다.
 
-## 3. 앱 시작과 웹 선택
+## 3. 첫 구현에서 만들 버전 관리 파일
+
+아래는 **master에 추가할 설계 경로**다. plan 브랜치에 실행 코드를 만든 것이 아니다.
 
 ```text
-앱에 내장된 시작/오류 화면
- → 고정된 HTTPS 주소의 client-config 조회
- → platform/build/bridge에 맞는 지원 정책 확인
- → 허용된 origin의 호환 web release 로드
- → native/web handshake와 실제 capability 확인
- → 로그인 복구 → 대시보드
+frontend/release/
+  app-version.json          # 표시 버전, 플랫폼별 다음 build, 채널
+  compatibility.schema.json # release/client-config 응답 검증
+  compatibility.json        # 검토한 앱·웹·bridge·API 조합
+  releases/                 # Git SHA·산출물 digest·검증/승격 기록
 ```
 
-클라이언트 설정 조회는 웹 로드 전에 RN이 실행한다. 브라우저 진입은 native capability가 없는 `web` 대상으로 처리한다. 응답에 `policy_revision`, `expires_at`, `min_supported_build`, `latest_build`, `update_mode`, `store_url`, `web_release`, `fallback_release`, `enabled_features`를 두는 초안이다. 실제 API는 [B-18 계약](../back/mobile-client-contracts.md)에서 구현한다.
+`app-version.json` 변경은 release 준비 PR에서 검토한다. build 발급은 플랫폼별로 직렬화하고 업로드 기록의 최대값과 대조한다. 취소·실패한 업로드 번호도 재사용하지 않는 Mori 정책으로 시작한다. 같은 검증 바이너리를 내부 테스트에서 production으로 승격할 때는 다시 빌드하거나 번호를 바꾸지 않는다. 소스를 고쳐 재빌드하면 새 번호를 발급한다.
 
-서버가 URL을 줬다는 이유만으로 임의 origin을 열지 않는다. 앱에 내장된 허용 origin과 release 경로를 확인한다. 설정은 HTTPS·스키마 검증·유효기간·ETag를 적용하고 사용자 토큰/권한을 포함하지 않는다. 앱이 보고한 build/capability는 UI 호환성 판단용이며 Pro 권한이나 사용자 인증 근거가 아니다.
+웹 release에는 full Git SHA, lockfile hash, toolchain, build ID와 정적 파일/이미지 digest를 함께 남긴다. 같은 SHA를 재빌드해 다른 bytes가 생겨도 기존 ID를 덮어쓰지 않는다. `web-<SHA>-<build ID>`를 사용하는 이유다. 초기에는 정적 이미지가 staging/production 공통 runtime config를 읽도록 구성하고, environment별 빌드가 불가피하면 서로 다른 산출물로 명시한다. 서로 다른 파일을 ‘동일 artifact 승격’으로 부르지 않는다.
 
-예를 들어 신규 웹이 `audio.record.v2`를 필수로 요구하면 v1 앱에 그 웹을 배포하지 않는다. 선택 기능이면 해당 기능만 숨기고 텍스트 입력 등 기존 동작을 유지한다. bridge major를 바꿀 때는 기존 major를 지원하는 웹을 유지하거나 스토어 업데이트가 가능한 시점에 지원 종료 절차를 밟는다.
+## 4. 앱 시작과 호환 웹 선택
 
-| 예시 조합 | 기대 동작 |
+```text
+RN 내장 시작/오류 화면
+ → 고정 HTTPS client-config 조회
+ → schema·유효기간·platform/build·허용 origin 검증
+ → 호환 web release 로드
+ → bridge handshake와 실제 capability 교집합 확인
+ → 세션 복구 → 본인 대시보드
+```
+
+`GET /v1/client-config`와 웹 세션/교환권은 B-18의 **미구현 서버 계약**이다. `/v1/capabilities`는 worker/제공자 준비 상태이며 release 선택 API가 아니다. 브라우저는 native build가 없는 `web` platform으로 처리하고 필수 native capability를 요구하지 않는 release를 선택한다.
+
+설정 요청의 app build/capability는 화면 호환 정보다. 사용자 인증이나 Pro 판정으로 쓰지 않는다. origin뿐 아니라 허용된 release 경로·리다이렉트·새 창을 검증한다. WebView `originWhitelist`는 origin 기준이고 Android의 `onShouldStartLoadWithRequest`는 최초 로드에 호출되지 않으므로 시작 URL 검사도 별도로 필요하다. [WebView 공식 reference](https://github.com/react-native-webview/react-native-webview/blob/master/docs/Reference.md).
+
+| 조합 | Mori가 선택할 동작 |
 | --- | --- |
-| 구 앱 + 같은 bridge의 새 웹 | 호환 계약이면 새 UI 사용 |
-| 구 앱 + 필수 native 기능이 추가된 웹 | 구 앱용 호환 웹 유지; 선택 기능은 비활성 |
-| 새 앱 + 이전 웹 | 새 앱이 지원하는 이전 bridge/기능으로 실행 |
-| 설정 서버 일시 실패 + 유효한 마지막 정책 | 마지막 호환 release 시도; 실패하면 native 재시도 화면 |
-| 최초 실행·정책 없음 / 만료 후 호환성 불명 | native 연결 안내; 검증 안 된 최신 웹 임의 실행 금지 |
-| 세션 만료·서버 권한 회수 | 웹 선택 성공과 무관하게 재인증/접근 거부 |
+| 이전 앱 + 같은 bridge의 새 웹 | 해당 조합의 인수 결과가 있으면 새 웹 제공 |
+| 이전 앱 + 선택적인 새 녹음 기능 | 텍스트 입력은 유지하고 지원하지 않는 녹음 동작만 대체/비활성 |
+| 이전 앱 + 필수 bridge v2 웹 | v1 호환 웹 유지, v2 웹 배포 제외 |
+| 새 앱 + 이전 웹 | 새 앱이 명시적으로 지원하는 이전 protocol로 실행 |
+| 새 웹 + API의 추가 필드 | 생성 타입/런타임 검증의 호환 정책에 따라 수용 |
+| 이전 웹 + API 필드 제거 | 지원 종료 전 제거 금지, 병행 계약 또는 다음 API major 필요 |
+| 설정 실패 + 유효한 마지막 정책 | 마지막 검증 release 시도, 실패하면 RN 재시도 화면 |
+| 최초 실행/만료 정책/알 수 없는 schema | 검증되지 않은 latest로 우회하지 않고 연결 복구 안내 |
+| 세션 만료·구독 회수 | 웹 로드 성공과 무관하게 서버 권한 검사 적용 |
 
-오프라인에 웹 화면 전체가 항상 열린다고 약속하지 않는다. 초기 앱은 네트워크 오류에서도 native 복구 화면이 남아야 한다. 별도로 보관한 사용자 요약을 보여주는 경우 기준 시각을 표시하고 로그인 전·계정 전환 후에는 숨긴다.
+현재 native 권한 허용과 capability 지원은 다르다. `audio.record.v1`이 있는 앱도 마이크 권한은 거부될 수 있다. 사용자가 권한을 거부했다고 앱 버전이 오래됐다고 안내하지 않는다.
 
-## 4. 기존 k3s·Harbor를 쓰는 웹 배포
+## 5. 웹 배포와 캐시
 
-초기에는 별도 클라우드 배포 플랫폼을 필수로 추가하지 않는다. 다음 구성은 새로 구현할 계획이며 현재 클러스터에 적용된 리소스가 아니다.
+초기 구조는 k3s/Harbor를 사용한다. React 웹을 불변 release 경로에 빌드하고, release별 정적 이미지/Service 또는 불변 자산 저장 경로를 통해 제공한다. `/releases/<release-id>/`의 asset base·라우터 basename을 맞추고 `/v1`, OAuth callback, Universal Link/App Link 확인 경로는 고정한다. 실제 origin과 앱 식별자는 착수 단계에서 정한다.
 
-1. `frontend/apps/web`을 빌드해 release ID가 포함된 경로로 정적 파일을 만든다. asset base와 클라이언트 라우터 basename을 같은 release 경로로 맞춘다.
-2. 정적 파일을 Nginx 이미지에 넣어 Harbor의 `mori/mori-web:<release-id>`에 push한다. 배포에는 결과 digest를 기록한다.
-3. 초기에는 release별 Deployment/Service와 `/releases/<release-id>/` 경로를 만든다. 지원 중인 이전 웹은 별도 경로로 유지한다. 기존 release를 덮어쓰는 rolling update 때문에 열린 화면의 JS chunk가 사라지는 문제를 피한다.
-4. 같은 HTTPS origin에서 `/v1/`은 Mori API/웹 세션 계층으로 연결하고, 루트 진입은 호환 release로 보내는 작은 bootstrap을 제공한다. 로그인 callback과 Universal Link/App Link 확인 파일도 고정 경로를 사용한다.
-5. 새 release의 파일·라우팅·로그인·SSE를 확인한 뒤 client-config의 선택 release만 바꾼다. RN 바이너리나 Hermes를 재시작하지 않는다.
-
-예시의 서비스명·경로는 설계용이다. 실제 도메인과 앱 ID는 첫 구현에서 정하고 staging/production을 분리한다. home k3s의 외부 HTTPS 진입점, 인증서, DNS와 실제 휴대폰 외부망 접근을 별도로 검증한다. 개발용 `localhost`·`kubectl port-forward`는 스토어 앱의 서비스 주소로 쓰지 않는다.
-
-release별 경량 웹 서비스는 초기 운영을 단순하게 하는 선택이다. 보관 수가 늘면 불변 정적 자산 저장소와 단일 게이트웨이로 합칠 수 있지만 URL/호환 계약은 유지한다. 초기 보관 규칙은 **지원 앱이 참조하는 모든 release + 직전 정상 release + 최근 30일 release**의 합집합이다. 지원 종료·오래 열린 세션의 갱신 안내·접근 로그를 확인한 후 정리한다. 보안 취약 release는 예외적으로 차단하고 호환 수정본으로 교체한다.
-
-정적 해시 자산은 긴 immutable 캐시를 쓸 수 있다. release를 선택하는 bootstrap/config는 재검증하고, 인증 응답·개인 데이터·사용자 문서에는 공용 캐시를 적용하지 않는다. 초기에는 service worker를 넣지 않고 HTTP 캐시부터 시작해 중복 업데이트 체계를 피한다.
-
-SSE 경로는 프록시 버퍼링을 끄고 요청 수명에 맞는 timeout을 검증한다. 텍스트 문서의 10MB 제한은 UTF-8 원문 크기이고 JSON escape 등 전송 크기는 더 클 수 있으므로 ingress의 전송 한도와 API 원문 한도를 따로 정한다. 큰 파일 때문에 SSE 응답까지 버퍼링하는 공통 설정을 만들지 않는다.
-
-## 5. 앱 빌드·배포 경로
-
-```text
-master의 검증된 커밋
- → 웹/앱/API 계약 검사
- → 웹 staging 게시 + API staging 연결
- → iOS 서명 archive / Android 서명 AAB
- → TestFlight / Google Play 내부 테스트
- → 실제 기기 시나리오 확인
- → 스토어 제출·출시 가능 상태 확인
- → 제한된 대상부터 배포 확대
-```
-
-GitHub Actions를 공통 검사와 자동화의 출발점으로 둔다. iOS는 macOS/Xcode 빌드 환경, Android는 Android SDK/JDK/Gradle 환경을 고정한다. 첫 내부 배포는 개발 Mac에서 수행할 수 있고 반복 가능한 명령을 만든 뒤 CI로 옮긴다. 서명 인증서·프로비저닝·Android keystore·스토어 자격증명은 Secret에 두며 저장소에 커밋하지 않는다. [RN iOS 배포](https://reactnative.dev/docs/publishing-to-app-store), [RN Android 배포](https://reactnative.dev/docs/signed-apk-android)
-
-Harbor는 웹/API 이미지 저장소이고 휴대폰 앱의 설치 배포처가 아니다. 앱 사용자에게는 각 스토어의 설치 경로를 제공한다. EAS Build/Submit을 나중에 선택할 수 있지만 계정·요금·네이티브 확장 지원을 확인한 별도 결정으로 남긴다.
-
-`master`는 제품 소스, `poc`는 UX 실험, `plan`은 문서라는 브랜치 전략을 유지한다. staging/production을 이 세 브랜치와 일대일로 대응시키지 않는다. 같은 검증된 산출물을 환경 설정으로 승격하고 production에서 다시 빌드해 다른 결과를 만들지 않는다.
-
-## 6. CI와 승격 순서
-
-| 순서 | 검사/작업 | 실패 시 처리 |
+| 대상 | 초기 캐시 정책 | 이유 |
 | --- | --- | --- |
-| 1 | 타입·lint·핵심 화면 테스트, OpenAPI 차이/브리지 schema 검사 | build 중단 |
-| 2 | 웹 build·앱 release build·산출물 digest 기록 | 배포하지 않음 |
-| 3 | 추가형 API/DB 변경을 staging에 먼저 반영 | 기존 앱/API 계약 확인 후 진행 |
-| 4 | 새 웹 release 게시·로그인/SSE/파일/딥링크 시험 | 현재 정책 포인터 유지 |
-| 5 | 최소 지원 앱과 새 앱의 호환 조합 검증 | 신규 capability 비활성/수정 |
-| 6 | 앱 내부 테스트·스토어 배포 | 스토어 이용 가능 전 강제 업데이트 금지 |
-| 7 | 플랫폼별 소규모 대상 → 확대 | 실패율 증가 시 웹 선택/기능 플래그 복귀 |
+| hash가 있는 JS/CSS/폰트·불변 release 자산 | 긴 `max-age`와 `immutable` | 같은 URL을 덮어쓰지 않는 산출물 |
+| bootstrap·release 포인터 | `no-cache`와 ETag 등 재검증 | 호환 release 변경을 다시 확인 |
+| client-config | 정책 유효기간·ETag와 정해진 재검증 | 캐시 저장 가능성과 fallback 허용 기한을 구분 |
+| 인증·개인 데이터·문서 | 기존 `no-store`와 공용 캐시 금지 | 사용자 자료가 공유 캐시에 남지 않도록 처리 |
+| Web Push service worker | 기기 알림 계약에 필요한 경우 별도 구현 | 초기 앱 전체 offline/update service worker와 구분 |
 
-처음에는 전체 테스트 사용자를 명시한 allowlist로 배포 범위를 나눈다. 자동 비율 배포가 필요해지면 설치 ID의 안정적인 분배를 사용해 실행마다 다른 웹으로 바뀌지 않게 한다. 로그에는 app build/web release/bridge/API version/request ID를 남기며 토큰·음성 원문·대화 본문을 버전 추적용 로그에 넣지 않는다.
+`no-cache`는 저장 금지가 아니라 재사용 전 검증을 요구한다. 자산의 `immutable`은 같은 URL의 내용이 바뀌지 않는 조건에서만 사용한다. 초기에는 앱 전체를 cache-first로 감싸는 PWA service worker를 추가하지 않는다. 이미 있는 Web Push 예시와 웹 release 업데이트 체계를 혼동하지 않는다. [HTTP 캐시 지시어](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control).
 
-웹 전환은 재실행 또는 안전한 화면 복귀 시 적용한다. 녹음 중·폼 작성 중·SSE 실행 중 강제 reload하지 않는다. draft 저장과 실행 상태 확인 후 전환한다. 서버 schema 변경은 먼저 필드를 추가하고 지원 앱이 사용하지 않게 된 후 제거하는 순서로 진행한다.
+지원 중인 앱이 참조하는 release, 직전 정상 release, 최근 30일 release의 합집합을 초기 보관 정책으로 제안한다. 기간이 지났다는 이유만으로 지원 앱의 chunk를 지우지 않는다. 취약 release는 접근을 차단하고 호환 수정본으로 전환한다. 보관 수·활성 사용·비용은 운영 실측 후 조정한다.
 
-## 7. 업데이트 안내와 복구
+웹 세션 계층의 SSE 프록시는 버퍼링하지 않는다. 원본 파일 10MB와 JSON escape를 포함한 전송 크기를 구분하며 파일 전송 설정이 SSE를 함께 버퍼링하지 않게 한다. 오래 열린 화면에서 동적 chunk가 사라지지 않도록 release 삭제 시점을 검증한다.
 
-- **권장 업데이트:** 사용을 계속할 수 있고 새 기능을 안내한다. 반복 안내를 제한한다.
-- **필수 업데이트:** 보안·중단된 계약 등 기존 앱을 유지할 수 없는 근거가 있을 때만 적용한다. iOS/Android별 스토어 배포 상태와 최소 build를 따로 관리한다.
-- **웹 오류:** client-config를 직전 호환 release로 복귀한다. 신규 웹이 기록한 데이터도 이전 웹/API가 읽을 수 있는지 확인한다.
-- **앱 오류:** 이미 설치된 바이너리를 서버가 강제로 이전 버전으로 낮출 수 없다. 문제 기능을 중지하고 더 높은 build의 수정 앱을 배포한다.
-- **API/DB 오류:** API 이미지 복귀 가능성과 DB migration 복구 가능성은 다르다. 이전 앱·웹과의 데이터 호환 여부를 확인하고 데이터 삭제를 동반한 자동 되돌리기를 하지 않는다.
+## 6. 앱과 웹의 배포 순서
 
-지원 범위는 단순히 최신 두 앱 버전으로 자르지 않는다. 최소 build 이상에서 사용 중인 bridge와 웹 release의 조합을 등록한다. 지원 종료는 사용자 안내와 새 앱 설치 가능성을 확인한 후 정책 revision으로 기록한다.
+1. API/DB는 기존 앱이 읽을 수 있는 추가형 변경을 먼저 반영한다.
+2. 새 웹 산출물을 게시하되 아직 모든 사용자에게 선택하지 않는다.
+3. 최소 지원 앱·현재 앱·다음 앱과 웹/API 조합을 staging에서 검증한다.
+4. native 변경이 있으면 서명 바이너리를 TestFlight/Play 내부 테스트에 올린다.
+5. 실제 기기·계정·권한·초안·SSE·파일·딥링크를 인수한다.
+6. 스토어에서 해당 build가 설치 가능한지 확인하고 platform별 정책을 공개한다.
+7. 웹은 내부 대상→확대 순으로 포인터를 승격한다. 문제 시 기능과 웹 선택을 이전 호환값으로 돌린다.
 
-## 8. 스토어 배포 전에 확인할 제품 결정
+iOS TestFlight는 내부/외부 테스트를 나누며 외부 시험에는 별도 검토가 필요할 수 있다. Play도 내부·비공개·공개 test track을 제공한다. 첫 출시에 필요한 계정별 검증 요건은 출시 시 콘솔에서 다시 확인한다. 검사 수·대기 시간은 이번 계획의 보장값으로 쓰지 않는다. [TestFlight](https://developer.apple.com/testflight/) · [Play 테스트 track](https://support.google.com/googleplay/android-developer/answer/9845334?hl=en).
 
-원격 웹 갱신이나 OTA를 심사 우회 수단으로 쓰지 않는다. 스토어 심사 기준은 제출 시 다시 확인하며, 단순 웹 포장 수준을 넘는 제품 기능과 안정성을 갖춘다. iOS의 소셜 로그인 조항 적용 여부는 네이버·카카오만 제공하는 현재 정책과 함께 검토해야 한다. 필요하면 동등한 로그인 선택지 추가를 별도 기획으로 결정한다. 서버 0.9에는 웹 Toss 자동결제와 관리자 승인/유효 유료 기간에 따른 Pro 권한이 구현돼 있다. 스토어 구매·복원·서버 검증과 앱 판매 방식은 별도 미구현/결정 항목이며, 앱 출시 전에 스토어별 결제 정책을 다시 검토한다. [Apple App Review Guidelines — 2.5.2·4.2·4.8](https://developer.apple.com/app-store/review/guidelines/)
+앱 update의 iOS phased release는 자동 업데이트 대상에 대한 단계 배포이며 사용자의 수동 설치를 막는 기능이 아니다. 웹 대상 배포와 스토어 단계 배포도 별개다. Play의 staged rollout 중단도 이미 설치한 앱을 이전 바이너리로 되돌리지 않는다. 구체 운영은 [실행서](release-playbook-2026-11-04.md)를 따른다. [Apple phased release](https://developer.apple.com/help/app-store-connect/update-your-app/release-a-version-update-in-phases/) · [Play staged rollout](https://support.google.com/googleplay/android-developer/answer/6346149?hl=en).
 
-현재 서비스가 소셜 로그인 예외에 해당한다는 근거 없이 네이버·카카오만으로 iOS 심사가 가능하다고 가정하지 않는다. 계정 생성 기능에 대응하는 앱 내 계정 삭제도 출시 전 검토/구현 항목이다. 현재 마이 API에 탈퇴가 이미 있다는 뜻은 아니다. [Apple — 4.8·5.1.1(v)](https://developer.apple.com/app-store/review/guidelines/)
+## 7. 갱신·강제 업데이트·복구
 
-이 확인은 지금 인증 제공자나 결제 방식을 변경했다는 뜻이 아니다. 스토어 등록·심사·계정 비용도 자체 k3s 서버 운영과 별개다.
+웹 release 전환은 새 시작이나 안전한 화면 복귀에서 적용한다. 녹음·전사·파일 업로드·제출 중 폼·진행 중 채팅 관찰에서 강제 reload하지 않는다. draft와 run ID/마지막 SSE ID를 보관하고, 서버 상태 조회와 사용자 의도를 확인한 뒤 새 화면으로 간다. 패널 닫기는 작업 취소가 아니다.
 
-## 9. 완료 판정
+권장 업데이트는 기존 이용을 유지하며 안내한다. 필수 업데이트는 지원할 수 없는 protocol·중대한 수정 필요 등 근거를 기록하고 **해당 플랫폼의 배포 build가 실제 설치 가능한 경우** 적용한다. iOS가 승인됐다고 Android 최소 build를 동시에 올리지 않는다. 단순 신규 기능 홍보를 위해 전체 앱을 차단하지 않는다.
 
-문서 작성·이미지 build만으로 배포 완료라고 하지 않는다. A-06은 구 앱/새 앱 × 구 웹/새 웹 호환성, 정책 실패/웹 오류 복귀, 저장 후 재조회, 실제 기기 로그인을 통과해야 한다. A-07은 서명/스토어 내부 배포·지원 OS·권한/위젯·업데이트 동작을 실제 기기에서 확인해야 한다.
+웹 오류는 호환 release 포인터를 되돌린다. native 오류는 기능 중단과 더 높은 build의 수정 앱 배포로 복구한다. 서버가 설치된 앱을 강제로 downgrade할 수 있다고 가정하지 않는다. API 이미지 복귀와 DB migration 되돌리기는 별도이며 새 데이터가 이전 코드에서 읽히는지 먼저 확인한다. 호환 불명확한 DB 파괴 rollback을 자동 실행하지 않는다.
 
-이번 작업에서 수행한 것은 설계와 문서 검증이다. 새 앱·웹 이미지, client-config API, CI workflow와 Kubernetes 리소스는 후속 `master` 작업이다.
+## 8. 스토어 출시와 OTA의 경계
+
+현재 서버는 웹 Toss 결제와 관리자 승인/유효 유료 기간의 Pro를 구현했다. 앱 안의 판매 방식·StoreKit/Google Play 구매/복원·서버 검증은 별도 결정/구현이다. 소셜 로그인 선택지·계정 삭제/보관·위젯 개인정보도 출시 전에 제품/서버 계약을 확인한다. 특정 심사 예외나 앱 내 웹 구매 허용을 이 문서만으로 확정하지 않는다. [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/).
+
+Expo를 채택하더라도 OTA가 native module이나 권한을 추가해 주는 것은 아니다. 추후 OTA를 도입하면 runtimeVersion과 해당 native build의 코드 호환, 서명·채널·부분 배포·복구를 별도로 검증한다. 초기에는 이 경로를 구현하지 않는다. [Expo runtimeVersion](https://docs.expo.dev/eas-update/runtime-versions/).
+
+## 9. 현재 구현 상태와 다음 작업
+
+- **완료:** React 웹/RN 재사용 방향, backend 0.9 코드와 로컬 검증, 본 계획의 버전·호환 규칙.
+- **미구현:** 제품 RN/React 코드, client-config·웹 세션/교환권, bridge 패키지, release manifest 생성기·호환 검사·웹 배포·앱 서명 CI.
+- **다음 작업:** 프론트 기반에서 release/bridge 경계를 먼저 만들고 내부 build→staging→실기기 인수까지 [실행서 R-01~R-10](release-playbook-2026-11-04.md)에 따라 진행한다.
+- **검증 범위:** 이 문서는 2026-11-04 공식 문서를 확인해 쓴 설계다. 새 앱·스토어 등록·배포·CI 성공 기록을 만든 것은 아니다.
