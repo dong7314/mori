@@ -1,6 +1,16 @@
 # Front — 기능 중심 앱 화면과 상호작용
 
-갱신일: 2026-11-03 · [전체 계획](../plan.md) · [제품 시나리오](../product/feature-dashboard-scenario-2026-09-29.md)
+갱신일: 2026-11-04 · [전체 계획](../plan.md) · [제품 시나리오](../product/feature-dashboard-scenario-2026-09-29.md)
+
+## 이번에 직접 개발할 때 읽는 순서
+
+1. [화면/기능별 작업 58개](poc-to-react-work-breakdown-2026-11-04.md): 현재 PoC의 소스 근거·작은 구현 범위·상태/의존성·완료 증거.
+2. [프로젝트·라이브러리·상태/폼/API 구현 기준](frontend-engineering-guide-2026-11-04.md): 채택안·대안·관측 버전/peer·폴더 경계와 첫 PR 산출물.
+3. [공통 컴포넌트·UX 규격](component-system-2026-11-04.md): 목록/선택/시트/카드/입력·모션을 같은 의미와 모양으로 만드는 기준.
+4. [공식 서비스 사례](industry-architecture-research-2026-11-04.md): 당근·토스·Bluesky의 실제 공유/배포 방식과 Mori 적용 판단.
+5. [앱·웹 릴리스 실행서](../architecture/release-playbook-2026-11-04.md): R-01~R-10·버전/호환 행렬·CI/서명·내부 배포·복귀 훈련.
+
+기존 01~12는 큰 단계로 유지하고, 이제 실제 한 번의 구현은 `FE-01-01` 같은 작은 작업으로 진행한다. 제품 프론트·앱은 사용자가 개발하며 AI는 요청한 코드 검토·API 계약 보완을 지원한다. 이번 갱신에서 React/RN 코드·라이브러리 설치·CI/배포를 수행한 것은 아니다.
 
 ## 1. 목표와 현재 상태
 
@@ -184,3 +194,12 @@ OS 위젯은 사용자가 추가하며 갱신 시각에는 OS 제약이 있다. 
 | 4 | 11~12 음성·기기·릴리스 | 전사 API·Web Push worker·서버 사전 기동 | RN 녹음/파일 핸들·native Push·위젯·client-config·서명 앱/호환 시험 |
 
 현재는 제품 구현 단계 01~12가 모두 대기다. 서버가 구현된 항목을 다시 새 API로 만드는 대신 0.9 계약에 맞는 어댑터와 화면을 만든다. `configured`와 worker heartbeat, 최종 작업 상태를 구분해 비활성·준비 중·실행 중·복구 중을 보여준다. 실제 제공자·클러스터가 준비되기 전의 fixture 검증은 UI 진행으로 기록하고 통합 완료로 표시하지 않는다.
+
+
+## 12. 2026-11-04 구현 기준 고도화
+
+현재 PoC와 plan의 기준은 여전히 8fa4fe4/6285aba다. 날짜만 바꾸기보다 README의 오래된 화면 설명을 제외하고 실제 app-experience·presentation·picker·history 모듈을 대조했다. 격리 mobile preview의 대시보드·기능 생성/반복·일정 폼·마이를 직접 탐색했다. 실제 계정 저장·제공자 검증과는 구분한다.
+
+기술 기본안은 React/TS/Vite + Stackflow 단일 탐색, React Aria 기반의 Mori UI, Query 서버 캐시·RHF/Zod 폼·제한된 Zustand UI store, CSS Modules/토큰·Motion·캔들 전용 차트다. 라이브러리의 observed 버전과 peer 조합, 설치/실기기 통과 후 고정 절차를 상세 문서에 기록했다. 특히 TypeScript 최신 major와 OpenAPI 생성기의 peer 범위가 달라 초기 호환 후보를 따로 선택한다. 같은 이름의 최신 패키지를 전부 설치한 상태를 완료로 보지 않는다.
+
+58개 FE 작업과 10개 release 작업은 모두 계획/대기다. 공통 기반·fixture 대시보드·RN 최소 실험으로 시작하고, B-18 세션과 실제 로그인→주차→대시보드→채팅을 첫 통합으로 인수한다. 단계10은 기능·결과/예약·알림·뉴스·주가·웹 결제로 나눠 각 하위 작업을 검토한다.

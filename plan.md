@@ -1,6 +1,18 @@
 # Mori 프로젝트 계획
 
-갱신일: 2026-11-03 · 관리 브랜치: `plan` · 구현 기준: `master` [`6285aba`](https://github.com/dong7314/mori/commit/6285abac905b242442cceda103c63e18d8900ab3) · 화면 기준: `poc` `8fa4fe4`
+갱신일: 2026-11-04 · 관리 브랜치: `plan` · 구현 기준: `master` [`6285aba`](https://github.com/dong7314/mori/commit/6285abac905b242442cceda103c63e18d8900ab3) · 화면 기준: `poc` `8fa4fe4`
+
+## 2026-11-04 프론트 상세 계획 보강
+
+현재 최신 화면과 서버는 8fa4fe4/6285aba로 유지된다. 기존 01~12 큰 단계에 더해 **현재 PoC에 근거한 FE 작업 58개**와 **R-01~R-10 릴리스 작업**을 작성했다. 사용자 구현 범위·공통 컴포넌트·상태 소유·API/서버 선행 조건·완료 증거를 작은 작업 단위로 추적한다. 제품 React/RN 구현 상태는 계속 대기다.
+
+- [현재 화면→React 작업 분해](front/poc-to-react-work-breakdown-2026-11-04.md): 5탭·기본/사용자 기능 상세·파일·폼·모션과 실제 서버 매핑.
+- [구현/라이브러리 기준](front/frontend-engineering-guide-2026-11-04.md): 폴더·타입·상태·폼·날짜·API·테스트 선택과 호환 버전 고정 절차.
+- [컴포넌트·UX 규격](front/component-system-2026-11-04.md): 버튼/행/선택/시트·card morph·고정 음성 입력의 일관성.
+- [당근·토스·Bluesky 공식 조사](front/industry-architecture-research-2026-11-04.md): 회사별 공유/배포 방식과 Mori의 적용/제외 판단.
+- [릴리스 실행서](architecture/release-playbook-2026-11-04.md): 앱 SemVer·플랫폼 build·불변 웹 release·API/bridge·client-config·CI·기기 인수·복귀 훈련.
+
+웹은 React DOM/Vite, native는 RN 컨테이너로 두고 Stackflow·React Aria·Query·RHF/Zod·제한된 UI store와 Mori 스타일을 기준으로 검증한다. 당근의 전체 앱이 RN이라는 전제나 회사 내부 버전 정책 추정은 사용하지 않는다. 제품 프론트는 사용자가 개발하며, AI는 요청된 구현/검토·서버 계약 보완을 지원한다.
 
 ## 1. 제품 방향과 현재 단계
 
@@ -134,9 +146,9 @@ API가 이미 처리하는 기능을 다시 개발할 목록에 넣지 않는다
 | poc | vanilla JavaScript/SCSS 기반 화면 실험. 8fa4fe4 기준이며 새 backend 0.9 전 화면 연결 없음 |
 | plan | 제품·프론트·백엔드·운영 계획과 진행 상태. 문서 갱신을 코드/배포 완료로 계산하지 않음 |
 
-현재 사용자 요청은 plan 갱신·커밋·푸시이며 master·PoC 코드나 사용자 수정 Word는 바꾸지 않는다. 프론트 담당 경계는 [실행 계획](front/implementation-roadmap-2026-10-06.md)을 따르며 다른 영역의 기존 작업을 덮어쓰지 않는다.
+이번 작업은 프론트 상세 설계와 공식 자료 조사이며 master·PoC 코드나 사용자 수정 Word는 바꾸지 않는다. 프론트 담당 경계는 [실행 계획](front/implementation-roadmap-2026-10-06.md)을 따르며 다른 영역의 기존 작업을 덮어쓰지 않는다.
 
 - 현재 상세: [백엔드](back/plan.md) · [구현/잔여 작업](back/implementation-status-2026-11-03.md) · [프론트](front/plan.md) · [React/RN](front/react-native-webview-plan.md) · [아키텍처](architecture/plan.md) · [운영 전환](architecture/runtime-operations-roadmap-2026-11-03.md) · [모바일 계약](back/mobile-client-contracts.md).
-- 이번 코드 반영: [2026-11-03 릴리스 기록](releases/2026-11-03.md).
+- 이번 코드 반영: [2026-11-03 릴리스 기록](releases/2026-11-03.md). 프론트 상세 조사/설계: [2026-11-04 변경 기록](releases/2026-11-04.md).
 - 이전 기준: [9월 30일 기록](releases/2026-09-30.md) · [Word 기획서](product/screen-spec/README.md) · [10월 2일 PoC 확인](front/poc-ui-update-2026-10-02.md).
 - 과거 환경 검증: [Knative 기반](architecture/knative-validation-2026-09-21.md) · [Hermes 첫 대화](architecture/hermes-shared-validation-2026-09-23.md) · [GPU 이슈](architecture/hermes-llama-validation-2026-09-23.md) · [검색·이미지·추출](architecture/hermes-web-validation-2026-09-28.md) · [이미지/YAML 전환](architecture/runtime-image-transition.md) · [Hermes Knative](architecture/hermes-knative-validation-2026-09-29.md).
