@@ -1,12 +1,12 @@
 # 공통 컴포넌트와 화면 전환·입력 규격
 
-작성일: 2026-11-04 · 상태: 제품 React에서 구현할 UI 계약 · 기준: `poc 8fa4fe4`
+작성일: 2026-11-04 · 갱신일: 2026-11-11 · 상태: 기본 토큰 구현 완료·공통 컴포넌트 후속 계약 · 기준: `poc 8fa4fe4`
 
 [프론트 작업 분해](poc-to-react-work-breakdown-2026-11-04.md) · [구현/라이브러리 기준](frontend-engineering-guide-2026-11-04.md) · [프론트 계획](plan.md)
 
 ## 1. 재사용할 기준
 
-기존 PoC의 간결한 세이지/크림·라벤더 보조색, 마스코트·기능 SVG·타이포그래피와 실제 조작 흐름을 제품 컴포넌트로 옮긴다. 아래 이름은 구현할 제안 API이며 현재 만들어진 React 컴포넌트가 아니다. 컴포넌트의 동작 기반은 React Aria, 화면 스택은 Stackflow, 필요한 공유 요소 전환은 Motion으로 나눈다.
+기존 PoC의 간결한 세이지/크림·라벤더 보조색, 마스코트·기능 SVG·타이포그래피와 실제 조작 흐름을 제품 컴포넌트로 옮긴다. 기본 토큰과 웹 테마는 FE-01-02에서 구현했고 아래 공통 컴포넌트 이름은 후속 제안 API다. 컴포넌트의 동작 기반은 React Aria, 화면 스택은 Stackflow, 필요한 공유 요소 전환은 Motion으로 나눈다. 이 라이브러리가 모두 설치·검증됐다는 뜻은 아니다.
 
 색·간격·모션 값의 원본은 [PoC mobile 스타일](https://github.com/dong7314/mori/blob/8fa4fe4/styles/_mobile.scss), [접근성 보완](https://github.com/dong7314/mori/blob/8fa4fe4/styles/experience.scss), [모션](https://github.com/dong7314/mori/blob/8fa4fe4/src/motion.mjs)과 [presentation](https://github.com/dong7314/mori/blob/8fa4fe4/src/presentation.mjs)에서 추출한다. 화면별 CSS 수치를 그대로 복사해 중복을 늘리지 않는다.
 
@@ -16,12 +16,22 @@
 | --- | --- | --- |
 | 색 | canvas #f5f6f3·surface #fff·ink #28352f·accent #456e57, dark 별도 | semantic 이름으로 background/surface/text/border/action 상태를 매핑 |
 | 간격 | 기존 4/8/12/16/24/32 단계와 gutter | screen/list/field/section 간격, 좁은 화면과 태블릿 보정 |
-| 글자 | 기존 한글 폰트·이름/제목/본문/보조 단계 | rem 기준, 일반·큰 글자, line-height·weight·숫자 표기 |
+| 글자 | 기존 한글 폰트·이름/제목/본문/보조 단계 | font size만 공통 토큰, 웹에서 rem 변환. line-height·weight는 필요한 컴포넌트에서 직접 관리 |
 | 모서리/깊이 | 카드·목록·버튼·시트의 현재 차이 | card/field/sheet radius, surface shadow·border, dark 대비 |
 | 터치 | PoC의 44px 조작 높이를 출발 기준으로 확인 | 작은 아이콘도 터치 영역 확보, adjacent hit area 겹침 금지 |
 | 모션 | 진입/이탈/카드/선택의 기존 의미 | duration/easing·중단/복귀·감소된 모션, 실제 기기에서 값 조정 |
 
 위 색상은 현행 소스의 예시이고 모든 상태를 이 네 값으로 표현한다는 뜻이 아니다. CSS 변수와 RN용 값은 같은 토큰 원본에서 생성하되 DOM 스타일과 native 스타일 코드를 직접 공유하지 않는다. 반투명 효과는 내비게이션 등 제한된 표면에 두고 정보 카드·폼의 대비를 보존한다.
+
+### 2026-11-11 구현한 토큰 기준
+
+- 스타일은 사용자 선택인 vanilla-extract이며 `packages/design-tokens`의 값을 웹 `styles/theme.css.ts`의 계약에 연결한다. 공용 색상은 라이트·다크의 background/surface/textPrimary/textSecondary/border/accent다.
+- Pretendard Variable과 라이선스를 보존하고 font size 12/16/18/32만 공유한다. 간격은 0/4/8/12/16/24/32, 모서리는 사용자가 조정한 0/4/6/8/12/16/24를 사용한다.
+- 그림자는 `none`과 sm/md/lg/xl의 네 단계이며 가까운 그림자와 넓고 옅은 그림자를 겹친 Mori 초기안이다. PoC에 같은 네 단계가 있었던 것으로 기록하지 않는다. CSS 그림자 문자열은 현재 웹 표현으로 사용하며 RN 값 생성·렌더링은 별도 검증 대상이다.
+- 버튼 예제는 배경 가상 요소에만 120ms 피드백을 주고 글자·클릭 영역은 유지한다. `prefers-reduced-motion: no-preference`일 때만 배경 축소를 적용한다. 모든 제품 버튼이 반드시 축소돼야 한다는 공통 계약은 아니다.
+- 별도 토큰 미리보기와 큰 글자 샘플은 사용자 인수 결정으로 이번 FE-01-02 완료 조건에서 제외했다. 기존 테마 화면 확인과 실제 200%/모바일·실기기 인수 결과를 구분한다.
+
+구현 커밋·검사 범위는 [현재 구현 기록](implementation-status-2026-11-11.md), 값의 PoC 대응은 [제품 토큰 문서](https://github.com/dong7314/mori/blob/master/frontend/docs/design-tokens.md)를 따른다.
 
 ## 2. 공통 표시/조작 컴포넌트
 

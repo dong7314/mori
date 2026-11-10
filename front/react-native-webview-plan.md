@@ -1,10 +1,10 @@
 # React 웹과 React Native 앱 구현 계획
 
-초안: 2026-10-02 · 갱신일: 2026-11-04 · 상태: 설계 방향 확정/제품 React·RN 구현 전
+초안: 2026-10-02 · 갱신일: 2026-11-11 · 상태: 웹 환경·토큰 기반 완료/RN·브리지 후속 구현
 
 [프론트 화면 계획](plan.md) · [당근 조사](daangn-app-research-2026-10-02.md) · [배포·버전 관리](../architecture/app-release-versioning.md) · [모바일 백엔드 계약](../back/mobile-client-contracts.md)
 
-**현행 기준:** 화면은 `poc` `8fa4fe4`, 서버는 `master` `6285aba`의 API 0.9.0과 migration `0017_news_refresh_deadline`이다. 지속 채팅·문서 작업·웹 결제·시세·Mori 예약·개인 runtime의 서버 코드는 구현됐지만 제품 웹·RN·브리지·웹 세션·기기/위젯 연결은 아직 없다. 이 문서의 코드 경로와 브리지 메시지는 구현할 설계이며 이미 동작하는 앱 계약으로 보지 않는다. [완료한 서버와 남은 작업](../back/implementation-status-2026-11-03.md).
+**현행 기준:** 화면은 `poc` `8fa4fe4`, 서버는 `master` `6285aba`의 API 0.9.0과 migration `0017_news_refresh_deadline`이다. 웹의 환경·디자인 토큰 세부 작업인 FE-01-01·02를 완료했고 FE-01-03 앱 프레임·5탭·탐색을 이어간다. 지속 채팅·문서 작업·웹 결제·시세·Mori 예약·개인 runtime의 서버 코드는 구현됐지만 제품 기능 화면·RN·브리지·웹 세션·기기/위젯 연결은 후속이다. 아래 RN 코드 경로와 브리지 메시지는 구현할 설계이며 이미 동작하는 앱 계약으로 보지 않는다. [프론트 구현 상태](implementation-status-2026-11-11.md) · [완료한 서버와 남은 작업](../back/implementation-status-2026-11-03.md).
 
 ## 1. 채택 구조
 
@@ -51,7 +51,7 @@ OS 위젯은 사용자가 OS에서 추가한다. 화면 속 대시보드 카드�
 
 ## 3. master에 추가할 코드 경계
 
-아래는 새로 만들 디렉터리 제안이다. 현재 `master`에는 제품 프론트가 없다. 기존 backend/hermes/infra 경로는 유지한다.
+현재 `master`에는 `frontend/apps/web`과 `frontend/packages/design-tokens`가 있다. 아래 트리의 mobile·api-client·bridge는 단계적으로 만들 대상이며, 웹의 실제 진입·스타일은 `src/core/app`과 `src/styles`에 있다. 기존 backend/hermes/infra 경로는 유지한다.
 
 ```text
 frontend/

@@ -1,12 +1,12 @@
 # React 웹·RN 앱 프론트엔드 구현 기준
 
-작성일: 2026-11-04 · 상태: 사용자 개발을 위한 채택안·착수 검증 기준 · 화면 `poc 8fa4fe4` / API `master 6285aba`
+작성일: 2026-11-04 · 갱신일: 2026-11-11 · 상태: FE-01-01·02 완료, 후속 채택안·검증 기준 · 화면 `poc 8fa4fe4` / API `master 6285aba`
 
 [전체 계획](../plan.md) · [화면별 작업 분해](poc-to-react-work-breakdown-2026-11-04.md) · [컴포넌트·UX 규격](component-system-2026-11-04.md) · [공식 서비스 사례](industry-architecture-research-2026-11-04.md) · [배포 실행안](../architecture/release-playbook-2026-11-04.md)
 
 ## 1. 이 문서로 정한 것
 
-제품 프론트·RN 앱은 사용자가 개발한다. AI는 API 계약 보완·코드/문서 검토와 요청받은 구현을 지원한다. 이 문서의 경로·컴포넌트·도구는 앞으로 만들 기준이며 현재 설치된 제품 프로젝트가 아니다. PoC 소스의 실제 흐름을 나누어 React로 옮기고, 개발용 데이터와 실제 계정 데이터를 분리한다.
+제품 프론트·RN 앱은 사용자가 직접 작성하고 AI는 설명·검토·API 계약 보완과 요청받은 구현을 지원한다. 현재 React/TypeScript/Vite 웹과 pnpm workspace, vanilla-extract 토큰 기반은 구현했다. 아래의 나머지 컴포넌트·도구·RN 경계는 후속 기준이며 모두 설치·구현됐다는 뜻은 아니다. PoC 소스의 실제 흐름을 나누어 React로 옮기고, 개발용 데이터와 실제 계정 데이터를 분리한다. [현재 구현·사용자 결정](implementation-status-2026-11-11.md).
 
 Mori는 **React DOM 웹 + React Native 컨테이너 + 원격 HTTPS WebView 하나**를 사용한다. 탭·카드·상세·입력 화면은 웹, 녹음·권한·보안 저장소·로그인 복귀·기기 기능은 RN이 맡는다. RN에 웹의 5탭을 다시 만들지 않고, DOM 컴포넌트를 RN 컴포넌트로 직접 가져오지 않는다. 공통화 대상은 API 타입·브리지 스키마·디자인 토큰이다.
 
@@ -20,7 +20,7 @@ Mori는 **React DOM 웹 + React Native 컨테이너 + 원격 HTTPS WebView 하�
 | 패키지 | pnpm workspace | web/mobile·공통 3개 패키지, 단일 lockfile·명시적 의존성 | 01 |
 | 화면 스택 | Stackflow + history-sync, basic-ui는 검증 후 | 모바일 push/pop·뒤로가기·스크롤 복원. URL/스택의 주체를 하나로 유지 | 01~03 |
 | 접근성 UI | React Aria Components | Select·Popover·Dialog·Calendar·입력의 키보드/포커스/상태 기반. 외형은 Mori CSS | 01 |
-| 스타일 | CSS Modules + Sass·CSS 변수 | 기존 SCSS/토큰 이식, 기능별 스타일 격리·라이트/다크 | 01 |
+| 스타일 | vanilla-extract + CSS 변수 | `.css.ts` 정적 CSS·타입이 있는 테마 계약, 공용 토큰의 라이트/다크 연결. FE-01-02에서 사용자 선택으로 채택 | 01 |
 | 서버 상태 | TanStack Query | 조회·캐시·페이지·저장 후 무효화, 화면 복귀 재조회 | 04~05 |
 | 공유 UI 상태 | Zustand | 공통 composer 모드·초안·음성 세션·native capability. 서버 레코드는 넣지 않음 | 06·11 |
 | 폼 | React Hook Form + Zod + resolver | dirty·검증·submit·서버 오류, 커스텀 picker 연결 | 04~05 |
@@ -44,7 +44,7 @@ React 공식 문서는 프레임워크 시작을 권장하면서 Vite 등으로 
 | MUI / Ant Design 전체 테마 | 관리 화면에 적합한 기본 외형을 Mori 모바일 UI에 맞춰 재정의하는 비용이 커 초기 제외 |
 | shadcn/Radix | 유효한 접근성 기반 대안. 날짜·시간·선택 입력까지 일관된 한 기반을 쓰기 위해 React Aria를 우선 선택 |
 | SEED 전체 테마 | 당근의 구성/접근성·토큰을 참고하되 당근 브랜드 외형을 Mori에 복사하지 않음 |
-| Tailwind / vanilla-extract | 사용할 수 있지만 기존 SCSS 이식과 선택 기반을 명확히 하려고 CSS Modules를 우선. 세 방식을 동시에 운영하지 않음 |
+| CSS Modules + Sass / Tailwind | 초기 SCSS 이식 편의를 위한 CSS Modules/Sass 안은 사용자 선택으로 vanilla-extract로 변경했다. 신규 스타일은 vanilla-extract를 사용하고 다른 스타일 체계를 함께 도입하지 않음 |
 | FullCalendar·대형 드래그 캘린더 | PoC는 월/주/일·직접 폼 중심. 초기 월 그리드/주·일 레이아웃을 구현하고 drag/반복 일정 요구가 생길 때 재평가 |
 | Redux·GraphQL·Axios 동시 추가 | 이미 정한 서버 캐시·UI 상태·REST transport의 책임을 중복 구현하지 않음 |
 | 리치 텍스트 에디터·다양한 표 차트 | 메모는 우선 plain text, 주가는 캔들. 실제 편집 스키마 요구가 생길 때 추가 |
@@ -52,7 +52,7 @@ React 공식 문서는 프레임워크 시작을 권장하면서 Vite 등으로 
 
 ## 3. 조사한 버전과 고정 절차
 
-2026-11-04 공식 npm registry의 stable dist-tag와 peerDependencies를 조회했다. 아래는 **관측값과 초기 후보**이며 설치·통합 빌드 결과가 아니다. 날짜가 지나면 착수 시 다시 확인한다. 앱/웹 release 버전과 라이브러리 버전은 별개다.
+2026-11-04 공식 npm registry의 stable dist-tag와 peerDependencies를 조회했다. 아래는 **당시 관측값과 초기 후보**이며 전체 설치·통합 빌드 결과가 아니다. 2026-11-11 현재 웹은 React/react-dom 19.3.1, TypeScript 5.9.3, Vite 8.3.5, pnpm 12.16.1, `@vanilla-extract/css` 1.21.3과 Vite plugin 5.2.6을 사용한다. 실제 검사 범위는 [구현 상태 기록](implementation-status-2026-11-11.md)을 따른다. 나머지 도구는 착수 시 다시 확인한다. 앱/웹 release 버전과 라이브러리 버전은 별개다.
 
 | 묶음 | 확인한 버전 | 초기 처리 |
 | --- | --- | --- |
@@ -73,6 +73,10 @@ Node의 생산용 LTS 사용 근거는 [공식 release 표](https://nodejs.org/e
 착수 PR에서 실제 선택값·peer 해석·설치 결과와 web/mobile 타입 검사·웹 build·iOS/Android 최소 기동 결과를 기록한다. 실패하면 해당 조합을 완료로 두지 않고 호환 버전으로 조정한다. `package.json`의 직접 의존성과 `packageManager`, pnpm lockfile, Node/Xcode/Gradle 버전을 추적한다. CI는 frozen lockfile을 사용한다. 패키지 업데이트는 버전 변경과 회귀 결과를 별도 PR로 검토한다.
 
 ## 4. 프로젝트와 파일 배치
+
+현재 구현 경로는 `apps/web/src/core/app`(App과 스타일), `core/util/common.ts`(`toRem`), `styles`(테마·전역 스타일), `public/fonts`(Pretendard/OFL), `packages/design-tokens/src`(공용 토큰)다. 공용 서체 규칙은 font size만 두고 line-height와 font-weight는 필요한 컴포넌트에서 직접 정한다. 그림자 토큰의 CSS 문자열은 현재 웹 표현이며 RN 렌더링·값 변환을 검증한 상태는 아니다.
+
+다음 트리는 후속 기능·RN을 포함한 전체 구성안이다. 현재 경로를 다시 옮기기 위한 선행 작업으로 요구하지 않는다.
 
 ```text
 frontend/
@@ -102,7 +106,7 @@ frontend/
   packages/
     api-client/              # generated DTO, typed client, transport interfaces
     bridge/                  # protocol·runtime schema·capabilities
-    design-tokens/           # 원본 토큰, CSS 변수·RN 값 생성
+    design-tokens/           # 현재 공용 토큰; 웹 테마 연결, RN 값 생성/검증은 후속
 ```
 
 작은 기능은 폴더를 모두 만들지 않고 필요해질 때 나눈다. 특정 화면의 모든 상태·API·스타일을 공통 디렉터리에 몰지 않는다. shared는 features를 import하지 않으며, feature 사이 공유는 공통 계약/도메인 query key 또는 app 조합 계층으로 연결한다. app은 기능들을 조합하고 모듈 import 시 서버 요청·전역 이벤트 등록을 실행하지 않는다.
@@ -164,7 +168,7 @@ Stackflow는 화면 프레임·back을, Motion은 선택한 카드/내부 공유
 | Playwright | 브라우저 탐색과 레이아웃 | 카드 확장/복귀·back·nested picker·tab 스크롤·모션 감소·큰 글자 |
 | 실기기 | WebView/OS의 실제 제약 | iOS/Android 키보드·swipe/back·소셜 복귀·녹음·Push·회전 |
 
-UI 구현을 그대로 복제한 테스트보다 상태 전이·계정 경계·복구·시간/금액 해석을 검증한다. 컴포넌트별 상태 예제는 개발 전용 카탈로그로 만들고 운영 마이에 숨은 설정을 넣지 않는다. 초기에는 작은 Vite catalog로 시작해 여러 컴포넌트 변경의 검토가 어려워지면 Storybook 도입을 검토한다.
+UI 구현을 그대로 복제한 테스트보다 상태 전이·계정 경계·복구·시간/금액 해석을 검증한다. FE-01-02의 별도 토큰 카탈로그와 큰 글자 샘플은 사용자 인수 결정으로 추가하지 않았다. 후속 공통 컴포넌트의 상태 비교가 필요할 때 개발용 예제나 카탈로그를 검토하고 운영 마이에 숨은 설정을 넣지 않는다. 실제 200% 글자·모바일/실기기 검증 결과는 별도로 남긴다.
 
 Playwright mobile emulation은 실제 WKWebView·Android WebView·OS 위젯 검증을 대신하지 않는다. MSW 데이터도 실제 모델/제공자 성공의 근거가 아니다. [MSW](https://mswjs.io/docs/), [Playwright emulation](https://playwright.dev/docs/emulation).
 
@@ -172,7 +176,7 @@ Playwright mobile emulation은 실제 WKWebView·Android WebView·OS 위젯 검�
 
 - **01 웹 기반 PR:** 검증한 Node·pnpm·웹 직접 의존성 버전과 lockfile, 웹 실행/검사·CI 초안.
 - 5탭과 상세 한 개, 입력/선택/패널 한 종류, 빈/로딩/오류 예제.
-- DTO 생성과 `typecheck`, `lint`, `test`, `build` 실행 결과. 패키지가 설치되지 않은 현재 plan 작업에서는 이 결과를 통과로 기록하지 않는다.
+- DTO 생성과 `typecheck`, `lint`, `test`, `build` 실행 결과. FE-01-01·02의 웹 검사와 후속 DTO/API·RN 검사를 구분하고 실제 실행한 범위만 통과로 기록한다.
 - **03 RN 실험 PR:** native template/React peer·WebView 버전과 mobile 스크립트, 같은 웹·뒤로가기·키보드·safe area의 결과와 미검증 기기 목록. 01의 첫 PR에 RN 완성을 요구하지 않는다.
 - React Aria/Stackflow/Motion 조합에서 포커스·중첩·뒤로가기·중단/복귀가 충돌하는지 확인한 기록. 충돌이 남으면 기능 UI 전부를 이 기반으로 확장하지 않는다.
 

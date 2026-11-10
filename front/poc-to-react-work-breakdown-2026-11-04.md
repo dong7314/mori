@@ -1,6 +1,6 @@
 # 최신 PoC에서 제품 React로 옮기는 작업 분해
 
-기준일: **2026-11-04** · 화면: `poc` **8fa4fe4** · 서버: `master` **6285aba / API 0.9.0** · 상태: 제품 프론트 구현 전
+기준일: **2026-11-04** · 현황 갱신: **2026-11-11** · 화면: `poc` **8fa4fe4** · 서버: `master` **6285aba / API 0.9.0** · 상태: FE-01-01·02 완료, FE-01-03 다음
 
 [프론트 계획](plan.md) · [구현·라이브러리 기준](frontend-engineering-guide-2026-11-04.md) · [01~12 실행 순서](implementation-roadmap-2026-10-06.md) · [웹/RN 경계](react-native-webview-plan.md) · [서버 완료/잔여 작업](../back/implementation-status-2026-11-03.md)
 
@@ -8,9 +8,15 @@
 
 프론트·앱·위젯은 사용자가 개발하고 AI는 요청받은 구현·검토와 서버 계약 보완을 지원한다. 아래 한 행은 작은 구현/리뷰 단위다. 같은 행의 화면·컴포넌트·상태·API와 인수 사례를 함께 다룬다. 단계별로 결과를 확인한 뒤 다음 단위로 진행하며 제품 전체를 한 번에 이식하지 않는다.
 
-`FE-06-03`은 기존 실행 계획 06의 세 번째 작업이다. 완료 체크는 소스·검사·화면 증거가 있을 때만 바꾼다. **현재 모든 FE 작업은 대기**다. PoC에 화면이 있거나 서버 API가 구현됐다는 사실을 제품 React 화면의 완료로 세지 않는다.
+`FE-06-03`은 기존 실행 계획 06의 세 번째 작업이다. 완료 체크는 기록된 소스·검사·사용자 인수 범위를 기준으로 바꾼다. **FE-01-01과 FE-01-02는 완료했고 FE-01-03이 다음 작업**이다. 큰 단계 01은 FE-01-03~06이 남아 진행 중이다. PoC에 화면이 있거나 서버 API가 구현됐다는 사실을 제품 React 화면의 완료로 세지 않는다.
 
-제안 경로는 `frontend/apps/web/src/{app,shared,features}`와 `frontend/packages/{api-client,bridge,design-tokens}`다. 아래 컴포넌트 이름과 경로는 구현 시 만들 대상이며 현재 저장소에 존재하는 제품 코드가 아니다. 모노레포 전체를 먼저 추상화하기보다 각 작업에 필요한 경계부터 만든다.
+현행 웹 진입·스타일은 `frontend/apps/web/src/core/app`, `src/core/util`, `src/styles`에 있고 공용 토큰은 `frontend/packages/design-tokens`에 있다. `shared`, `features`, `api-client`, `bridge`와 아래 기능 컴포넌트는 후속 구현 대상이다. 모노레포 전체를 먼저 추상화하기보다 각 작업에 필요한 경계부터 만든다.
+
+### 2026-11-11 완료 범위
+
+FE-01-01은 pnpm workspace·React/TypeScript/Vite와 타입 검사·lint·빌드 기반이며 구현 커밋은 `d96d1c2`다. FE-01-02는 vanilla-extract·공용 색상/간격/모서리/font size/모션 시간/그림자 토큰, Pretendard Variable, 라이트·다크 테마와 버튼 배경 피드백이다. [구현·검사·사용자 결정 기록](implementation-status-2026-11-11.md)을 완료 근거로 사용한다.
+
+사용자는 별도의 토큰 미리보기 화면과 큰 글자 샘플을 추가하지 않고 현재 범위로 FE-01-02를 완료하도록 결정했다. 이 두 산출물은 이번 완료 조건에서 제외한다. 실제 200% 확대·모바일 실기기·제품 전체 접근성 인수를 통과했다는 뜻은 아니며 후속 화면·기기 검증에서 별도로 확인한다. PoC 대응은 [제품 토큰 문서](https://github.com/dong7314/mori/blob/master/frontend/docs/design-tokens.md)에 기록한다.
 
 ## 2. 최신 화면 근거와 이전 문서의 차이
 
@@ -67,9 +73,9 @@ PoC의 브라우저 음성·가짜 AI 지연/답변·열린 앱의 로컬 예약
 
 | ID | 작은 작업·제안 파일 | 상태/의존 | 완료 증거 |
 | --- | --- | --- | --- |
-| FE-01-01 | `app/` workspace·실행/빌드·타입 검사·lint | 기반 | lockfile·웹 실행·production 빌드, `any`로 API 경계를 덮지 않음 |
-| FE-01-02 | `design-tokens/` 색·서체·간격·모서리·모션·다크 | U, 01-01 | PoC 토큰 대응표와 라이트/다크·큰 글자 샘플 |
-| FE-01-03 | `AppFrame`·5탭·page route·scroll 복원 | R/U, 01-02 | 탭 전환→상세→뒤로가기→원래 스크롤, 새로고침된 잘못된 ID 처리 |
+| FE-01-01 | workspace·실행/빌드·타입 검사·lint | 완료 · 기반 | `d96d1c2`: 공용 lockfile·웹 실행·타입 검사·lint·production 빌드 |
+| FE-01-02 | `design-tokens/` 색·font size·간격·모서리·모션·다크·그림자 | 완료 · U, 01-01 | 토큰과 웹 테마 연결·PoC 대응표·사용자 인수. 추가 미리보기/큰 글자 샘플은 제외: [완료 기록](implementation-status-2026-11-11.md) |
+| FE-01-03 | `AppFrame`·5탭·page route·scroll 복원 | 다음 · R/U, 01-02 | 탭 전환→상세→뒤로가기→원래 스크롤, 새로고침된 잘못된 ID 처리 |
 | FE-01-04 | 공통 field·button·row·choice/picker·error | F/U, 01-02 | 옵션/시간/날짜를 키보드·터치로 선택/취소/완료, 320px/200% 글자 |
 | FE-01-05 | fixture/transport·query key·사용자 캐시 경계 | Q, 01-01 | 개발 fixture가 실제 계정과 섞이지 않음, 계정 변경 때 이전 캐시 제거 |
 | FE-01-06 | `PresentationHost`·card morph·reduced motion | R/U, 01-03/04 | 페이지/짧은 선택/카드 상세별 진입·복귀와 중간 취소 인수 |
