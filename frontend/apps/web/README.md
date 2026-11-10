@@ -1,75 +1,26 @@
-# React + TypeScript + Vite
+# Mori 웹
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React · TypeScript · Vite로 만드는 Mori 웹 앱이다. 현재 FE-01-01 환경 구성과 FE-01-02 디자인 토큰 기반을 완료했다. 다음 작업은 FE-01-03의 앱 프레임과 5개 탭 구성이다.
 
-Currently, two official plugins are available:
+## 실행과 검사
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+다음 명령은 pnpm workspace 루트인 `frontend/`에서 실행한다.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+pnpm dev
+pnpm typecheck
+pnpm lint
+pnpm build
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+## 현재 구성
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `src/core/app`: 라이트·다크 전환과 기본 스타일을 확인하는 현재 앱 진입 화면
+- `src/core/util/common.ts`: 공용 숫자 크기를 웹의 `rem`으로 바꾸는 함수
+- `src/styles`: vanilla-extract 테마와 전역 초기화·폰트 등록
+- `public/fonts`: Pretendard Variable 원본과 라이선스·출처
+- `../../packages/design-tokens`: 색상, 간격, 모서리, 글자 크기, 모션 시간, 웹용 그림자 값
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+토큰의 값·PoC 대응·완료 범위는 [디자인 토큰 기록](../../docs/design-tokens.md)을 따른다. 제품 코드는 사용자가 직접 작성하고, AI는 설명과 코드 리뷰를 기본으로 지원한다.
 
-```
+현재 화면은 토큰과 테마의 기본 적용을 확인하는 단계다. 5개 탭·실제 API 화면·RN 컨테이너·브리지는 후속 작업이다.
