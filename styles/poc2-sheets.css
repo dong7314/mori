@@ -1,35 +1,46 @@
 .mori-sheet {
   position: fixed;
-  inset: 16px 16px auto auto;
-  width: min(520px, calc(100vw - 32px));
+  --sheet-edge: 14px;
+  --sheet-glass: color-mix(in srgb, var(--panel) 76%, transparent);
+  --sheet-rim: color-mix(in srgb, white 56%, var(--line));
+  --sheet-gleam: rgb(255 255 255 / 65%);
+  inset: auto 0 var(--sheet-edge);
+  width: min(calc(100% - var(--sheet-edge) * 2), 520px);
   max-width: none;
-  max-height: calc(100vh - 32px);
-  max-height: calc(100dvh - 32px);
-  margin: 0;
+  max-height: calc(100vh - var(--sheet-edge) * 2);
+  max-height: min(91dvh, calc(100dvh - var(--sheet-edge) * 2));
+  margin: 0 auto;
   padding: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  border: 1px solid var(--line);
-  border-radius: 28px;
+  scroll-padding-block: 10px 24px;
+  scrollbar-width: thin;
+  border: 1px solid var(--sheet-rim);
+  border-radius: 32px;
   background: var(--panel);
   color: var(--ink);
-  box-shadow: 0 24px 84px rgb(17 32 23 / 22%);
+  box-shadow: 0 -9px 45px rgb(27 46 34 / 12%), 0 20px 58px rgb(27 46 34 / 17%);
+}
+
+:root[data-theme="dark"] .mori-sheet {
+  --sheet-rim: color-mix(in srgb, white 12%, var(--line));
+  --sheet-gleam: rgb(255 255 255 / 10%);
 }
 
 .mori-sheet[open] {
-  animation: mori-sheet-in 350ms var(--spring, cubic-bezier(.17, .67, .23, 1)) both;
+  animation: mori-sheet-up 440ms var(--spring, cubic-bezier(.16, .72, .24, 1)) backwards;
 }
 
 .mori-sheet::backdrop {
-  background: rgb(15 32 23 / 31%);
-  -webkit-backdrop-filter: blur(5px);
-  backdrop-filter: blur(5px);
+  background: rgb(24 38 29 / 26%);
+  -webkit-backdrop-filter: blur(6px) saturate(.85);
+  backdrop-filter: blur(6px) saturate(.85);
   animation: mori-backdrop-in 200ms ease-out both;
 }
 
-@keyframes mori-sheet-in {
-  from { opacity: 0; transform: translateX(22px) scale(.985); }
-  to { opacity: 1; transform: translateX(0) scale(1); }
+@keyframes mori-sheet-up {
+  from { opacity: 0; transform: translateY(52px) scale(.975); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes mori-backdrop-in {
@@ -39,7 +50,7 @@
 
 .mori-sheet .sheet-content,
 .mori-sheet .reset-sheet {
-  padding: 18px clamp(20px, 4.8vw, 32px) 30px;
+  padding: 16px clamp(20px, 5.6vw, 30px) 30px;
 }
 
 .mori-sheet .sheet-header {
@@ -48,7 +59,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-block-end: 15px;
+  margin-block-end: 8px;
 }
 
 .mori-sheet > .sheet-header {
@@ -60,7 +71,7 @@
 .mori-sheet .sheet-kicker {
   font-size: .8125rem;
   font-weight: 650;
-  letter-spacing: -.015em;
+  letter-spacing: normal;
   color: var(--muted);
 }
 
@@ -71,10 +82,14 @@
   width: 44px;
   height: 44px;
   padding: 0;
-  border: 1px solid transparent;
+  border: 1px solid var(--sheet-rim);
   border-radius: 50%;
   background: var(--wash);
+  background: linear-gradient(145deg, var(--sheet-gleam), transparent 68%), var(--sheet-glass);
   color: var(--muted);
+  box-shadow: inset 0 1px var(--sheet-gleam), 0 2px 9px rgb(35 56 42 / 7%);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
   cursor: pointer;
 }
 
@@ -91,10 +106,11 @@
 
 .mori-sheet :is(.sheet-intro h2, .reset-sheet h2) {
   margin: 0;
-  font-size: clamp(1.75rem, 5vw, 2.125rem);
+  font-size: var(--type-title);
   font-weight: 700;
-  letter-spacing: -.05em;
-  line-height: 1.13;
+  letter-spacing: normal;
+  line-height: 1.1;
+  word-break: keep-all;
   overflow-wrap: anywhere;
 }
 
@@ -112,7 +128,7 @@
   place-items: center;
   width: 44px;
   height: 44px;
-  border-radius: 14px;
+  border-radius: 15px;
   background: var(--accent-soft);
   color: var(--accent);
 }
@@ -188,11 +204,9 @@
   --stage-line: color-mix(in srgb, var(--muted) 26%, var(--line));
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 22px 0;
-  padding: 13px 6px 12px;
-  border: 1px solid var(--line);
-  border-radius: 17px;
-  background: var(--wash);
+  margin: 21px 0;
+  padding: 8px 0 12px;
+  border-block-end: 1px solid var(--line);
   list-style: none;
 }
 
@@ -215,7 +229,7 @@
   inset-block-start: calc(var(--stage-mark-size) / 2);
   inset-inline-start: calc(50% + var(--stage-mark-size) / 2 + 4px);
   width: calc(100% - var(--stage-mark-size) - 8px);
-  border-block-start: 1px solid var(--stage-line, var(--line));
+  border-block-start: 2px solid var(--stage-line, var(--line));
 }
 
 .mori-sheet .stage-step[data-state="done"]::after {
@@ -260,6 +274,7 @@
   border-color: transparent;
   background: var(--accent);
   color: var(--accent-ink);
+  box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
 .mori-sheet .stage-label {
@@ -269,11 +284,12 @@
 }
 
 .mori-sheet .sheet-question {
-  padding: clamp(14px, 3.5vw, 20px);
-  border: 1px solid var(--line);
-  border-radius: 19px;
+  padding: clamp(15px, 4.3vw, 22px);
+  border-radius: 24px;
   background: var(--accent-soft);
-  background: color-mix(in srgb, var(--accent-soft) 62%, var(--panel));
+  background:
+    radial-gradient(ellipse at 88% 0%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 64%),
+    color-mix(in srgb, var(--accent-soft) 76%, var(--panel));
 }
 
 .mori-sheet .sheet-question-label {
@@ -294,10 +310,10 @@
 .mori-sheet .sheet-question h3 {
   margin: 0;
   color: var(--ink);
-  font-size: 1.1875rem;
+  font-size: var(--type-headline);
   font-weight: 700;
   line-height: 1.38;
-  letter-spacing: -.035em;
+  letter-spacing: normal;
   overflow-wrap: anywhere;
 }
 
@@ -311,7 +327,7 @@
   max-width: 100%;
   padding: 10px 14px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: .875rem;
   font-weight: 650;
   line-height: 1.35;
@@ -330,17 +346,20 @@
 .mori-sheet .sheet-primary {
   background: var(--accent);
   color: var(--accent-ink);
+  box-shadow: inset 0 1px rgb(255 255 255 / 20%), 0 4px 10px color-mix(in srgb, var(--accent) 17%, transparent);
 }
 
 .mori-sheet .sheet-secondary {
-  border-color: var(--line);
-  background: var(--panel);
+  background: var(--wash);
   color: var(--ink);
 }
 
 .mori-sheet .sheet-quick-answer {
   justify-content: flex-start;
   margin-block-start: 13px;
+  padding-inline: 12px;
+  background: var(--panel);
+  color: var(--accent);
   text-align: start;
 }
 
@@ -394,13 +413,18 @@
   max-width: 100%;
   min-height: 46px;
   padding: 9px 11px;
-  border: 1px solid color-mix(in srgb, var(--muted) 19%, var(--line));
-  border-radius: 11px;
-  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--wash);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--ink) 4%, transparent);
   color: var(--ink);
   font: inherit;
   font-size: 1rem;
   line-height: 1.35;
+}
+
+.mori-sheet .sheet-inline-field .field-input {
+  background: var(--panel);
 }
 
 .mori-sheet textarea.field-input {
@@ -439,7 +463,7 @@
   font-size: 1.0625rem;
   font-weight: 700;
   line-height: 1.35;
-  letter-spacing: -.025em;
+  letter-spacing: normal;
   overflow-wrap: anywhere;
 }
 
@@ -557,10 +581,7 @@
 }
 
 .mori-sheet .sheet-document {
-  padding: 15px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--wash);
+  padding-block: 2px 0;
 }
 
 .mori-sheet .sheet-document-header {
@@ -578,11 +599,10 @@
 }
 
 .mori-sheet .sheet-document-preview {
-  margin-block: 12px;
-  padding-inline: 11px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  background: var(--panel);
+  margin-block: 13px 17px;
+  padding: 1px 14px;
+  border-radius: 15px;
+  background: var(--wash);
 }
 
 .mori-sheet .sheet-document-preview .sheet-observation-list {
@@ -595,9 +615,13 @@
   gap: 4px;
   margin-block: 16px 18px;
   padding: 4px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  border: 1px solid var(--sheet-rim);
+  border-radius: 999px;
   background: var(--wash);
+  background: linear-gradient(150deg, var(--sheet-gleam), transparent 60%), var(--sheet-glass);
+  box-shadow: inset 0 1px var(--sheet-gleam), 0 3px 13px rgb(35 56 42 / 6%);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
 }
 
 .mori-sheet .sheet-switch button {
@@ -609,7 +633,7 @@
   min-height: 44px;
   padding: 7px;
   border: 1px solid transparent;
-  border-radius: 10px;
+  border-radius: 999px;
   background: transparent;
   color: var(--muted);
   font-size: .875rem;
@@ -620,10 +644,10 @@
 }
 
 .mori-sheet .sheet-switch button[aria-pressed="true"] {
-  border-color: var(--line);
+  border-color: var(--sheet-rim);
   background: var(--panel);
   color: var(--accent);
-  box-shadow: 0 1px 3px rgb(17 32 23 / 8%);
+  box-shadow: 0 2px 8px rgb(35 56 42 / 10%);
 }
 
 .mori-sheet > .reset-sheet {
@@ -640,7 +664,7 @@
 }
 
 .mori-sheet button {
-  transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+  transition: background-color 200ms ease, border-color 200ms ease, transform 230ms var(--spring, ease);
 }
 
 @media (hover: hover) {
@@ -654,39 +678,27 @@
 }
 
 .mori-sheet button:active {
-  transform: scale(.97);
+  transform: scale(.953);
+  transition-duration: 90ms;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 540px) {
   .mori-sheet {
     inset: auto 0 0;
     width: 100%;
     max-height: 90vh;
     max-height: min(92dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px));
     border-block-end: 0;
-    border-radius: 27px 27px 0 0;
-  }
-
-  .mori-sheet[open] {
-    animation-name: mori-sheet-up;
+    border-radius: 30px 30px 0 0;
   }
 
   .mori-sheet :is(.sheet-content, .reset-sheet) {
     padding: 12px clamp(16px, 5.5vw, 24px) calc(22px + env(safe-area-inset-bottom, 0px));
   }
 
-  .mori-sheet .sheet-header {
-    margin-block-end: 9px;
-  }
-
   .mori-sheet .stage-track {
-    margin-block: 18px;
+    margin-block: 16px 18px;
   }
-}
-
-@keyframes mori-sheet-up {
-  from { opacity: 0; transform: translateY(36px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -707,7 +719,13 @@
 
 @media (prefers-reduced-transparency: reduce) {
   .mori-sheet::backdrop {
-    background: rgb(15 32 23 / 58%);
+    background: rgb(20 39 27 / 56%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .mori-sheet :is(.sheet-close, .sheet-switch) {
+    background: var(--wash);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -719,6 +737,11 @@
     position: relative; z-index: 1; display: grid; place-items: center; min-height: 23px; margin-bottom: -11px;
     cursor: grab; touch-action: none;
   }
-  .sheet-grabber > span { width: 33px; height: 4px; border-radius: 4px; background: var(--line); }
-  .mori-sheet[open].is-dragging { animation: none; transform: translateY(var(--sheet-offset, 0px)); }
+  .sheet-grabber > span {
+    width: 35px;
+    height: 4px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--muted) 35%, var(--line));
+  }
+  .mori-sheet[open].is-dragging { translate: 0 var(--sheet-offset, 0px); }
 }

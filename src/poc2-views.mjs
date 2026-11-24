@@ -1,6 +1,5 @@
 import { TASK_STATUS_LABELS } from './poc2-model.mjs';
 
-const STATUS_ICONS = { waiting: 'clock', collecting: 'spark', ready: 'check' };
 const FILTERS = [['all', '전체'], ...Object.entries(TASK_STATUS_LABELS)];
 const seoulDate = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit'
@@ -13,10 +12,9 @@ function renderWorks({ state, filter, icon, esc, formatDay }) {
   const activeFilter = FILTERS.some(([value]) => value === filter) ? filter : 'all';
   const tasks = state.tasks.filter(task => activeFilter === 'all' || task.status === activeFilter);
   const filters = FILTERS.map(([value, label]) => {
-    const count = state.tasks.filter(task => value === 'all' || task.status === value).length;
     return `<button type="button" class="sec-filter ${activeFilter === value ? 'is-selected' : ''}"
       data-action="filter" data-filter="${value}" aria-pressed="${activeFilter === value}">
-      <span>${label}</span><span class="sec-filter-count">${count}</span>
+      <span>${label}</span>
     </button>`;
   }).join('');
 
@@ -26,18 +24,14 @@ function renderWorks({ state, filter, icon, esc, formatDay }) {
       <button type="button" class="sec-work-card" data-action="open-task" data-id="${esc(task.id)}">
         <span class="sec-work-icon" aria-hidden="true">${icon(task.icon)}</span>
         <span class="sec-work-copy">
-          <span class="sec-work-topline">
-            <strong class="sec-work-title">${esc(task.title)}</strong>
-            <span class="sec-status sec-status--${task.status}"><span aria-hidden="true">${icon(STATUS_ICONS[task.status])}</span>${TASK_STATUS_LABELS[task.status]}</span>
-          </span>
-          <span class="sec-work-brief">${esc(task.brief)}</span>
-          ${lastObservation ? `<span class="sec-work-latest">${esc(lastObservation.text)}</span>` : ''}
+          <strong class="sec-work-title">${esc(task.title)}</strong>
+          <span class="sec-work-brief">${esc(lastObservation?.text || task.brief)}</span>
           <span class="sec-work-meta">
-            ${task.due ? `<span><span aria-hidden="true">${icon('calendar')}</span><time datetime="${esc(task.due)}">${esc(formatDay(task.due))}</time></span>` : ''}
-            <span>기록 ${task.observations.length}개</span>
+            <span class="sec-status sec-status--${task.status}">${TASK_STATUS_LABELS[task.status]}</span>
+            ${task.due ? `<time datetime="${esc(task.due)}">${esc(formatDay(task.due))}</time>` : ''}
           </span>
         </span>
-        <span class="sec-work-arrow" aria-hidden="true">${icon('arrow-up-right')}</span>
+        <span class="sec-work-arrow" aria-hidden="true">${icon('chevron')}</span>
       </button>
     </li>`;
   }).join('');
@@ -66,7 +60,7 @@ function renderNotes({ state, icon, esc, formatDay }) {
   const entries = state.notes.map(note => ({
     text: note.text,
     at: note.createdAt,
-    label: '따로 남긴 메모',
+    label: '메모',
     task: null,
   }));
 
@@ -75,7 +69,7 @@ function renderNotes({ state, icon, esc, formatDay }) {
       entries.push({
         text: observation.text,
         at: observation.at,
-        label: observation.kind === 'answer' ? '내 답변' : '남긴 기록',
+        label: observation.kind === 'answer' ? '내 답변' : '기록',
         task,
       });
     }
@@ -112,7 +106,7 @@ function renderNotes({ state, icon, esc, formatDay }) {
   return `<div class="sec-page sec-notes">
     <header class="page-heading sec-heading">
       <h1>기록</h1>
-      <button type="button" class="sec-add-button" data-action="new-note"><span aria-hidden="true">${icon('plus')}</span><span>메모 남기기</span></button>
+      <button type="button" class="sec-add-button" data-action="new-note" aria-label="메모 남기기"><span aria-hidden="true">${icon('plus')}</span><span>메모</span></button>
     </header>
     ${entries.length ? `<div class="sec-notebook">${sections}</div>` : `<div class="sec-empty">
       <span class="sec-empty-icon" aria-hidden="true">${icon('note')}</span>
@@ -130,7 +124,7 @@ function renderSettings({ theme, icon }) {
   ];
   const options = themes.map(([value, label, symbol]) => `<button type="button"
     class="sec-theme-option ${theme === value ? 'is-selected' : ''}" data-action="theme" data-theme="${value}"
-    aria-pressed="${theme === value}"><span aria-hidden="true">${icon(symbol)}</span><span>${label}</span>
+    aria-pressed="${theme === value}"><span class="sec-theme-icon" aria-hidden="true">${icon(symbol)}</span><span>${label}</span><span class="sec-theme-check" aria-hidden="true">${theme === value ? icon('check') : ''}</span>
   </button>`).join('');
 
   return `<div class="sec-page sec-settings">
@@ -142,14 +136,14 @@ function renderSettings({ theme, icon }) {
     </section>
     <section class="sec-setting-section" aria-labelledby="sec-demo-title">
       <h2 class="sec-setting-title" id="sec-demo-title">체험</h2>
+      <div class="sec-setting-group">
       <details class="sec-demo-info">
         <summary class="sec-setting-row"><span aria-hidden="true">${icon('info')}</span><span>체험 안내</span><span class="sec-summary-arrow" aria-hidden="true">${icon('chevron')}</span></summary>
         <div class="sec-demo-content"><p>예시 자료로 모리가 맡은 일의 진행 상황과 결과를 체험할 수 있어요. 새로 남긴 부탁과 기록은 이 브라우저에 저장돼요.</p></div>
       </details>
-      <div class="sec-reset-section">
-        <button type="button" class="sec-setting-row sec-reset-button" data-action="reset"><span aria-hidden="true">${icon('reset')}</span><span>처음 상태로 되돌리기</span></button>
-        <p class="sec-setting-help">추가한 메모와 변경한 작업을 지우고 처음의 예시를 다시 불러와요.</p>
+      <button type="button" class="sec-setting-row sec-reset-button" data-action="reset"><span aria-hidden="true">${icon('reset')}</span><span>처음 상태로 되돌리기</span></button>
       </div>
+      <p class="sec-setting-help">되돌리면 추가한 메모와 변경한 작업을 지우고 처음의 예시를 불러와요.</p>
     </section>
   </div>`;
 }
