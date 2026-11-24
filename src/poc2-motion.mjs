@@ -68,3 +68,19 @@ export function playView(view, direction) {
     duration: 290, easing: 'cubic-bezier(.2,.72,.23,1)'
   });
 }
+
+export function playAvatarAcceptance(scope) {
+  for (const avatar of scope.querySelectorAll('.mori-avatar[data-mood="collecting"]')) {
+    animate(avatar.querySelector('.mori-figure'), [
+      { transform: 'none' },
+      { transform: 'translateY(6%) rotate(-8deg) scale(1.06,.9)', offset: .39 },
+      { transform: 'translateY(-4%) rotate(4deg)' },
+      { transform: 'none' }
+    ], { duration: 590, easing: 'cubic-bezier(.24,.72,.24,1)' });
+    animate(avatar.querySelector('.mori-desk'), [
+      { opacity: 0, transform: 'translate(-33%, -46%) rotate(-12deg) scale(.72)' },
+      { opacity: 1, transform: 'translate(0,4%) rotate(2deg)', offset: .73 },
+      { opacity: 1, transform: 'none' }
+    ], { duration: 545, fill: 'backwards', easing: 'cubic-bezier(.21,.69,.23,1)' });
+  }
+}

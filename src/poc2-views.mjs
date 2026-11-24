@@ -21,7 +21,7 @@ function renderWorks({ state, filter, icon, esc, formatDay }) {
   const cards = tasks.map(task => {
     const lastObservation = task.observations.at(-1);
     return `<li class="sec-work-item">
-      <button type="button" class="sec-work-card" data-action="open-thread" data-id="${esc(task.id)}">
+      <button type="button" class="sec-work-card" data-action="open-task" data-id="${esc(task.id)}">
         <span class="sec-work-icon" aria-hidden="true">${icon(task.icon)}</span>
         <span class="sec-work-copy">
           <strong class="sec-work-title">${esc(task.title)}</strong>
@@ -56,7 +56,33 @@ function localDay(value) {
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
-function renderNotes({ state, icon, esc, formatDay }) {
+function noteModes(mode) {
+  return `<div class="sec-filters sec-record-filters" role="group" aria-label="기록 구분">
+    ${[['notes','기록'],['files','받은 파일']].map(([id, label]) => `
+      <button type="button" class="sec-filter ${mode === id ? 'is-selected' : ''}" data-action="notes-mode" data-mode="${id}"
+        aria-pressed="${mode === id}">${label}</button>`
+    ).join('')}
+  </div>`;
+}
+
+function renderFiles({ state, icon, esc, formatDay }) {
+  const results = state.tasks.filter(task => task.status === 'ready')
+    .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''));
+  return results.length ? `<ul class="sec-work-list">${results.map(task => `
+    <li class="sec-work-item"><button class="sec-work-card" type="button" data-action="open-file" data-id="${esc(task.id)}">
+      <span class="sec-work-icon">${icon('file')}</span>
+      <span class="sec-work-copy"><strong class="sec-work-title">${esc(task.title)}</strong>
+        <span class="sec-work-meta">TXT · 기록 ${task.observations.length}개${task.completedAt ? ` · ${esc(formatDay(task.completedAt))}` : ''}</span>
+      </span><span class="sec-work-arrow">${icon('chevron')}</span></button></li>`).join('')}</ul>`
+    : `<div class="sec-empty"><span class="sec-empty-icon">${icon('file')}</span><h2>아직 받은 파일이 없어요</h2>
+      <p>모리가 정리한 파일이 여기에 모여요.</p></div>`;
+}
+
+function renderNotes({ state, notesMode, icon, esc, formatDay }) {
+  if (notesMode === 'files') {
+    return `<div class="sec-page sec-notes"><header class="page-heading sec-heading"><h1>기록</h1></header>
+      ${noteModes(notesMode)}${renderFiles({ state, icon, esc, formatDay })}</div>`;
+  }
   const entries = state.notes.map(note => ({
     text: note.text,
     at: note.createdAt,
@@ -108,6 +134,7 @@ function renderNotes({ state, icon, esc, formatDay }) {
       <h1>기록</h1>
       <button type="button" class="sec-add-button" data-action="new-note" aria-label="메모 남기기"><span aria-hidden="true">${icon('plus')}</span><span>메모</span></button>
     </header>
+    ${noteModes('notes')}
     ${entries.length ? `<div class="sec-notebook">${sections}</div>` : `<div class="sec-empty">
       <span class="sec-empty-icon" aria-hidden="true">${icon('note')}</span>
       <h2>아직 남긴 기록이 없어요</h2>

@@ -12,10 +12,10 @@ function bubble(text, esc) {
 }
 
 function fileRow(task, { icon, esc }) {
-  return `<button type="button" class="thread-file spring-control" data-action="home-download" data-id="${esc(task.id)}">
+  return `<button type="button" class="thread-file spring-control" data-action="open-file" data-id="${esc(task.id)}">
     <span class="thread-file-icon">${icon('file')}</span>
     <span><strong>${esc(task.title)}.txt</strong><small>기록 ${task.observations.length}개</small></span>
-    <span class="thread-file-download">${icon('download')}<span class="sr-only">저장</span></span>
+    <span class="thread-file-download">${icon('chevron')}<span class="sr-only">열기</span></span>
   </button>`;
 }
 
@@ -49,7 +49,9 @@ export function renderTurns(task, view) {
     questionNumber += 1;
   }
 
-  if (task.status === 'waiting') {
+  if (view.working) {
+    output.push(turn('working', 'mori', '<p class="thread-working"><span></span>기록을 한 파일로 정리하고 있어요.</p>', esc));
+  } else if (task.status === 'waiting') {
     output.push(turn('question-' + questionNumber, 'mori', bubble(task.question || '기록을 한 번 확인해 주세요.', esc), esc));
     if (task.id === 'garage') {
       output.push(`<li class="thread-option" data-turn-key="quick"><button type="button" class="thread-quick spring-control" data-action="home-quick-answer" data-id="${id}">네, 맞아요${icon('arrow-up')}</button></li>`);
@@ -89,8 +91,8 @@ export function renderThreadContext(task, { icon, esc, formatDay }) {
   </button>`;
 }
 
-export function renderThreadComposer(task, { icon, esc }) {
-  if (!task) return '';
+export function renderThreadComposer(task, { icon, esc, working }) {
+  if (!task || working) return '';
   if (task.status === 'ready') {
     return `<button class="thread-add-record spring-control" type="button" data-action="new-note" data-id="${esc(task.id)}">${icon('plus')}이 일에 기록 추가</button>`;
   }
@@ -99,4 +101,20 @@ export function renderThreadComposer(task, { icon, esc }) {
     <textarea id="thread-input" name="message" rows="1" maxlength="1000" placeholder="${task.status === 'waiting' ? '모리에게 답하기' : '남겨둘 기록 쓰기'}" required></textarea>
     <button class="thread-send spring-control" type="submit" aria-label="보내기" disabled>${icon('arrow-up')}</button>
   </form>`;
+}
+
+export function renderResultSheet(task, { icon, esc, formatDay }) {
+  return `<div class="sheet-content result-preview">
+      <div class="sheet-header"><span class="sheet-kicker">받은 파일</span>
+        <button class="sheet-close" type="button" data-action="close-sheet" aria-label="닫기">${icon('close')}</button></div>
+      <div class="sheet-intro">
+        <span class="sheet-task-icon">${icon('file')}</span>
+        <h2 id="sheet-title" tabindex="-1">${esc(task.title)}</h2>
+        <p class="sheet-meta">텍스트 파일 · 기록 ${task.observations.length}개</p>
+      </div>
+      <ol class="result-observations">${task.observations.map(observation => `
+        <li><time datetime="${esc(observation.at)}">${esc(formatDay(observation.at))}</time><p>${esc(observation.text)}</p></li>
+      `).join('')}</ol>
+      <div class="sheet-actions"><button class="sheet-primary" type="button" data-action="home-download" data-id="${esc(task.id)}">${icon('download')}TXT 파일 저장</button></div>
+    </div>`;
 }

@@ -170,7 +170,7 @@ export function createServer({ root = resolve(import.meta.dirname, '..'), origin
       }
       if (path.startsWith('/api/') || !['GET', 'HEAD'].includes(req.method)) throw error(404, 'NOT_FOUND', '요청한 화면을 찾을 수 없어요.');
       const pathname = decodeURIComponent(path);
-      const allowed = ['/', '/index.html', '/poc2.html', '/preview.html'].includes(pathname) || /^(\/src\/[^/]+\.(js|mjs)|\/styles\/(main|poc2|poc2-views|poc2-sheets)\.css|\/assets\/(mori\.svg|mori-poc2\.webp|fonts\/PretendardVariable\.woff2))$/.test(pathname);
+      const allowed = ['/', '/index.html', '/poc2.html', '/preview.html'].includes(pathname) || /^(\/src\/[^/]+\.(js|mjs)|\/styles\/(main|poc2|poc2-views|poc2-dashboard|poc2-sheets)\.css|\/assets\/(mori\.svg|mori-poc2\.webp|fonts\/PretendardVariable\.woff2))$/.test(pathname);
       const file = resolve(root, '.' + (pathname === '/' ? (poc2 ? '/poc2.html' : '/index.html') : pathname));
       if (!allowed || !file.startsWith(root + sep) || !(await stat(file).catch(() => null))?.isFile()) throw error(404, 'NOT_FOUND', '요청한 화면을 찾을 수 없어요.');
       res.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });

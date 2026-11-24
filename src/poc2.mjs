@@ -1,21 +1,29 @@
-import { renderAssistant, renderThreadComposer, renderThreadContext, renderTurns } from './poc2-assistant.mjs';
-import { bindTouchFeedback, playThreadReply, playView } from './poc2-motion.mjs';
+import { renderAssistant, renderThreadComposer, renderThreadContext, renderTurns, renderResultSheet } from './poc2-assistant.mjs';
+import { bindTouchFeedback, playAvatarAcceptance, playThreadReply, playView } from './poc2-motion.mjs';
+import { avatarStatus, renderActivity, renderAvatar } from './poc2-avatar.mjs';
+import { renderDashboard, renderTaskPage } from './poc2-dashboard.mjs';
 import { icon } from './poc2-icons.mjs';
 import { renderSecondary } from './poc2-views.mjs';
-import { renderComposer, renderTaskSheet } from './poc2-sheets.mjs';
+import { renderComposer } from './poc2-sheets.mjs';
 import {
-  createDemoState, loadState, saveState, createTask, createNote,
+  DEMO_DATE, createDemoState, loadState, saveState, createTask, createNote,
   addObservation, answerQuestion, completeTask, formatDay, documentText
 } from './poc2-model.mjs';
 
 const pages = {
-  today: ['모리', 'mori'],
+  today: ['오늘', 'sun'],
   works: ['맡은 일', 'layers'],
+  chat: ['대화', 'chat'],
   notes: ['기록', 'note'],
-  settings: ['설정', 'settings']
+  settings: ['설정', 'settings'],
+  task: ['맡은 일', 'file']
 };
 const themeKey = 'mori.poc2.theme';
 const taskKey = 'mori.poc2.active-task';
+const topTabs = ['today', 'works', 'chat', 'notes'];
+const todayLabel = new Intl.DateTimeFormat('ko-KR', {
+  month: 'long', day: 'numeric', weekday: 'long', timeZone: 'UTC'
+}).format(new Date(DEMO_DATE));
 const main = document.querySelector('.workspace');
 const appBar = document.querySelector('.app-bar');
 const dock = document.querySelector('.dock');
@@ -27,12 +35,18 @@ const storage = getStorage();
 let state = loadState(storage);
 let theme = readTheme();
 let currentPage = 'today';
+let pageTaskId = null;
+const backRoutes = { task: null, settings: null };
+let acceptedTaskId = null;
+const preparing = new Map();
 let filter = 'all';
+let notesMode = 'notes';
 let homeTaskId = loadTaskSelection();
 const replyDrafts = new Map();
 let sheet = null;
 let returnFocus = null;
 let toastTimer;
+let sheetExit;
 
 function getStorage() {
   try { return window.localStorage; } catch { return null; }
@@ -54,33 +68,61 @@ function esc(value) {
 function updateTheme() {
   const mode = theme === 'system' ? (media.matches ? 'dark' : 'light') : theme;
   document.documentElement.dataset.theme = mode;
-  document.querySelector('meta[name="theme-color"]').content = mode === 'dark' ? '#1c201d' : '#fcfdfb';
+  document.querySelector('meta[name="theme-color"]').content = mode === 'dark' ? '#1c201d' : '#f5f6f2';
+}
+
+function currentToolbarTask() {
+  if (currentPage === 'task') return findTask(pageTaskId);
+  if (currentPage === 'today') {
+    return state.tasks.find(task => preparing.has(task.id))
+      ?? state.tasks.find(task => task.status === 'waiting')
+      ?? state.tasks.find(task => task.status === 'collecting')
+      ?? state.tasks[0];
+  }
+  return homeTask();
+}
+
+function moodOf(task) {
+  return preparing.has(task?.id) ? 'working' : task?.status ?? 'idle';
+}
+
+function refreshActor() {
+  const control = appBar.querySelector('[data-action="open-activity"]');
+  if (!control) return;
+  const task = currentToolbarTask();
+  const mood = moodOf(task);
+  control.dataset.id = task?.id ?? '';
+  control.querySelector('.mori-avatar').dataset.mood = mood;
+  control.querySelector('.thread-state').textContent = avatarStatus[mood];
 }
 
 function renderNavigation() {
-  const onThread = currentPage === 'today';
+  const nested = currentPage === 'task' || currentPage === 'settings';
   appBar.innerHTML = `
-    ${onThread ? `<button class="thread-identity spring-control" type="button" data-action="focus-thread" aria-label="모리에게 말하기">
-      <span class="thread-avatar"><img src="/assets/mori-poc2.webp" width="44" height="44" alt=""></span>
-      <span class="thread-identity-copy"><strong>모리</strong><small class="thread-state"></small></span>
-    </button>` : '<a class="brand-wordmark spring-control" href="#today" aria-label="모리 홈">모리</a>'}
-    <a class="utility-control glass spring-control" href="#settings" aria-label="설정"
-       ${currentPage === 'settings' ? 'aria-current="page"' : ''}>${icon('settings')}</a>`;
+    <div class="app-bar-leading">
+      ${nested ? `<button class="utility-control back-control spring-control" type="button" data-action="back" aria-label="이전 화면">${icon('back')}</button>` : ''}
+      <button class="thread-identity spring-control" type="button" data-action="open-activity" aria-label="모리의 활동 보기">
+        ${renderAvatar('idle')}
+        <span class="thread-identity-copy"><strong>모리</strong><small class="thread-state" aria-live="polite"></small></span>
+      </button>
+    </div>
+    ${currentPage !== 'settings' ? `<a class="utility-control glass spring-control" href="#settings" aria-label="설정">${icon('settings')}</a>` : ''}`;
   if (!dock.firstElementChild) {
-    const links = Object.entries(pages).filter(([page]) => page !== 'settings').map(([page, [label, glyph]]) => `
-      <a class="nav-link spring-control" href="#${page}" data-page="${page}">
-        ${icon(glyph)}<span>${label}</span>
-      </a>`).join('');
+    const links = topTabs.map(page => `<a class="nav-link spring-control" href="#${page}" data-page="${page}">
+      ${icon(pages[page][1])}<span>${pages[page][0]}</span>
+    </a>`).join('');
     dock.innerHTML = `<nav class="dock-tabs glass" aria-label="주요 메뉴">
       <span class="tab-indicator" aria-hidden="true"></span>${links}
     </nav>
     <button class="dock-action glass spring-control" type="button" data-action="new-task" aria-label="새 부탁">${icon('plus')}</button>`;
   }
-  dock.dataset.view = currentPage;
+  const selected = currentPage === 'task' ? 'works' : currentPage;
+  dock.dataset.view = selected;
   for (const link of dock.querySelectorAll('[data-page]')) {
-    if (link.dataset.page === currentPage) link.setAttribute('aria-current', 'page');
+    if (link.dataset.page === selected) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   }
+  refreshActor();
 }
 
 function findTask(id) {
@@ -107,21 +149,27 @@ function selectTask(id) {
 }
 
 function route({ focus = false } = {}) {
-  const slug = location.hash.slice(1);
+  const [slug, id] = location.hash.slice(1).split('/');
   const previousPage = currentPage;
   currentPage = Object.hasOwn(pages, slug) ? slug : 'today';
+  try { pageTaskId = currentPage === 'task' && id ? decodeURIComponent(id) : null; }
+  catch { pageTaskId = null; }
   document.body.dataset.view = currentPage;
-  document.title = currentPage === 'today' ? '모리' : '모리 · ' + pages[currentPage][0];
+  document.title = '모리 · ' + pages[currentPage][0];
   renderNavigation();
   renderPage();
   if (focus) {
     main.focus({ preventScroll: true });
-    window.scrollTo(0, 0);
+    if (currentPage !== 'chat') window.scrollTo(0, 0);
   }
-  if (currentPage === 'today') scrollThread();
-  else {
+  if (currentPage === 'chat') scrollThread();
+  else if (previousPage !== currentPage) {
     const order = Object.keys(pages);
-    playView(main.querySelector('.sec-page'), order.indexOf(currentPage) >= order.indexOf(previousPage) ? 1 : -1);
+    playView(main.firstElementChild, order.indexOf(currentPage) >= order.indexOf(previousPage) ? 1 : -1);
+  }
+  if (acceptedTaskId === pageTaskId && currentPage === 'task') {
+    acceptedTaskId = null;
+    playAvatarAcceptance(document);
   }
 }
 
@@ -143,33 +191,38 @@ function updateTranscript(log, markup) {
 }
 
 function renderPage() {
-  const onThread = currentPage === 'today';
+  refreshActor();
+  const onThread = currentPage === 'chat';
   threadFooter.hidden = !onThread;
   if (!onThread) {
     threadFooter.replaceChildren();
     delete threadFooter.dataset.key;
-    main.innerHTML = renderSecondary(currentPage, { state, filter, theme, icon, esc, formatDay });
+    if (currentPage === 'today') {
+      main.innerHTML = renderDashboard(state, { ...threadView, avatar: renderAvatar, todayLabel, workingIds: preparing });
+    } else if (currentPage === 'task') {
+      const task = findTask(pageTaskId);
+      main.innerHTML = task
+        ? renderTaskPage(task, { ...threadView, avatar: renderAvatar, working: preparing.has(task.id) })
+        : '<section class="thread-empty"><h1>이 일을 찾을 수 없어요</h1><a class="thread-quick" href="#works">맡은 일 보기</a></section>';
+    } else {
+      main.innerHTML = renderSecondary(currentPage, { state, filter, notesMode, theme, icon, esc, formatDay });
+    }
     return;
   }
 
   const task = homeTask();
   const active = main.querySelector('.thread');
   if (!active || active.dataset.threadId !== task?.id) main.innerHTML = renderAssistant(task, threadView);
-  const status = appBar.querySelector('.thread-state');
-  if (status) {
-    status.textContent = ({ waiting: '답변 기다리는 중', collecting: '기록 모으는 중', ready: '파일 준비 완료' })[task?.status] ?? '';
-    const label = task?.status === 'ready' ? '정리한 파일로 이동' : task ? '모리에게 말하기' : '새 부탁';
-    status.closest('button').setAttribute('aria-label', label);
-  }
+  const working = preparing.has(task?.id);
   if (task) {
     const context = main.querySelector('.thread-context');
     if (!context.firstElementChild) context.innerHTML = renderThreadContext(task, threadView);
-    updateTranscript(main.querySelector('.thread-log'), renderTurns(task, threadView));
+    updateTranscript(main.querySelector('.thread-log'), renderTurns(task, { ...threadView, working }));
   }
 
-  const key = task ? task.id + ':' + task.status : '';
+  const key = task ? task.id + ':' + (working ? 'working' : task.status) : '';
   if (threadFooter.dataset.key !== key) {
-    threadFooter.innerHTML = renderThreadComposer(task, threadView);
+    threadFooter.innerHTML = renderThreadComposer(task, { ...threadView, working });
     threadFooter.dataset.key = key;
     const input = threadFooter.querySelector('#thread-input');
     if (input) {
@@ -186,14 +239,21 @@ function scrollThread() {
 function openThread(id) {
   if (!findTask(id)) return;
   selectTask(id);
-  if (currentPage !== 'today') {
-    location.hash = 'today';
+  if (currentPage !== 'chat') {
+    location.hash = 'chat';
     return;
   }
   renderNavigation();
   renderPage();
   scrollThread();
   main.focus({ preventScroll: true });
+}
+
+function openTask(id) {
+  if (!findTask(id)) return;
+  backRoutes.task = location.hash || '#today';
+  if (dialog.open) dialog.close();
+  location.hash = 'task/' + encodeURIComponent(id);
 }
 
 function updateComposer(input) {
@@ -215,7 +275,7 @@ function updateHomeTask(task) {
   const file = last?.querySelector('.thread-file');
   scrollThread();
   if (!previousFocus?.isConnected) (file ?? threadFooter.querySelector('#thread-input') ?? main).focus({ preventScroll: true });
-  playThreadReply(appBar.querySelector('.thread-avatar img'), last, hasFile);
+  playThreadReply(appBar.querySelector('.mori-figure'), last, hasFile);
 }
 
 function announce(message) {
@@ -241,10 +301,12 @@ function updateTask(task, message) {
 }
 
 function renderDialog() {
-  if (sheet.kind === 'task') {
+  if (sheet.kind === 'activity') {
     const task = findTask(sheet.id);
-    if (!task) return;
-    dialog.innerHTML = renderTaskSheet(task, { icon, esc, formatDay });
+    dialog.innerHTML = renderActivity(task, moodOf(task), threadView);
+  } else if (sheet.kind === 'file') {
+    const task = findTask(sheet.id);
+    if (task?.status === 'ready') dialog.innerHTML = renderResultSheet(task, threadView);
   } else if (sheet.kind === 'compose') {
     dialog.innerHTML = renderComposer(state, {
       icon, esc, formatDay, composerMode: sheet.mode, selectedTaskId: sheet.id
@@ -265,6 +327,8 @@ function renderDialog() {
 }
 
 function showSheet(next, trigger = document.activeElement) {
+  sheetExit?.cancel();
+  sheetExit = null;
   if (!dialog.open) {
     returnFocus = trigger instanceof HTMLElement ? { element: trigger, id: trigger.dataset.id, action: trigger.dataset.action } : null;
   }
@@ -277,20 +341,23 @@ function showSheet(next, trigger = document.activeElement) {
   dialog.querySelector('#sheet-title')?.focus({ preventScroll: true });
 }
 
+function dismissSheet(offset = 0) {
+  if (!dialog.open || sheetExit) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    dialog.close();
+    return;
+  }
+  const motion = dialog.animate([
+    { translate: '0 ' + offset + 'px', opacity: 1 },
+    { translate: '0 ' + Math.max(offset + 55, 64) + 'px', opacity: 0 }
+  ], { duration: 190, fill: 'forwards', easing: 'cubic-bezier(.3,.05,.65,.25)' });
+  sheetExit = motion;
+  motion.finished.then(() => { if (sheetExit === motion) dialog.close(); }, () => {});
+}
+
 function focusInDialog(selector = '#sheet-title') {
   const target = dialog.querySelector(selector) ?? dialog.querySelector('#sheet-title');
   target?.focus({ preventScroll: true });
-}
-
-function showNextStage() {
-  renderDialog();
-  focusInDialog();
-  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    const panel = dialog.querySelector('.sheet-intro') ?? dialog.querySelector('#sheet-title');
-    panel?.animate([{ opacity: 0.48, transform: 'translateY(5px)' }, { opacity: 1, transform: 'translateY(0)' }], {
-      duration: 240, easing: 'cubic-bezier(.2,.75,.25,1)'
-    });
-  }
 }
 
 function download(task) {
@@ -327,14 +394,16 @@ document.addEventListener('click', event => {
     case 'new-note':
       showSheet({ kind: 'compose', mode: 'note', id }, button);
       break;
-    case 'focus-thread': {
-      const editor = threadFooter.querySelector('#thread-input');
-      const file = main.querySelector('.thread-file');
-      if (editor) editor.focus();
-      else if (file) { scrollThread(); file.focus(); }
-      else showSheet({ kind: 'compose', mode: 'task' }, button);
+    case 'open-activity':
+      showSheet({ kind: 'activity', id }, button);
       break;
-    }
+    case 'back':
+      if (backRoutes[currentPage]) {
+        const target = backRoutes[currentPage];
+        backRoutes[currentPage] = null;
+        location.hash = target;
+      } else location.hash = currentPage === 'task' ? 'works' : 'today';
+      break;
     case 'open-thread':
       openThread(id);
       break;
@@ -344,17 +413,20 @@ document.addEventListener('click', event => {
     case 'home-finish': {
       const task = findTask(id);
       if (task?.status === 'collecting' && task.observations.length) {
-        updateHomeTask(completeTask(task));
+        prepareResult(task);
       }
       break;
     }
+    case 'open-file':
+      if (findTask(id)?.status === 'ready') showSheet({ kind: 'file', id }, button);
+      break;
     case 'home-download': {
       const task = findTask(id);
       if (task?.status === 'ready') download(task);
       break;
     }
     case 'open-task':
-      if (findTask(id)) showSheet({ kind: 'task', id }, button);
+      openTask(id);
       break;
     case 'composer-mode':
       if (sheet?.kind === 'compose' && mode !== sheet.mode && ['task', 'note'].includes(mode)) {
@@ -366,27 +438,17 @@ document.addEventListener('click', event => {
       }
       break;
     case 'close-sheet':
-      dialog.close();
+      dismissSheet();
       break;
-    case 'quick-answer':
-      recordAnswer(button.dataset.answer);
-      break;
-    case 'finish-task': {
-      const task = findTask(sheet?.id);
-      if (task?.status === 'collecting' && task.observations.length) {
-        updateTask(completeTask(task), '결과가 준비됐어요.');
-        showNextStage();
-      }
-      break;
-    }
-    case 'download-task': {
-      const task = findTask(sheet?.id);
-      if (task?.status === 'ready') download(task);
-      break;
-    }
     case 'filter':
       filter = button.dataset.filter;
       setFilter(filter, 'filter', 'filter');
+      break;
+    case 'notes-mode':
+      if (mode === 'notes' || mode === 'files') {
+        notesMode = mode;
+        setFilter(notesMode, 'notes-mode', 'mode');
+      }
       break;
     case 'theme':
       theme = button.dataset.theme;
@@ -400,6 +462,8 @@ document.addEventListener('click', event => {
     case 'confirm-reset':
       filter = 'all';
       selectTask(null);
+      for (const timer of preparing.values()) clearTimeout(timer);
+      preparing.clear();
       replyDrafts.clear();
       commit(createDemoState(), '처음 예시를 다시 불러왔어요.');
       dialog.close();
@@ -407,19 +471,30 @@ document.addEventListener('click', event => {
   }
 });
 
-function recordAnswer(value) {
-  const task = findTask(sheet?.id);
-  const answer = String(value ?? '').trim();
-  if (task?.status !== 'waiting' || !answer) return;
-  updateTask(completeTask(answerQuestion(task, answer)), '답변을 기록하고 파일을 준비했어요.');
-  showNextStage();
+function prepareResult(task, { submittedReply = false } = {}) {
+  if (preparing.has(task.id)) return;
+  const wasChat = currentPage === 'chat' && homeTask()?.id === task.id;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const timer = setTimeout(() => {
+    preparing.delete(task.id);
+    const known = findTask(task.id);
+    if (!known || known.status !== 'collecting') return;
+    const result = completeTask(known);
+    if (currentPage === 'chat' && homeTask()?.id === task.id) updateHomeTask(result);
+    else updateTask(result, '결과 파일을 준비했어요.');
+    if (dialog.open && sheet?.kind === 'activity') renderDialog();
+  }, reduce ? 0 : 560);
+  preparing.set(task.id, timer);
+  if (submittedReply && wasChat) updateHomeTask(task);
+  else if (submittedReply) updateTask(task);
+  else renderPage();
 }
 
 function recordHomeAnswer(id, text) {
   const task = findTask(id);
   const answer = text.trim();
-  if (task?.status !== 'waiting' || !answer) return;
-  updateHomeTask(completeTask(answerQuestion(task, answer)));
+  if (task?.status !== 'waiting' || !answer || preparing.has(id)) return;
+  prepareResult(answerQuestion(task, answer), { submittedReply: true });
 }
 
 threadFooter.addEventListener('input', event => {
@@ -439,7 +514,7 @@ document.addEventListener('submit', event => {
   if (form.dataset.form === 'thread-message') {
     const message = value('message');
     const task = findTask(form.dataset.id);
-    if (!message || !task) return;
+    if (!message || !task || preparing.has(task.id)) return;
     if (task.status === 'waiting') recordHomeAnswer(task.id, message);
     else if (task.status === 'collecting') updateHomeTask(addObservation(task, message));
   } else if (form.dataset.form === 'task') {
@@ -448,26 +523,20 @@ document.addEventListener('submit', event => {
     selectTask(task.id);
     commit({ ...state, tasks: [task, ...state.tasks] }, '모리가 새 부탁을 맡았어요.');
     dialog.close();
-    openThread(task.id);
-  } else if (form.dataset.form === 'answer') {
-    recordAnswer(value('answer'));
+    acceptedTaskId = task.id;
+    openTask(task.id);
   } else if (form.dataset.form === 'note' && value('text')) {
     const task = findTask(value('taskId'));
     if (task) updateTask(addObservation(task, value('text')), '맡긴 일에 기록을 더했어요.');
     else commit({ ...state, notes: [createNote(value('text')), ...state.notes] }, '기록을 남겼어요.');
     dialog.close();
-  } else if (form.dataset.form === 'observation' && value('observation')) {
-    const task = findTask(sheet?.id);
-    if (!task) return;
-    updateTask(addObservation(task, value('observation')), '기록을 더했어요.');
-    showNextStage();
   }
 });
 
 dialog.addEventListener('click', event => {
   if (event.target !== dialog) return;
   const rect = dialog.getBoundingClientRect();
-  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
+  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dismissSheet();
 });
 
 let sheetDrag = null;
@@ -493,7 +562,7 @@ function endSheetDrag(event) {
   dialog.classList.remove('is-dragging');
   dialog.style.removeProperty('--sheet-offset');
   if (event.type === 'pointerup' && offset > 94) {
-    dialog.close();
+    dismissSheet(offset);
   } else if (offset > 0 && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     dialog.animate([{ translate: '0 ' + offset + 'px' }, { translate: '0 0' }], {
       duration: 210, easing: 'cubic-bezier(.2,.75,.25,1)'
@@ -504,7 +573,14 @@ function endSheetDrag(event) {
 dialog.addEventListener('pointerup', endSheetDrag);
 dialog.addEventListener('pointercancel', endSheetDrag);
 
+dialog.addEventListener('cancel', event => {
+  event.preventDefault();
+  dismissSheet();
+});
+
 dialog.addEventListener('close', () => {
+  sheetExit?.cancel();
+  sheetExit = null;
   document.body.classList.remove('sheet-open');
   sheet = null;
   const trigger = returnFocus;
@@ -520,6 +596,10 @@ document.addEventListener('keydown', event => {
     event.preventDefault();
     showSheet({ kind: 'compose', mode: 'task' });
   }
+});
+
+document.addEventListener('click', event => {
+  if (event.target.closest('a[href="#settings"]')) backRoutes.settings = location.hash || '#today';
 });
 
 window.addEventListener('hashchange', () => {
