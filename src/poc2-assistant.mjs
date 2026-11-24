@@ -1,75 +1,102 @@
-const heroAsset = '/assets/mori-poc2.webp';
+const mascot = '/assets/mori-poc2.webp';
+const answerMarker = '\n답변: ';
 
-function renderControls(task, editing, draft, { icon, esc }) {
-  const id = task ? `data-id="${esc(task.id)}"` : '';
-  if (editing && task?.status === 'waiting') {
-    return `
-      <form class="reply-editor" data-form="home-answer" ${id}>
-        <label class="sr-only" for="home-answer">모리에게 답하기</label>
-        <textarea id="home-answer" name="answer" rows="1" maxlength="1000" placeholder="모리에게 답하기" required>${esc(draft)}</textarea>
-        <button class="editor-submit spring-control" type="submit" aria-label="답변 보내기">${icon('arrow-up')}</button>
-      </form>
-      <button class="quiet-action spring-control" type="button" data-action="close-reply">취소</button>`;
-  }
-
-  if (task?.status === 'waiting') {
-    return `<div class="conversation-actions">
-      ${task.id === 'garage' ? `<button class="filled-action spring-control" type="button" data-action="home-quick-answer" ${id}>${icon('check')}<span>네, 맞아요</span></button>` : ''}
-      <button type="button" class="${task.id === 'garage' ? 'secondary-action' : 'filled-action'} spring-control" data-action="open-reply" ${id}>
-        ${icon('compose')}<span>직접 답하기</span>
-      </button>
-    </div>`;
-  }
-
-  if (task?.status === 'ready') {
-    return `<button type="button" class="result-file spring-control" data-action="home-download" ${id}>
-      <span class="result-icon">${icon('file')}</span>
-      <span class="result-name"><strong>${esc(task.title)}</strong><small>텍스트 파일 · 기록 ${task.observations.length}개</small></span>
-      <span class="result-download">${icon('download')}<span class="sr-only">저장</span></span>
-    </button>`;
-  }
-
-  return `<div class="conversation-actions">
-    ${task?.observations.length ? `<button class="filled-action spring-control" type="button" data-action="home-finish" ${id}>${icon('file')}<span>결과 만들기</span></button>` : ''}
-    <button class="${task?.observations.length ? 'secondary-action' : 'filled-action'} spring-control" type="button" data-action="${task ? 'new-note' : 'new-task'}" ${id}>
-      ${icon('plus')}<span>${task ? '기록 추가' : '새 부탁'}</span>
-    </button>
-  </div>`;
+function turn(key, speaker, content, esc) {
+  return `<li class="thread-turn" data-speaker="${speaker}" data-turn-key="${esc(key)}">
+    <span class="sr-only">${speaker === 'me' ? '나' : '모리'}</span>${content}
+  </li>`;
 }
 
-export function renderAssistant(task, { editing, draft, icon, esc, formatDay }) {
-  const answered = task?.observations.some(item => item.kind === 'answer');
-  const phase = editing ? 'reply' : task?.status === 'ready' ? 'ready' : task?.status === 'waiting' ? 'ask' : 'rest';
-  const title = task?.status === 'waiting' ? task.question ?? '기록을 한 번 확인해 주실래요?'
-    : task?.status === 'ready' ? '기록을 정리했어요.'
-      : answered ? '답변을 기록에 더했어요.'
-        : task ? '기록을 모으고 있어요.' : '어떤 일을 맡길까요?';
-  const mascotLabel = task?.status === 'waiting' ? (editing ? '답변 입력으로 이동' : '모리에게 직접 답하기')
-    : task ? '모리가 맡은 일 열기' : '모리에게 부탁하기';
-  return `
-    <section class="assistant-view" data-scene="${phase}" aria-labelledby="assistant-title">
-      <div class="mori-stage">
-        <div class="stage-light" aria-hidden="true"></div>
-        <div class="stage-shadow" aria-hidden="true"></div>
-        <button class="mascot-hit spring-control" type="button" data-action="mori-touch"
-          ${task ? `data-id="${esc(task.id)}"` : ''} aria-label="${mascotLabel}">
-          <span class="mascot-pose">
-            <img src="${heroAsset}" alt="" width="660" height="660" fetchpriority="high" draggable="false">
-          </span>
-        </button>
-      </div>
-      <div class="conversation">
-        ${task ? `
-          <button class="job-label spring-control" type="button" data-action="open-task" data-id="${esc(task.id)}">
-            <span class="job-symbol">${icon(task.icon)}</span>
-            <span class="job-meta"><span class="job-name">${esc(task.title)}</span>
-              <span class="job-detail">기록 ${task.observations.length}개${task.due ? ` <span aria-hidden="true">·</span> <time datetime="${esc(task.due)}">${esc(formatDay(task.due))}까지</time>` : ''}</span>
-            </span>
-            <span class="job-chevron">${icon('chevron')}</span>
-          </button>` : ''}
-        <h1 id="assistant-title" tabindex="-1">${esc(title)}</h1>
-        <div class="reply-area">${renderControls(task, editing, draft, { icon, esc })}</div>
-      </div>
-      ${phase === 'ready' ? `<span class="delivery-copy" aria-hidden="true">${icon('file')}</span>` : ''}
+function bubble(text, esc) {
+  return `<p class="thread-bubble">${esc(text)}</p>`;
+}
+
+function fileRow(task, { icon, esc }) {
+  return `<button type="button" class="thread-file spring-control" data-action="home-download" data-id="${esc(task.id)}">
+    <span class="thread-file-icon">${icon('file')}</span>
+    <span><strong>${esc(task.title)}.txt</strong><small>기록 ${task.observations.length}개</small></span>
+    <span class="thread-file-download">${icon('download')}<span class="sr-only">저장</span></span>
+  </button>`;
+}
+
+export function renderTurns(task, view) {
+  const { esc, icon, formatDay } = view;
+  const id = esc(task.id);
+  const output = [
+    `<li class="thread-date" data-turn-key="date"><time datetime="${esc(task.createdAt)}">${esc(formatDay(task.createdAt))}</time></li>`,
+    turn('request', 'me', bubble(task.brief || task.title, esc), esc),
+    turn('ack', 'mori', bubble('좋아요. 이 대화에 기록을 모아둘게요.', esc), esc)
+  ];
+
+  let questionNumber = 0;
+  for (const observation of task.observations) {
+    const prefix = esc(observation.id);
+    if (observation.kind !== 'answer') {
+      output.push(`<li class="thread-turn thread-observation" data-speaker="me" data-turn-key="${prefix}">
+        <span class="sr-only">내가 남긴 기록</span>
+        <time datetime="${esc(observation.at)}">${esc(formatDay(observation.at))}</time>
+        ${bubble(observation.text, esc)}
+      </li>`);
+      continue;
+    }
+    const split = observation.text.indexOf(answerMarker);
+    if (split >= 0) {
+      output.push(turn('question-' + questionNumber, 'mori', bubble(observation.text.slice(0, split).replace(/^질문: /, ''), esc), esc));
+      output.push(turn('answer-' + observation.id, 'me', bubble(observation.text.slice(split + answerMarker.length), esc), esc));
+    } else {
+      output.push(turn('answer-' + observation.id, 'me', bubble(observation.text, esc), esc));
+    }
+    questionNumber += 1;
+  }
+
+  if (task.status === 'waiting') {
+    output.push(turn('question-' + questionNumber, 'mori', bubble(task.question || '기록을 한 번 확인해 주세요.', esc), esc));
+    if (task.id === 'garage') {
+      output.push(`<li class="thread-option" data-turn-key="quick"><button type="button" class="thread-quick spring-control" data-action="home-quick-answer" data-id="${id}">네, 맞아요${icon('arrow-up')}</button></li>`);
+    }
+  } else if (task.status === 'ready') {
+    output.push(turn('file-' + task.completedAt, 'mori', bubble('남겨 주신 내용으로 파일을 만들었어요.', esc) + fileRow(task, view), esc));
+  } else if (task.observations.length) {
+    output.push(`<li class="thread-option" data-turn-key="make-file"><button type="button" class="thread-quick spring-control" data-action="home-finish" data-id="${id}">${icon('file')}기록 정리${icon('chevron')}</button></li>`);
+  }
+  return output.join('');
+}
+
+export function renderAssistant(task, view) {
+  if (!task) {
+    return `<section class="thread-empty">
+      <img src="${mascot}" alt="" width="112" height="112">
+      <h1>모리에게 할 일을 맡겨보세요</h1>
+      <button class="thread-quick spring-control" type="button" data-action="new-task">${view.icon('plus')}새 부탁</button>
     </section>`;
+  }
+  return `<section class="thread" data-thread-id="${view.esc(task.id)}" aria-labelledby="thread-title">
+    <h1 id="thread-title" class="sr-only" tabindex="-1">${view.esc(task.title)} 대화</h1>
+    <div class="thread-context"></div>
+    <div role="log" aria-label="모리와 나눈 대화" aria-relevant="additions">
+      <ol class="thread-log"></ol>
+    </div>
+  </section>`;
+}
+
+export function renderThreadContext(task, { icon, esc, formatDay }) {
+  return `<button class="thread-topic spring-control" type="button" data-action="open-task" data-id="${esc(task.id)}">
+    <span class="thread-topic-icon">${icon(task.icon)}</span>
+    <span class="thread-topic-copy"><strong>${esc(task.title)}</strong>
+      ${task.due ? `<time datetime="${esc(task.due)}">${esc(formatDay(task.due))}까지</time>` : ''}
+    </span>
+    <span class="thread-topic-more">${icon('chevron')}<span class="sr-only">상세</span></span>
+  </button>`;
+}
+
+export function renderThreadComposer(task, { icon, esc }) {
+  if (!task) return '';
+  if (task.status === 'ready') {
+    return `<button class="thread-add-record spring-control" type="button" data-action="new-note" data-id="${esc(task.id)}">${icon('plus')}이 일에 기록 추가</button>`;
+  }
+  return `<form class="thread-composer" data-form="thread-message" data-id="${esc(task.id)}">
+    <label class="sr-only" for="thread-input">모리에게 메시지 보내기</label>
+    <textarea id="thread-input" name="message" rows="1" maxlength="1000" placeholder="${task.status === 'waiting' ? '모리에게 답하기' : '남겨둘 기록 쓰기'}" required></textarea>
+    <button class="thread-send spring-control" type="submit" aria-label="보내기" disabled>${icon('arrow-up')}</button>
+  </form>`;
 }

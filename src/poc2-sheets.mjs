@@ -188,7 +188,7 @@ function createTaskForm(icon) {
 }
 
 function createNoteForm(state, { icon, esc, selectedTaskId }) {
-  const activeTasks = state.tasks.filter(task => task.status !== 'ready');
+  const activeTasks = state.tasks.filter(task => task.status !== 'ready' || task.id === selectedTaskId);
 
   return `
     <form class="sheet-form sheet-compose-form" data-form="note">

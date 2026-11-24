@@ -21,7 +21,7 @@ function renderWorks({ state, filter, icon, esc, formatDay }) {
   const cards = tasks.map(task => {
     const lastObservation = task.observations.at(-1);
     return `<li class="sec-work-item">
-      <button type="button" class="sec-work-card" data-action="open-task" data-id="${esc(task.id)}">
+      <button type="button" class="sec-work-card" data-action="open-thread" data-id="${esc(task.id)}">
         <span class="sec-work-icon" aria-hidden="true">${icon(task.icon)}</span>
         <span class="sec-work-copy">
           <strong class="sec-work-title">${esc(task.title)}</strong>

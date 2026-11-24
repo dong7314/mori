@@ -1,5 +1,5 @@
-import { renderAssistant } from './poc2-assistant.mjs';
-import { bindTouchFeedback, playMori, playView } from './poc2-motion.mjs';
+import { renderAssistant, renderThreadComposer, renderThreadContext, renderTurns } from './poc2-assistant.mjs';
+import { bindTouchFeedback, playThreadReply, playView } from './poc2-motion.mjs';
 import { icon } from './poc2-icons.mjs';
 import { renderSecondary } from './poc2-views.mjs';
 import { renderComposer, renderTaskSheet } from './poc2-sheets.mjs';
@@ -15,9 +15,11 @@ const pages = {
   settings: ['설정', 'settings']
 };
 const themeKey = 'mori.poc2.theme';
+const taskKey = 'mori.poc2.active-task';
 const main = document.querySelector('.workspace');
 const appBar = document.querySelector('.app-bar');
 const dock = document.querySelector('.dock');
+const threadFooter = document.querySelector('.thread-footer');
 const dialog = document.querySelector('.mori-sheet');
 const toast = document.querySelector('.toast');
 const media = matchMedia('(prefers-color-scheme: dark)');
@@ -26,8 +28,7 @@ let state = loadState(storage);
 let theme = readTheme();
 let currentPage = 'today';
 let filter = 'all';
-let homeTaskId = null;
-let replyTaskId = null;
+let homeTaskId = loadTaskSelection();
 const replyDrafts = new Map();
 let sheet = null;
 let returnFocus = null;
@@ -53,12 +54,16 @@ function esc(value) {
 function updateTheme() {
   const mode = theme === 'system' ? (media.matches ? 'dark' : 'light') : theme;
   document.documentElement.dataset.theme = mode;
-  document.querySelector('meta[name="theme-color"]').content = mode === 'dark' ? '#1c201d' : '#fafbf8';
+  document.querySelector('meta[name="theme-color"]').content = mode === 'dark' ? '#1c201d' : '#fcfdfb';
 }
 
 function renderNavigation() {
+  const onThread = currentPage === 'today';
   appBar.innerHTML = `
-    <a class="brand-wordmark spring-control" href="#today" aria-label="모리 홈">모리</a>
+    ${onThread ? `<button class="thread-identity spring-control" type="button" data-action="focus-thread" aria-label="모리에게 말하기">
+      <span class="thread-avatar"><img src="/assets/mori-poc2.webp" width="44" height="44" alt=""></span>
+      <span class="thread-identity-copy"><strong>모리</strong><small class="thread-state"></small></span>
+    </button>` : '<a class="brand-wordmark spring-control" href="#today" aria-label="모리 홈">모리</a>'}
     <a class="utility-control glass spring-control" href="#settings" aria-label="설정"
        ${currentPage === 'settings' ? 'aria-current="page"' : ''}>${icon('settings')}</a>`;
   if (!dock.firstElementChild) {
@@ -89,15 +94,22 @@ function homeTask() {
     ?? state.tasks[0];
 }
 
-function scene() {
-  return main.querySelector('.assistant-view');
+function loadTaskSelection() {
+  try { return storage?.getItem(taskKey) ?? null; } catch { return null; }
+}
+
+function selectTask(id) {
+  homeTaskId = id;
+  try {
+    if (id) storage?.setItem(taskKey, id);
+    else storage?.removeItem(taskKey);
+  } catch { /* The current thread remains available in this session. */ }
 }
 
 function route({ focus = false } = {}) {
   const slug = location.hash.slice(1);
   const previousPage = currentPage;
   currentPage = Object.hasOwn(pages, slug) ? slug : 'today';
-  if (currentPage !== 'today') replyTaskId = null;
   document.body.dataset.view = currentPage;
   document.title = currentPage === 'today' ? '모리' : '모리 · ' + pages[currentPage][0];
   renderNavigation();
@@ -106,52 +118,104 @@ function route({ focus = false } = {}) {
     main.focus({ preventScroll: true });
     window.scrollTo(0, 0);
   }
-  if (currentPage === 'today') playMori(scene(), 'arrive');
+  if (currentPage === 'today') scrollThread();
   else {
     const order = Object.keys(pages);
     playView(main.querySelector('.sec-page'), order.indexOf(currentPage) >= order.indexOf(previousPage) ? 1 : -1);
   }
 }
 
+const threadView = { icon, esc, formatDay };
+
+function updateTranscript(log, markup) {
+  const template = document.createElement('template');
+  template.innerHTML = markup;
+  const existing = new Map([...log.children].map(node => [node.dataset.turnKey, node]));
+  let current = log.firstElementChild;
+  for (const turn of [...template.content.children]) {
+    const previous = existing.get(turn.dataset.turnKey);
+    const node = previous?.isEqualNode(turn) ? previous : turn;
+    if (node !== current) log.insertBefore(node, current);
+    current = node.nextElementSibling;
+    if (previous === node) existing.delete(turn.dataset.turnKey);
+  }
+  for (const stale of existing.values()) stale.remove();
+}
+
 function renderPage() {
-  if (currentPage === 'today') {
-    const task = homeTask();
-    main.innerHTML = renderAssistant(task, {
-      editing: Boolean(task && replyTaskId === task.id),
-      draft: replyDrafts.get(task?.id) ?? '', icon, esc, formatDay
-    });
-  } else {
+  const onThread = currentPage === 'today';
+  threadFooter.hidden = !onThread;
+  if (!onThread) {
+    threadFooter.replaceChildren();
+    delete threadFooter.dataset.key;
     main.innerHTML = renderSecondary(currentPage, { state, filter, theme, icon, esc, formatDay });
+    return;
+  }
+
+  const task = homeTask();
+  const active = main.querySelector('.thread');
+  if (!active || active.dataset.threadId !== task?.id) main.innerHTML = renderAssistant(task, threadView);
+  const status = appBar.querySelector('.thread-state');
+  if (status) {
+    status.textContent = ({ waiting: '답변 기다리는 중', collecting: '기록 모으는 중', ready: '파일 준비 완료' })[task?.status] ?? '';
+    const label = task?.status === 'ready' ? '정리한 파일로 이동' : task ? '모리에게 말하기' : '새 부탁';
+    status.closest('button').setAttribute('aria-label', label);
+  }
+  if (task) {
+    const context = main.querySelector('.thread-context');
+    if (!context.firstElementChild) context.innerHTML = renderThreadContext(task, threadView);
+    updateTranscript(main.querySelector('.thread-log'), renderTurns(task, threadView));
+  }
+
+  const key = task ? task.id + ':' + task.status : '';
+  if (threadFooter.dataset.key !== key) {
+    threadFooter.innerHTML = renderThreadComposer(task, threadView);
+    threadFooter.dataset.key = key;
+    const input = threadFooter.querySelector('#thread-input');
+    if (input) {
+      input.value = replyDrafts.get(task.id) ?? '';
+      updateComposer(input);
+    }
   }
 }
 
-function openReply(task) {
-  if (task?.status !== 'waiting') return;
-  if (replyTaskId !== task.id) {
-    const previous = scene()?.querySelector('.mascot-hit')?.getBoundingClientRect();
-    homeTaskId = task.id;
-    replyTaskId = task.id;
-    renderPage();
-    playMori(scene(), 'listen', previous);
-  }
-  main.querySelector('#home-answer')?.focus();
+function scrollThread() {
+  main.scrollTop = main.scrollHeight;
 }
 
-function returnToQuestion() {
-  const previous = scene()?.querySelector('.mascot-hit')?.getBoundingClientRect();
-  replyTaskId = null;
+function openThread(id) {
+  if (!findTask(id)) return;
+  selectTask(id);
+  if (currentPage !== 'today') {
+    location.hash = 'today';
+    return;
+  }
+  renderNavigation();
   renderPage();
-  main.querySelector('[data-action="open-reply"]')?.focus({ preventScroll: true });
-  playMori(scene(), 'restore', previous);
+  scrollThread();
+  main.focus({ preventScroll: true });
 }
 
-function updateHomeTask(task, beat) {
-  homeTaskId = task.id;
-  replyTaskId = null;
+function updateComposer(input) {
+  input.form.querySelector('button[type="submit"]').disabled = !input.value.trim();
+}
+
+function updateHomeTask(task) {
+  selectTask(task.id);
   replyDrafts.delete(task.id);
+  const input = threadFooter.querySelector('#thread-input');
+  const previousFocus = document.activeElement;
+  if (input) {
+    input.value = '';
+    updateComposer(input);
+  }
   updateTask(task);
-  main.querySelector('#assistant-title')?.focus({ preventScroll: true });
-  playMori(scene(), beat);
+  const hasFile = task.status === 'ready';
+  const last = [...main.querySelectorAll('.thread-turn')].at(-1);
+  const file = last?.querySelector('.thread-file');
+  scrollThread();
+  if (!previousFocus?.isConnected) (file ?? threadFooter.querySelector('#thread-input') ?? main).focus({ preventScroll: true });
+  playThreadReply(appBar.querySelector('.thread-avatar img'), last, hasFile);
 }
 
 function announce(message) {
@@ -263,18 +327,16 @@ document.addEventListener('click', event => {
     case 'new-note':
       showSheet({ kind: 'compose', mode: 'note', id }, button);
       break;
-    case 'mori-touch': {
-      const task = findTask(id);
-      if (task?.status === 'waiting') openReply(task);
-      else if (task) showSheet({ kind: 'task', id }, button);
+    case 'focus-thread': {
+      const editor = threadFooter.querySelector('#thread-input');
+      const file = main.querySelector('.thread-file');
+      if (editor) editor.focus();
+      else if (file) { scrollThread(); file.focus(); }
       else showSheet({ kind: 'compose', mode: 'task' }, button);
       break;
     }
-    case 'open-reply':
-      openReply(findTask(id));
-      break;
-    case 'close-reply':
-      returnToQuestion();
+    case 'open-thread':
+      openThread(id);
       break;
     case 'home-quick-answer':
       if (id === 'garage') recordHomeAnswer(id, '네, 두 번 다 방지턱을 넘을 때였어요.');
@@ -282,7 +344,7 @@ document.addEventListener('click', event => {
     case 'home-finish': {
       const task = findTask(id);
       if (task?.status === 'collecting' && task.observations.length) {
-        updateHomeTask(completeTask(task), 'ready');
+        updateHomeTask(completeTask(task));
       }
       break;
     }
@@ -337,8 +399,7 @@ document.addEventListener('click', event => {
       break;
     case 'confirm-reset':
       filter = 'all';
-      homeTaskId = null;
-      replyTaskId = null;
+      selectTask(null);
       replyDrafts.clear();
       commit(createDemoState(), '처음 예시를 다시 불러왔어요.');
       dialog.close();
@@ -350,7 +411,7 @@ function recordAnswer(value) {
   const task = findTask(sheet?.id);
   const answer = String(value ?? '').trim();
   if (task?.status !== 'waiting' || !answer) return;
-  updateTask(answerQuestion(task, answer), '답변을 기록했어요.');
+  updateTask(completeTask(answerQuestion(task, answer)), '답변을 기록하고 파일을 준비했어요.');
   showNextStage();
 }
 
@@ -358,14 +419,15 @@ function recordHomeAnswer(id, text) {
   const task = findTask(id);
   const answer = text.trim();
   if (task?.status !== 'waiting' || !answer) return;
-  updateHomeTask(answerQuestion(task, answer), 'answer');
+  updateHomeTask(completeTask(answerQuestion(task, answer)));
 }
 
-main.addEventListener('input', event => {
-  const editor = event.target.closest('#home-answer');
-  if (!editor) return;
-  editor.setCustomValidity('');
-  replyDrafts.set(editor.form.dataset.id, editor.value);
+threadFooter.addEventListener('input', event => {
+  const input = event.target.closest('#thread-input');
+  if (!input) return;
+  input.setCustomValidity('');
+  replyDrafts.set(input.form.dataset.id, input.value);
+  updateComposer(input);
 });
 
 document.addEventListener('submit', event => {
@@ -374,20 +436,19 @@ document.addEventListener('submit', event => {
   event.preventDefault();
   const fields = new FormData(form);
   const value = name => String(fields.get(name) ?? '').trim();
-  if (form.dataset.form === 'home-answer') {
-    if (!value('answer')) {
-      form.elements.answer.setCustomValidity('답변을 입력해 주세요.');
-      form.elements.answer.reportValidity();
-      return;
-    }
-    recordHomeAnswer(form.dataset.id, value('answer'));
+  if (form.dataset.form === 'thread-message') {
+    const message = value('message');
+    const task = findTask(form.dataset.id);
+    if (!message || !task) return;
+    if (task.status === 'waiting') recordHomeAnswer(task.id, message);
+    else if (task.status === 'collecting') updateHomeTask(addObservation(task, message));
   } else if (form.dataset.form === 'task') {
     if (!value('title')) return;
     const task = createTask({ title: value('title'), brief: value('brief'), due: value('due') });
-    homeTaskId = task.id;
-    replyTaskId = null;
+    selectTask(task.id);
     commit({ ...state, tasks: [task, ...state.tasks] }, '모리가 새 부탁을 맡았어요.');
-    showSheet({ kind: 'task', id: task.id });
+    dialog.close();
+    openThread(task.id);
   } else if (form.dataset.form === 'answer') {
     recordAnswer(value('answer'));
   } else if (form.dataset.form === 'note' && value('text')) {
@@ -455,10 +516,6 @@ dialog.addEventListener('close', () => {
 });
 
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && !event.isComposing && !dialog.open && replyTaskId) {
-    returnToQuestion();
-    return;
-  }
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && !dialog.open) {
     event.preventDefault();
     showSheet({ kind: 'compose', mode: 'task' });
@@ -470,9 +527,12 @@ window.addEventListener('hashchange', () => {
   route({ focus: true });
 });
 function updateKeyboard() {
-  const keyboard = innerHeight - (window.visualViewport?.height ?? innerHeight) > 145
+  const viewport = window.visualViewport;
+  const keyboard = viewport && innerHeight - viewport.height > 145
     && document.activeElement?.matches('input, textarea, select');
-  document.body.toggleAttribute('data-keyboard', keyboard);
+  document.body.toggleAttribute('data-keyboard', Boolean(keyboard));
+  if (keyboard) document.body.style.setProperty('--keyboard-height', viewport.height + 'px');
+  else document.body.style.removeProperty('--keyboard-height');
 }
 
 window.visualViewport?.addEventListener('resize', updateKeyboard);
