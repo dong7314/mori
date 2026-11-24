@@ -149,27 +149,40 @@ export function renderTools(tools, opts) {
   const active = tools.reminders.filter(item => !item.completedAt).sort((a, b) => Date.parse(a.targetAt) - Date.parse(b.targetAt));
   const enabled = tools.routines.filter(item => nextRoutineAt(item, now));
   const parking = tools.parking;
-  const parkingLabel = parking ? [parking.place, parking.floor, parking.spot].filter(Boolean).join(' · ') : '어디에 주차했는지 남겨두세요';
-  return `<div class="tools-page">
-    <header class="page-heading tools-heading"><h1>기능</h1><p>작은 일도 가볍게 챙겨요.</p></header>
+  const parkingLabel = parking ? [parking.floor, parking.spot].filter(Boolean).join(' · ') : '';
+  return `<div class="tools-page" aria-labelledby="tools-title">
+    <header class="page-heading tools-heading"><h1 id="tools-title" tabindex="-1">생활</h1></header>
+    <section class="tool-controls" aria-label="생활 도구">
+      <button class="tool-parking-control spring-control" type="button" data-action="open-tool" data-tool="parking" data-saved="${Boolean(parking)}">
+        <span class="tool-parking-heading"><span>${icon('car')}<span>주차 위치</span></span>${icon('arrow-up-right')}</span>
+        <span class="tool-parking-place">${esc(parking ? parking.place || parkingLabel : '어디에 주차했나요?')}</span>
+        <span class="tool-parking-detail">${esc(parking ? (parking.place && parkingLabel ? parkingLabel : '저장한 위치 확인하기') : '장소와 자리 번호를 남겨두세요')}</span>
+        ${parking ? `<time class="tool-parking-time" datetime="${esc(parking.savedAt)}">${esc(dateLabel(parking.savedAt))} 저장</time>` : ''}
+      </button>
+      <div class="tool-control-pair">
+        <button class="tool-control spring-control" type="button" data-action="open-tool" data-tool="reminders">
+          <span class="tool-control-top">${icon('clock')}<span aria-hidden="true">${icon('plus')}</span></span>
+          <strong>알림</strong><span>${active.length ? `${active.length}개 카운트다운 중` : '남은 시간 챙기기'}</span>
+        </button>
+        <button class="tool-control spring-control" type="button" data-action="open-tool" data-tool="routines">
+          <span class="tool-control-top">${icon('reset')}<span aria-hidden="true">${icon('chevron')}</span></span>
+          <strong>반복 루틴</strong><span>${enabled.length ? `${enabled.length}개 이어가는 중` : '꾸준히 할 일 정하기'}</span>
+        </button>
+      </div>
+    </section>
     ${active.length ? `<section class="tools-active" aria-labelledby="tools-active-title"><div class="tool-section-heading"><h2 id="tools-active-title">지금 챙길 일</h2><span>${active.length}</span></div>
       <ul class="tool-active-list">${active.slice(0, 3).map(item => `<li><button type="button" class="tool-active-row" data-action="open-tool" data-tool="reminder:${esc(item.id)}">
-        <span class="tool-active-mark" aria-hidden="true">${icon('clock')}</span><span class="tool-feature-copy"><strong>${esc(item.title)}</strong><time datetime="${esc(item.targetAt)}">${esc(dateLabel(item.targetAt))}</time></span>
+        <span class="tool-feature-copy"><strong>${esc(item.title)}</strong><time datetime="${esc(item.targetAt)}">${esc(dateLabel(item.targetAt))}</time></span>
         ${countdown(item, esc, now)}<span class="tool-chevron" aria-hidden="true">${icon('chevron')}</span></button></li>`).join('')}</ul>
     </section>` : ''}
-    <section class="tool-section" aria-labelledby="tools-everyday-title"><h2 id="tools-everyday-title">생활 도구</h2><ul class="tool-feature-list">
-      ${featureRow('parking', '주차 위치', parkingLabel, 'car', opts)}
-      ${featureRow('reminders', '알림', active.length ? `${active.length}개 진행 중 · 남은 시간 확인` : '시간을 정하고 남은 시간 확인', 'clock', opts)}
-      ${featureRow('routines', '반복 루틴', enabled.length ? `${enabled.length}개 켜짐 · 정해 둔 시간에 확인` : '챙길 일과 반복할 시간 정하기', 'reset', opts)}
-    </ul></section>
-    <section class="tool-section" aria-labelledby="tools-saved-title"><h2 id="tools-saved-title">내가 남긴 것</h2><div class="tool-destination-group">
+    <section class="tool-section" aria-labelledby="tools-brief-title"><div class="tool-section-heading"><h2 id="tools-brief-title">브리핑</h2><span class="tool-sample-label">예시 데이터</span></div><ul class="tool-feature-list">
+      ${featureRow('news', '뉴스', tools.news.topic, 'file', opts)}
+      ${featureRow('market', '관심 시세', tools.market.symbol, 'layers', opts)}
+    </ul><p class="tool-footnote">실시간으로 갱신되지 않는 체험용 데이터예요.</p></section>
+    <nav class="tool-destination-group" aria-label="기록과 일정">
       <a class="tool-destination" href="${esc(notesHref)}"><span aria-hidden="true">${icon('note')}</span><strong>기록</strong><span class="tool-chevron" aria-hidden="true">${icon('chevron')}</span></a>
       <a class="tool-destination" href="${esc(scheduleHref)}"><span aria-hidden="true">${icon('calendar')}</span><strong>일정</strong><span class="tool-chevron" aria-hidden="true">${icon('chevron')}</span></a>
-    </div></section>
-    <section class="tool-section" aria-labelledby="tools-brief-title"><div class="tool-section-heading"><h2 id="tools-brief-title">브리핑</h2><span class="tool-sample-label">예시 데이터</span></div><ul class="tool-feature-list">
-      ${featureRow('news', '뉴스', `${tools.news.topic} · 예시 브리핑`, 'file', opts)}
-      ${featureRow('market', '관심 시세', `${tools.market.symbol} · 고정된 예시 가격`, 'layers', opts)}
-    </ul><p class="tool-footnote">뉴스와 시세는 화면 체험용 예시예요.</p></section>
+    </nav>
   </div>`;
 }
 

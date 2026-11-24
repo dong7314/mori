@@ -202,6 +202,11 @@ export function formatDay(value) {
   }).format(date);
 }
 
+export function documentFilename(task) {
+  const title = task.title.replace(/[\\/:*?"<>|]/g, '_');
+  return /\.txt$/i.test(title) ? title : title + '.txt';
+}
+
 export function documentText(task) {
   const lines = [
     task.title,

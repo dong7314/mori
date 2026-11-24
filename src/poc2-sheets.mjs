@@ -1,4 +1,6 @@
-const phases = ['관찰 모으기', '내용 확인', '결과 준비'];
+import { renderAvatar } from './poc2-avatar.mjs';
+
+const phases = ['기록 모으기', '내용 확인', '결과 준비'];
 
 const statusLabels = {
   collecting: '기록 모으는 중',
@@ -74,11 +76,11 @@ function questionBlock(task, { icon, esc }) {
 
   return `
     <section class="sheet-question" aria-labelledby="sheet-question-label">
-      <p class="sheet-question-label" id="sheet-question-label">${icon('spark')}<span>모리의 질문</span></p>
+      <p class="sheet-question-label" id="sheet-question-label"><span>확인할 내용</span></p>
       <h3>${esc(task.question || '이 기록에 추가로 확인할 내용이 있나요?')}</h3>
       ${shortcut}
       <form class="sheet-form sheet-answer-form" data-form="answer">
-        <label class="field-label" for="sheet-answer">직접 답하기</label>
+        <label class="field-label" for="sheet-answer">모리에게 답변</label>
         <div class="sheet-inline-field">
           <input class="field-input" type="text" id="sheet-answer" name="answer" placeholder="짧게 답해도 괜찮아요." required maxlength="1000">
           <button class="sheet-primary sheet-answer-submit" type="submit" aria-label="답변 보내기">${icon('arrow')}</button>
@@ -167,21 +169,21 @@ export function renderTaskSheet(task, { icon, esc, formatDay }) {
 
 function createTaskForm(icon) {
   return `
-    <form class="sheet-form sheet-compose-form" data-form="task">
-      <div class="field-group">
+    <form class="sheet-form sheet-compose-form sheet-intent-form" data-form="task">
+      <div class="field-group sheet-intent-title">
         <label class="field-label" for="task-title">맡길 일</label>
-        <input class="field-input" type="text" name="title" id="task-title" placeholder="정비소에 보여줄 기록" required maxlength="80">
+        <input class="field-input" type="text" name="title" id="task-title" placeholder="예: 정비소에 보여줄 기록" required maxlength="80">
       </div>
-      <div class="field-group">
-        <label class="field-label" for="task-brief">원하는 결과 <span class="field-optional">선택</span></label>
-        <textarea class="field-input" name="brief" id="task-brief" rows="3" placeholder="토요일에 보여줄 수 있게 소리가 났던 상황을 한 장에 모아줘." maxlength="1000"></textarea>
+      <div class="field-group sheet-intent-brief">
+        <label class="field-label" for="task-brief">모리가 준비할 내용 <span class="field-optional">선택</span></label>
+        <textarea class="field-input" name="brief" id="task-brief" rows="3" placeholder="소리가 났던 상황을 토요일에 보여줄 수 있게 한 장으로 모아줘." maxlength="1000"></textarea>
       </div>
-      <div class="field-group">
+      <div class="field-group sheet-intent-date">
         <label class="field-label" for="task-due">필요한 날 <span class="field-optional">선택</span></label>
         <input class="field-input" type="date" name="due" id="task-due">
       </div>
-      <div class="sheet-actions">
-        <button type="submit" class="sheet-primary">${icon('spark')}<span>모리에게 맡기기</span></button>
+      <div class="sheet-actions sheet-intent-actions">
+        <button type="submit" class="sheet-primary"><span>이 부탁 맡기기</span>${icon('arrow-up-right')}</button>
       </div>
     </form>
   `;
@@ -191,13 +193,13 @@ function createNoteForm(state, { icon, esc, selectedTaskId }) {
   const activeTasks = state.tasks.filter(task => task.status !== 'ready' || task.id === selectedTaskId);
 
   return `
-    <form class="sheet-form sheet-compose-form" data-form="note">
-      <div class="field-group">
+    <form class="sheet-form sheet-compose-form sheet-intent-form" data-form="note">
+      <div class="field-group sheet-intent-note">
         <label class="field-label" for="note-text">남길 내용</label>
-        <textarea class="field-input" name="text" id="note-text" rows="4" placeholder="비 올 때 뒷자리에서 덜컹거렸어." required maxlength="1000"></textarea>
+        <textarea class="field-input" name="text" id="note-text" rows="4" placeholder="지금 떠오른 내용을 그대로 남겨주세요." required maxlength="1000"></textarea>
       </div>
       ${activeTasks.length ? `
-        <div class="field-group">
+        <div class="field-group sheet-intent-link">
           <label class="field-label" for="note-task">연결할 일 <span class="field-optional">선택</span></label>
           <select class="field-input" id="note-task" name="taskId">
             <option value="">기록에만 남기기</option>
@@ -207,7 +209,7 @@ function createNoteForm(state, { icon, esc, selectedTaskId }) {
           </select>
         </div>
       ` : ''}
-      <div class="sheet-actions">
+      <div class="sheet-actions sheet-intent-actions">
         <button class="sheet-primary" type="submit">${icon('check')}<span>기록 저장</span></button>
       </div>
     </form>
@@ -218,13 +220,17 @@ export function renderComposer(state, { icon, esc, composerMode = 'task', select
   const recording = composerMode === 'note';
 
   return `
-    <div class="sheet-content sheet-composer-content">
-      ${sheetHeader('모리에게', { icon, esc })}
-      <div class="sheet-intro">
-        <h2 id="sheet-title" tabindex="-1">${recording ? '기록 남기기' : '모리에게 부탁하기'}</h2>
+    <div class="sheet-content sheet-composer-content" data-composer-mode="${recording ? 'note' : 'task'}">
+      ${sheetHeader(recording ? '새 기록' : '새 부탁', { icon, esc })}
+      <div class="sheet-intent-heading">
+        <div class="sheet-intro">
+          <h2 id="sheet-title" tabindex="-1">${recording ? '기억해둘 게 있나요?' : '무엇을 챙겨둘까요?'}</h2>
+          <p class="sheet-brief">${recording ? '지금 생각난 일을 편하게 남겨주세요.' : '필요한 결과와 시점을 알려주세요.'}</p>
+        </div>
+        <div class="sheet-intent-mori">${renderAvatar(recording ? 'collecting' : 'idle', { large: true })}</div>
       </div>
       <div class="sheet-switch" role="group" aria-label="작성할 내용">
-        <button type="button" data-action="composer-mode" data-mode="task" aria-pressed="${!recording}">${icon('spark')}<span>일 맡기기</span></button>
+        <button type="button" data-action="composer-mode" data-mode="task" aria-pressed="${!recording}">${icon('mori')}<span>부탁하기</span></button>
         <button type="button" data-action="composer-mode" data-mode="note" aria-pressed="${recording}">${icon('note')}<span>기록 남기기</span></button>
       </div>
       ${recording ? createNoteForm(state, { icon, esc, selectedTaskId }) : createTaskForm(icon)}

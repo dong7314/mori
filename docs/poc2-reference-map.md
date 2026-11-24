@@ -27,3 +27,9 @@ Claire Vo 영상에서 선택을 기다릴 때 표시되는 실제 문구는 `Co
 - [당근 SEED 시트 샘플](https://seed-design.io/react/components/bottom-sheet)을 열고 닫아 위로 정착하는 움직임과 버튼 초점 복귀를 확인했습니다. [당근 앱 화면](https://apps.apple.com/kr/app/id1018769995)의 연속 목록을 참고해 별도 행 카드를 줄였습니다.
 
 교차 검증은 공개 웹 샘플 조작과 영상 프레임 확인으로 진행했습니다. Mori는 브라우저에 예시 데이터와 작업을 저장하는 UI PoC입니다.
+
+## 개편한 화면 구조
+
+- 오늘·일정·보관함·생활을 하단에 두고, 작업 상세와 대화에 들어가도 출발한 탭이 선택된 상태로 유지됩니다. 부탁 입력은 탭 옆의 별도 조작으로 열립니다. [Apple 탭 바 가이드](https://developer.apple.com/design/human-interface-guidelines/tab-bars)
+- 부탁은 현재 화면에서 입력하고, 기한 등 추가 속성이 필요할 때 작성 중인 내용을 시트에 이어서 편집합니다. [Apple 시트 가이드](https://developer.apple.com/design/human-interface-guidelines/sheets)
+- 확인 질문, 사용자의 답변, 받은 파일을 하나의 작업 기록 안에서 찾을 수 있게 했습니다. 답변 입력과 받은 파일은 각각 현재 진행 단계에서 바로 조작할 수 있습니다. [Muse의 승인과 활동 기록](https://www.meta.com/en-gb/help/superintelligence/1385290430137537/)

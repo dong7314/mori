@@ -1,183 +1,163 @@
-import { TASK_STATUS_LABELS } from './poc2-model.mjs';
+import { documentFilename } from './poc2-model.mjs';
 
-const FILTERS = [['all', '전체'], ...Object.entries(TASK_STATUS_LABELS)];
-const seoulDate = new Intl.DateTimeFormat('ko-KR', {
-  timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit'
-});
-const seoulTime = new Intl.DateTimeFormat('ko-KR', {
-  timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit'
-});
+const libraryTabs = [
+  ['tasks', '부탁', 'layers'],
+  ['notes', '메모', 'note'],
+  ['files', '파일', 'file'],
+];
+const taskGroups = [
+  ['waiting', '내 답변을 기다려요'],
+  ['collecting', '모리가 맡은 일'],
+  ['ready', '끝낸 일'],
+];
 
-function renderWorks({ state, filter, icon, esc, formatDay }) {
-  const activeFilter = FILTERS.some(([value]) => value === filter) ? filter : 'all';
-  const tasks = state.tasks.filter(task => activeFilter === 'all' || task.status === activeFilter);
-  const filters = FILTERS.map(([value, label]) => {
-    return `<button type="button" class="sec-filter ${activeFilter === value ? 'is-selected' : ''}"
-      data-action="filter" data-filter="${value}" aria-pressed="${activeFilter === value}">
-      <span>${label}</span>
-    </button>`;
+const localDate = new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+const localTime = new Intl.DateTimeFormat('ko-KR', { hour: 'numeric', minute: '2-digit' });
+
+function dateKey(value) {
+  const parts = Object.fromEntries(localDate.formatToParts(new Date(value)).map(part => [part.type, part.value]));
+  return parts.year + '-' + parts.month + '-' + parts.day;
+}
+
+function byNewest(a, b) {
+  return Date.parse(b.at) - Date.parse(a.at);
+}
+
+function matches(query, ...values) {
+  return !query || values.some(value => String(value ?? '').toLocaleLowerCase('ko-KR').includes(query));
+}
+
+function libraryGroup(title, rows, status = '') {
+  return `<section class="library-group"${status ? ` data-status="${status}"` : ''}>
+    <h2>${title}</h2>
+    <ul class="library-list">${rows.join('')}</ul>
+  </section>`;
+}
+
+function libraryRow({ title, detail, trail, symbol, action, id }, { icon, esc }) {
+  return `<li><button type="button" class="library-row spring-control" data-action="${action}" data-id="${esc(id)}">
+    <span class="library-row-icon" aria-hidden="true">${icon(symbol)}</span>
+    <span class="library-row-copy"><strong>${esc(title)}</strong>${detail ? `<small>${esc(detail)}</small>` : ''}</span>
+    <span class="library-row-trailing">${trail ? `<small>${esc(trail)}</small>` : ''}${icon('chevron')}</span>
+  </button></li>`;
+}
+
+function requests({ state, workingIds, icon, esc, formatDay }, query) {
+  const tasks = state.tasks.filter(task => matches(query, task.title, task.brief, task.question));
+  return taskGroups.map(([status, title]) => {
+    const group = tasks.filter(task => task.status === status);
+    if (!group.length) return '';
+    const rows = group.map(task => libraryRow({
+      title: task.title,
+      detail: workingIds?.has(task.id) ? '기록을 정리하는 중'
+        : status === 'waiting' ? task.question
+        : status === 'ready' ? '결과 파일 있음'
+        : `남긴 기록 ${task.observations.length}개`,
+      trail: task.due ? formatDay(task.due) : '',
+      symbol: task.icon,
+      action: 'open-task',
+      id: task.id,
+    }, { icon, esc }));
+    return libraryGroup(title, rows, status);
   }).join('');
-
-  const cards = tasks.map(task => {
-    const lastObservation = task.observations.at(-1);
-    return `<li class="sec-work-item">
-      <button type="button" class="sec-work-card" data-action="open-task" data-id="${esc(task.id)}">
-        <span class="sec-work-icon" aria-hidden="true">${icon(task.icon)}</span>
-        <span class="sec-work-copy">
-          <strong class="sec-work-title">${esc(task.title)}</strong>
-          <span class="sec-work-brief">${esc(lastObservation?.text || task.brief)}</span>
-          <span class="sec-work-meta">
-            <span class="sec-status sec-status--${task.status}">${TASK_STATUS_LABELS[task.status]}</span>
-            ${task.due ? `<time datetime="${esc(task.due)}">${esc(formatDay(task.due))}</time>` : ''}
-          </span>
-        </span>
-        <span class="sec-work-arrow" aria-hidden="true">${icon('chevron')}</span>
-      </button>
-    </li>`;
-  }).join('');
-
-  const empty = `<div class="sec-empty">
-    <span class="sec-empty-icon" aria-hidden="true">${icon('layers')}</span>
-    <h2>${activeFilter === 'all' ? '아직 맡긴 일이 없어요' : '이 상태의 일이 없어요'}</h2>
-    ${activeFilter === 'all'
-      ? '<p>홈에서 모리에게 부탁을 남겨보세요.</p>'
-      : '<button type="button" class="sec-text-button" data-action="filter" data-filter="all">전체 보기</button>'}
-  </div>`;
-
-  return `<div class="sec-page sec-works">
-    <header class="page-heading sec-heading"><h1>맡은 일</h1></header>
-    <div class="sec-filters" role="group" aria-label="일의 상태">${filters}</div>
-    ${tasks.length ? `<ul class="sec-work-list">${cards}</ul>` : empty}
-  </div>`;
 }
 
-function localDay(value) {
-  const parts = Object.fromEntries(seoulDate.formatToParts(new Date(value)).map(part => [part.type, part.value]));
-  return `${parts.year}-${parts.month}-${parts.day}`;
+function files({ state, icon, esc, formatDay }, query) {
+  const items = state.tasks.filter(task => task.status === 'ready' && matches(query, task.title, documentFilename(task)))
+    .sort((a, b) => Date.parse(b.completedAt) - Date.parse(a.completedAt));
+  if (!items.length) return '';
+  return `<ul class="library-list library-files">${items.map(task => libraryRow({
+    title: documentFilename(task),
+    detail: `텍스트 파일 · 기록 ${task.observations.length}개`,
+    trail: task.completedAt ? formatDay(task.completedAt) : '',
+    symbol: 'file',
+    action: 'open-file',
+    id: task.id,
+  }, { icon, esc })).join('')}</ul>`;
 }
 
-function noteModes(mode) {
-  return `<div class="sec-filters sec-record-filters" role="group" aria-label="기록 구분">
-    ${[['notes','기록'],['files','받은 파일']].map(([id, label]) => `
-      <button type="button" class="sec-filter ${mode === id ? 'is-selected' : ''}" data-action="notes-mode" data-mode="${id}"
-        aria-pressed="${mode === id}">${label}</button>`
-    ).join('')}
-  </div>`;
-}
-
-function renderFiles({ state, icon, esc, formatDay }) {
-  const results = state.tasks.filter(task => task.status === 'ready')
-    .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''));
-  return results.length ? `<ul class="sec-work-list">${results.map(task => `
-    <li class="sec-work-item"><button class="sec-work-card" type="button" data-action="open-file" data-id="${esc(task.id)}">
-      <span class="sec-work-icon">${icon('file')}</span>
-      <span class="sec-work-copy"><strong class="sec-work-title">${esc(task.title)}</strong>
-        <span class="sec-work-meta">TXT · 기록 ${task.observations.length}개${task.completedAt ? ` · ${esc(formatDay(task.completedAt))}` : ''}</span>
-      </span><span class="sec-work-arrow">${icon('chevron')}</span></button></li>`).join('')}</ul>`
-    : `<div class="sec-empty"><span class="sec-empty-icon">${icon('file')}</span><h2>아직 받은 파일이 없어요</h2>
-      <p>모리가 정리한 파일이 여기에 모여요.</p></div>`;
-}
-
-function renderNotes({ state, notesMode, icon, esc, formatDay }) {
-  if (notesMode === 'files') {
-    return `<div class="sec-page sec-notes"><header class="page-heading sec-heading"><h1>기록</h1></header>
-      ${noteModes(notesMode)}${renderFiles({ state, icon, esc, formatDay })}</div>`;
-  }
-  const entries = state.notes.map(note => ({
-    text: note.text,
-    at: note.createdAt,
-    label: '메모',
-    task: null,
-  }));
-
+function notes({ state, icon, esc, formatDay }, query) {
+  const entries = state.notes.map(note => ({ text: note.text, at: note.createdAt, task: null, label: '메모' }));
   for (const task of state.tasks) {
     for (const observation of task.observations) {
-      entries.push({
-        text: observation.text,
-        at: observation.at,
-        label: observation.kind === 'answer' ? '내 답변' : '기록',
-        task,
-      });
+      entries.push({ text: observation.text, at: observation.at, task, label: observation.kind === 'answer' ? '내 답변' : '기록' });
     }
   }
-  entries.sort((left, right) => Date.parse(right.at) - Date.parse(left.at));
-
+  entries.sort(byNewest);
   const days = new Map();
   for (const entry of entries) {
-    const day = localDay(entry.at);
+    if (!matches(query, entry.text, entry.task?.title)) continue;
+    const day = dateKey(entry.at);
     if (!days.has(day)) days.set(day, []);
-    days.get(day).push(entry);
+    const item = `<span class="library-note-mark" aria-hidden="true">${icon(entry.label === '내 답변' ? 'chat' : 'note')}</span>
+      <span class="library-note-copy"><span class="library-note-meta">
+        <span>${entry.label}</span><time datetime="${esc(entry.at)}">${esc(localTime.format(new Date(entry.at)))}</time>
+      </span><span class="library-note-text">${esc(entry.text)}</span>
+      ${entry.task ? `<span class="library-note-source">${esc(entry.task.title)}${icon('arrow-up-right')}</span>` : ''}</span>`;
+    days.get(day).push(`<li>${entry.task
+      ? `<button class="library-note spring-control" type="button" data-action="open-task" data-id="${esc(entry.task.id)}">${item}</button>`
+      : `<div class="library-note">${item}</div>`}</li>`);
   }
+  return [...days].map(([day, items]) => libraryGroup(`<time datetime="${day}">${esc(formatDay(day))}</time>`, items)).join('');
+}
 
-  const sections = [...days].map(([day, notes]) => {
-    const items = notes.map(entry => {
-      const content = `<span class="sec-note-meta">
-        <span>${entry.label}</span>
-        <time datetime="${esc(entry.at)}">${esc(seoulTime.format(new Date(entry.at)))}</time>
-      </span>
-      <span class="sec-note-text">${esc(entry.text)}</span>
-      ${entry.task ? `<span class="sec-note-source"><span aria-hidden="true">${icon(entry.task.icon)}</span>${esc(entry.task.title)}<span class="sec-note-arrow" aria-hidden="true">${icon('arrow-up-right')}</span></span>` : ''}`;
+export function renderLibraryResults(context) {
+  const query = context.libraryQuery.trim().toLocaleLowerCase('ko-KR');
+  const render = { tasks: requests, notes, files }[context.libraryTab];
+  const result = render(context, query);
+  if (result) return result;
+  const empty = { tasks: '아직 맡긴 일이 없어요', notes: '아직 남긴 메모가 없어요', files: '아직 받은 파일이 없어요' };
+  return `<div class="library-empty">
+    <p>${query ? '일치하는 항목이 없어요' : empty[context.libraryTab]}</p>
+  </div>`;
+}
 
-      return `<li class="sec-note-item">${entry.task
-        ? `<button type="button" class="sec-note-card sec-note-card--linked" data-action="open-task" data-id="${esc(entry.task.id)}">${content}</button>`
-        : `<div class="sec-note-card">${content}</div>`}</li>`;
-    }).join('');
-
-    return `<section class="sec-note-day" aria-labelledby="sec-note-day-${day}">
-      <h2 class="sec-day-heading" id="sec-note-day-${day}"><time datetime="${day}">${esc(formatDay(day))}</time></h2>
-      <ol class="sec-note-list">${items}</ol>
-    </section>`;
-  }).join('');
-
-  return `<div class="sec-page sec-notes">
-    <header class="page-heading sec-heading">
-      <h1>기록</h1>
-      <button type="button" class="sec-add-button" data-action="new-note" aria-label="메모 남기기"><span aria-hidden="true">${icon('plus')}</span><span>메모</span></button>
+function renderLibrary(context) {
+  const { libraryTab, libraryQuery, icon, esc } = context;
+  return `<div class="library-page" aria-labelledby="library-title">
+    <header class="library-heading"><h1 id="library-title">보관함</h1>
+      ${libraryTab === 'notes' ? `<button type="button" class="library-add spring-control" data-action="new-note" aria-label="메모 남기기">${icon('plus')}</button>` : ''}
     </header>
-    ${noteModes('notes')}
-    ${entries.length ? `<div class="sec-notebook">${sections}</div>` : `<div class="sec-empty">
-      <span class="sec-empty-icon" aria-hidden="true">${icon('note')}</span>
-      <h2>아직 남긴 기록이 없어요</h2>
-      <p>맡긴 일에 남긴 내용과 따로 적은 메모가 여기에 모여요.</p>
-    </div>`}
+    <nav class="library-tabs" aria-label="보관함 구분" data-section="${libraryTab}">
+      <span class="library-indicator" aria-hidden="true"></span>
+      ${libraryTabs.map(([id, label, symbol]) => `<a class="spring-control" href="#library/${id}"${libraryTab === id ? ' aria-current="page"' : ''}>${icon(symbol)}<span>${label}</span></a>`).join('')}
+    </nav>
+    <div class="library-search">
+      ${icon('search')}
+      <label for="library-query" class="sr-only">보관함 검색</label>
+      <input id="library-query" type="search" value="${esc(libraryQuery)}" placeholder="보관함 검색" autocomplete="off" spellcheck="false">
+      <button type="button" class="library-search-clear spring-control" data-action="clear-library-query" aria-label="검색어 지우기"${libraryQuery ? '' : ' hidden'}>${icon('close')}</button>
+    </div>
+    <div class="library-results">${renderLibraryResults(context)}</div>
   </div>`;
 }
 
 function renderSettings({ theme, icon }) {
   const themes = [
-    ['system', '시스템', 'monitor'],
+    ['system', '기기 설정 사용', 'monitor'],
     ['light', '라이트', 'sun'],
     ['dark', '다크', 'moon'],
   ];
-  const options = themes.map(([value, label, symbol]) => `<button type="button"
-    class="sec-theme-option ${theme === value ? 'is-selected' : ''}" data-action="theme" data-theme="${value}"
-    aria-pressed="${theme === value}"><span class="sec-theme-icon" aria-hidden="true">${icon(symbol)}</span><span>${label}</span><span class="sec-theme-check" aria-hidden="true">${theme === value ? icon('check') : ''}</span>
-  </button>`).join('');
-
-  return `<div class="sec-page sec-settings">
-    <header class="page-heading sec-heading"><h1>설정</h1></header>
-    <section class="sec-setting-section" aria-labelledby="sec-theme-title">
-      <h2 class="sec-setting-title" id="sec-theme-title">화면 모드</h2>
-      <div class="sec-theme-options" role="group" aria-label="화면 모드">${options}</div>
-      <p class="sec-setting-help">시스템을 선택하면 기기의 화면 모드를 따라가요.</p>
-    </section>
-    <section class="sec-setting-section" aria-labelledby="sec-demo-title">
-      <h2 class="sec-setting-title" id="sec-demo-title">체험</h2>
-      <div class="sec-setting-group">
-      <details class="sec-demo-info">
-        <summary class="sec-setting-row"><span aria-hidden="true">${icon('info')}</span><span>체험 안내</span><span class="sec-summary-arrow" aria-hidden="true">${icon('chevron')}</span></summary>
-        <div class="sec-demo-content"><p>예시 자료로 모리가 맡은 일의 진행 상황과 결과를 체험할 수 있어요. 새로 남긴 부탁과 기록은 이 브라우저에 저장돼요.</p></div>
-      </details>
-      <button type="button" class="sec-setting-row sec-reset-button" data-action="reset"><span aria-hidden="true">${icon('reset')}</span><span>처음 상태로 되돌리기</span></button>
+  return `<div class="library-page settings-page" aria-labelledby="settings-title">
+    <header class="library-heading"><h1 id="settings-title">설정</h1></header>
+    <section class="library-group" aria-labelledby="settings-theme-title">
+      <h2 id="settings-theme-title">화면 모드</h2>
+      <div class="setting-options" role="group" aria-label="화면 모드">
+        ${themes.map(([id, label, symbol]) => `<button type="button" class="setting-option spring-control" data-action="theme" data-theme="${id}" aria-pressed="${theme === id}">
+          ${icon(symbol)}<span>${label}</span>${theme === id ? icon('check') : ''}
+        </button>`).join('')}
       </div>
-      <p class="sec-setting-help">되돌리면 추가한 메모와 변경한 작업을 지우고 처음의 예시를 불러와요.</p>
+    </section>
+    <section class="library-group" aria-labelledby="settings-storage-title">
+      <h2 id="settings-storage-title">저장 공간</h2>
+      <p class="setting-help">부탁과 일정, 메모는 이 브라우저에 저장돼요.</p>
+      <button type="button" class="setting-option spring-control" data-action="reset">${icon('reset')}<span>예시 데이터로 되돌리기</span>${icon('chevron')}</button>
     </section>
   </div>`;
 }
 
 export function renderSecondary(page, context) {
-  if (page === 'works') return renderWorks(context);
-  if (page === 'notes') return renderNotes(context);
+  if (page === 'library') return renderLibrary(context);
   if (page === 'settings') return renderSettings(context);
   return '';
 }

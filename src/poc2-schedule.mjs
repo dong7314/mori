@@ -198,6 +198,7 @@ function renderDay(date, selected, markers, mode, today, esc) {
     <button class="schedule-day spring-control" type="button" data-action="schedule-day" data-day="${value}"
       data-outside="${outside}" aria-pressed="${value === selected}"${isToday ? ' aria-current="date"' : ''}
       aria-label="${esc(dateInfo.join(', '))}">
+      ${mode === 'week' ? `<span class="schedule-day-name" aria-hidden="true">${weekdays[date.getUTCDay()]}</span>` : ''}
       <span class="schedule-number">${date.getUTCDate()}</span>
       <span class="schedule-dots" aria-hidden="true">${marked & 1 ? '<i></i>' : ''}${marked & 2 ? '<i class="schedule-due-dot"></i>' : ''}</span>
     </button>
@@ -217,7 +218,7 @@ function renderRow(item, { icon, esc }) {
     <li class="schedule-list-item">
       <button type="button" class="schedule-event-row spring-control" data-action="${action}" data-id="${esc(item.id)}"${tool ? ` data-tool="${esc(item.tool)}"` : ''}>
         <span class="schedule-row-time">${task ? '마감' : esc(eventTime(item.time))}</span>
-        <span class="schedule-row-line"${task ? ' data-due="true"' : ''} aria-hidden="true"></span>
+        <span class="schedule-row-line"${task ? ' data-due="true"' : ''}${tool ? ' data-tool="true"' : ''} aria-hidden="true"><i></i></span>
         <span class="schedule-row-copy">
           <strong>${esc(item.title)}</strong>
           ${detail ? `<span>${esc(detail)}</span>` : ''}
@@ -244,33 +245,35 @@ export function renderSchedule({ events, tasks, day, mode = 'week', icon, esc, t
         <h1 id="schedule-title" tabindex="-1">일정</h1>
         <button class="schedule-new spring-control" type="button" data-action="new-event" aria-label="새 일정">${icon('plus')}</button>
       </header>
-      <section class="schedule-calendar" aria-label="달력">
+      <section class="schedule-calendar" data-mode="${displayMode}" aria-label="달력">
         <div class="schedule-calendar-top">
           <h2>${esc(monthLabel.format(datestamp))}</h2>
+          <button type="button" class="schedule-today spring-control" data-action="today-schedule">오늘</button>
+        </div>
+        <div class="schedule-calendar-toolbar">
+          <div class="schedule-mode" role="group" aria-label="일정 보기" data-mode="${displayMode}">
+            <button type="button" class="spring-control" data-action="schedule-mode" data-mode="week" aria-pressed="${displayMode === 'week'}">주간</button>
+            <button type="button" class="spring-control" data-action="schedule-mode" data-mode="month" aria-pressed="${displayMode === 'month'}">월간</button>
+          </div>
           <div class="schedule-calendar-nav">
-            <button type="button" class="schedule-today spring-control" data-action="today-schedule">오늘</button>
             <button type="button" class="schedule-step spring-control" aria-label="이전 ${stepLabel}" data-action="schedule-step" data-direction="-1">${icon('chevron')}</button>
             <button type="button" class="schedule-step spring-control" aria-label="다음 ${stepLabel}" data-action="schedule-step" data-direction="1">${icon('chevron')}</button>
           </div>
         </div>
-        <div class="schedule-weekdays" aria-hidden="true">
+        ${displayMode === 'month' ? `<div class="schedule-weekdays" aria-hidden="true">
           ${weekdays.map(label => `<span>${label}</span>`).join('')}
-        </div>
+        </div>` : ''}
         <div class="schedule-grid" data-mode="${displayMode}">
           ${dates.map(date => renderDay(date, chosen, markers, displayMode, reference, esc)).join('')}
-        </div>
-        <div class="schedule-mode" role="group" aria-label="일정 보기">
-          <button type="button" class="spring-control" data-action="schedule-mode" data-mode="week" aria-pressed="${displayMode === 'week'}">주간</button>
-          <button type="button" class="spring-control" data-action="schedule-mode" data-mode="month" aria-pressed="${displayMode === 'month'}">월간</button>
         </div>
       </section>
       <section class="schedule-agenda" aria-labelledby="schedule-agenda-title">
         <div class="schedule-agenda-heading">
           <h2 id="schedule-agenda-title"><time datetime="${chosen}">${esc(dateLabel.format(datestamp))}</time></h2>
-          <span>${items.length ? `${items.length}개` : ''}</span>
+          <span>${items.length ? `일정 ${items.length}개` : '비어 있는 하루'}</span>
         </div>
         ${items.length ? `<ul class="schedule-list">${items.map(item => renderRow(item, { icon, esc })).join('')}</ul>` :
-          `<div class="schedule-empty"><span>${icon('calendar')}</span><p>이 날에는 일정이 없어요.</p><button class="spring-control" type="button" data-action="new-event">일정 추가</button></div>`}
+          `<div class="schedule-empty"><span class="schedule-empty-line" aria-hidden="true"></span><div><p>아직 정해 둔 일정이 없어요.</p><button class="spring-control" type="button" data-action="new-event">${icon('plus')}<span>일정 추가</span></button></div></div>`}
       </section>
     </div>
   `;

@@ -3,30 +3,30 @@ import { loadSchedule, saveSchedule, renderSchedule, renderCalendarSheet, schedu
 import { loadTools, saveTools, renderTools, renderToolSheet, applyToolForm, applyToolAction, updateToolCountdowns } from './poc2-tools.mjs';
 import { cancelVoiceInput, toggleVoiceInput } from './poc2-voice.mjs';
 import { renderAssistant, renderThreadComposer, renderThreadContext, renderTurns, renderResultSheet } from './poc2-assistant.mjs';
-import { bindTouchFeedback, deliverFile, playAvatarAcceptance, playThreadReply, playView } from './poc2-motion.mjs';
+import { bindTouchFeedback, deliverFile, playAskOpen, playAvatarAcceptance, playTabSelection, playThreadReply, playView } from './poc2-motion.mjs';
 import { avatarStatus, renderActivity, renderAvatar } from './poc2-avatar.mjs';
 import { renderDashboard, renderTaskPage } from './poc2-dashboard.mjs';
 import { icon } from './poc2-icons.mjs';
-import { renderSecondary } from './poc2-views.mjs';
+import { renderSecondary, renderLibraryResults } from './poc2-views.mjs';
 import { renderComposer } from './poc2-sheets.mjs';
 import {
   createDemoState, loadState, saveState, createTask, createNote,
-  addObservation, answerQuestion, completeTask, formatDay, documentText
+  addObservation, answerQuestion, completeTask, formatDay, documentFilename, documentText
 } from './poc2-model.mjs';
 
 const pages = {
   today: ['오늘', 'sun'],
   schedule: ['일정', 'calendar'],
-  tools: ['기능', 'grid'],
-  works: ['맡은 일', 'layers'],
+  library: ['보관함', 'layers'],
+  tools: ['생활', 'grid'],
   chat: ['대화', 'chat'],
-  notes: ['기록', 'note'],
   settings: ['설정', 'settings'],
   task: ['맡은 일', 'file']
 };
 const themeKey = 'mori.poc2.theme';
 const taskKey = 'mori.poc2.active-task';
-const topTabs = ['today', 'schedule', 'works', 'chat', 'notes'];
+const topTabs = ['today', 'schedule', 'library', 'tools'];
+const libraryTabs = ['tasks', 'notes', 'files'];
 const openedAt = new Date();
 const today = [openedAt.getFullYear(), openedAt.getMonth() + 1, openedAt.getDate()]
   .map(part => String(part).padStart(2, '0')).join('-');
@@ -36,7 +36,10 @@ const todayLabel = new Intl.DateTimeFormat('ko-KR', {
 const main = document.querySelector('.workspace');
 const appBar = document.querySelector('.app-bar');
 const dock = document.querySelector('.dock');
+const appBottom = document.querySelector('.app-bottom');
 const threadFooter = document.querySelector('.thread-footer');
+const askDock = document.querySelector('#ask-dock');
+let askInput;
 const dialog = document.querySelector('.mori-sheet');
 const toast = document.querySelector('.toast');
 const media = matchMedia('(prefers-color-scheme: dark)');
@@ -49,12 +52,13 @@ let scheduleMode = 'week';
 let theme = readTheme();
 let currentPage = 'today';
 let pageTaskId = null;
-const backRoutes = { task: null, settings: null, tools: null };
+const nestedPages = ['task', 'settings', 'chat'];
+let activeTab = 'today';
 let sharedRoute;
 let acceptedTaskId = null;
 const preparing = new Map();
-let filter = 'all';
-let notesMode = 'notes';
+let libraryTab = 'tasks';
+let libraryQuery = '';
 let homeTaskId = loadTaskSelection();
 const replyDrafts = new Map();
 let sheet = null;
@@ -82,7 +86,7 @@ function esc(value) {
 function updateTheme() {
   const mode = theme === 'system' ? (media.matches ? 'dark' : 'light') : theme;
   document.documentElement.dataset.theme = mode;
-  document.querySelector('meta[name="theme-color"]').content = mode === 'dark' ? '#1c201d' : '#f5f6f2';
+  document.querySelector('meta[name="theme-color"]').content = mode === 'dark' ? '#201b20' : '#f7f4ef';
 }
 
 function currentToolbarTask() {
@@ -106,42 +110,101 @@ function refreshActor() {
   const task = currentToolbarTask();
   const mood = moodOf(task);
   control.dataset.id = task?.id ?? '';
-  control.querySelector('.mori-avatar').dataset.mood = mood;
-  control.querySelector('.thread-state').textContent = avatarStatus[mood];
+  const avatar = control.querySelector('.mori-avatar');
+  if (avatar) {
+    avatar.dataset.mood = mood;
+    control.querySelector('.thread-identity-copy strong').textContent = task?.title ?? '모리';
+  }
+  const status = control.querySelector('.thread-state');
+  if (status) status.textContent = avatarStatus[mood];
 }
 
 function renderNavigation() {
-  const nested = Boolean(Object.hasOwn(backRoutes, currentPage));
+  const nested = nestedPages.includes(currentPage);
   const actor = appBar.querySelector('.mori-avatar');
+  const inThread = currentPage === 'chat';
   appBar.innerHTML = `
     <div class="app-bar-leading">
       ${nested ? `<button class="utility-control back-control spring-control" type="button" data-action="back" aria-label="이전 화면">${icon('back')}</button>` : ''}
-      <button class="thread-identity spring-control" type="button" data-action="open-activity" aria-label="모리의 활동 보기">
-        ${renderAvatar('idle')}
-        <span class="thread-identity-copy"><strong>모리</strong><small class="thread-state" aria-live="polite"></small></span>
-      </button>
+      ${inThread
+        ? `<button class="thread-identity spring-control" type="button" data-action="open-activity" aria-label="모리 활동">
+          ${renderAvatar('idle')}<span class="thread-identity-copy"><strong>모리</strong><small class="thread-state" aria-live="polite"></small></span></button>`
+        : `<a class="brand-wordmark" href="#today" aria-label="모리 오늘"><span class="brand-mark">${icon('mori')}</span>모리</a>`}
     </div>
     <div class="app-bar-trailing">
-      ${currentPage !== 'tools' ? `<a class="utility-control glass spring-control" href="#tools" aria-label="모리 기능" title="기능">${icon('grid')}</a>` : ''}
-      ${currentPage !== 'settings' ? `<a class="utility-control glass spring-control" href="#settings" aria-label="설정">${icon('settings')}</a>` : ''}
+      ${!inThread ? `<button class="utility-control spring-control" type="button" data-action="open-activity" aria-label="모리 활동">${icon('clock')}</button>` : ''}
+      ${currentPage !== 'settings' ? `<a class="utility-control spring-control" href="#settings" aria-label="설정">${icon('settings')}</a>` : ''}
     </div>`;
-  if (actor) appBar.querySelector('.mori-avatar').replaceWith(actor);
+  if (actor && inThread) appBar.querySelector('.mori-avatar').replaceWith(actor);
   if (!dock.firstElementChild) {
     const links = topTabs.map(page => `<a class="nav-link spring-control" href="#${page}" data-page="${page}">
       ${icon(pages[page][1])}<span>${pages[page][0]}</span>
     </a>`).join('');
-    dock.innerHTML = `<nav class="dock-tabs glass" aria-label="주요 메뉴">
+    dock.innerHTML = `<nav class="dock-tabs" aria-label="주요 메뉴">
       <span class="tab-indicator" aria-hidden="true"></span>${links}
     </nav>
-    <button class="dock-action glass spring-control" type="button" data-action="open-launcher" aria-label="새로 만들기">${icon('plus')}</button>`;
+    <button class="dock-action spring-control" type="button" data-action="open-ask" aria-controls="ask-dock" aria-expanded="false">
+      ${icon('compose')}<span>부탁</span>
+    </button>`;
   }
-  const selected = currentPage === 'task' ? 'works' : currentPage;
+  const selected = currentPage === 'settings' ? 'settings' : activeTab;
   dock.dataset.view = selected;
   for (const link of dock.querySelectorAll('[data-page]')) {
     if (link.dataset.page === selected) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   }
   refreshActor();
+}
+
+function initializeAsk() {
+  const shortcuts = [
+    ['new-event', 'calendar', '일정'],
+    ['new-note', 'note', '메모'],
+    ['open-tool', 'pin', '주차', 'parking'],
+    ['open-tool', 'clock', '알림', 'reminders'],
+  ];
+  askDock.innerHTML = `
+    <div class="ask-heading"><h2 id="ask-title">모리에게 부탁하기</h2>
+      <button class="ask-close spring-control" type="button" data-action="close-ask" aria-label="부탁 입력 닫기">${icon('close')}</button>
+    </div>
+    <form class="ask-form" data-form="instant-task">
+      <label for="ask-input" class="sr-only">부탁 내용</label>
+      <textarea id="ask-input" name="request" rows="2" maxlength="1000" placeholder="어떤 일을 맡길까요?" required></textarea>
+      <div class="ask-actions">
+        <button class="ask-more spring-control" type="button" data-action="ask-details">${icon('calendar')}<span>기한 정하기</span></button>
+        <div class="ask-input-controls">
+          <button class="ask-voice spring-control" type="button" data-action="voice-input" aria-label="음성 입력" aria-pressed="false">${icon('mic')}</button>
+          <button class="ask-send spring-control" type="submit" aria-label="부탁 보내기" disabled>${icon('arrow-up')}</button>
+        </div>
+      </div>
+    </form>
+    <div class="ask-shortcuts" aria-label="바로 추가">
+      ${shortcuts.map(([action, symbol, label, tool]) => `<button class="spring-control" type="button" data-action="${action}"${tool ? ` data-tool="${tool}"` : ''}>${icon(symbol)}${label}</button>`).join('')}
+    </div>`;
+  askInput = askDock.querySelector('textarea');
+  askInput.addEventListener('input', () => updateComposer(askInput));
+}
+
+function setAskOpen(open, { focus = true } = {}) {
+  if (open === !askDock.hidden) return;
+  const trigger = dock.querySelector('[data-action="open-ask"]');
+  askDock.hidden = !open;
+  trigger?.setAttribute('aria-expanded', String(open));
+  document.body.classList.toggle('is-asking', open);
+  cancelVoiceInput();
+  if (open) {
+    playAskOpen(askDock, trigger);
+    if (focus) askInput.focus({ preventScroll: true });
+  } else if (focus) {
+    trigger?.focus({ preventScroll: true });
+  }
+}
+
+function askRequest(text) {
+  const [firstLine] = text.trim().split(/\r?\n/, 1);
+  const headline = Array.from(firstLine);
+  const title = headline.length > 72 ? headline.slice(0, 71).join('') + '…' : firstLine;
+  return { title, brief: title === text ? '' : text };
 }
 
 function findTask(id) {
@@ -170,10 +233,19 @@ function selectTask(id) {
 function route({ focus = false } = {}) {
   const [slug, id] = location.hash.slice(1).split('/');
   const previousPage = currentPage;
+  const previousTab = libraryTab;
+  if (!sharedRoute && (!slug || slug === 'today')) captureReturnToToday();
   cancelVoiceInput();
-  currentPage = Object.hasOwn(pages, slug) ? slug : 'today';
-  try { pageTaskId = currentPage === 'task' && id ? decodeURIComponent(id) : null; }
-  catch { pageTaskId = null; }
+  setAskOpen(false, { focus: false });
+  const legacyTab = slug === 'works' ? 'tasks' : slug === 'notes' ? 'notes' : null;
+  currentPage = legacyTab ? 'library' : Object.hasOwn(pages, slug) ? slug : 'today';
+  if (topTabs.includes(currentPage)) activeTab = currentPage;
+  else if (currentPage !== 'settings') activeTab = history.state?.moriTab ?? 'library';
+  if (currentPage === 'library') libraryTab = legacyTab ?? (libraryTabs.includes(id) ? id : 'tasks');
+  let routeId = null;
+  try { routeId = id ? decodeURIComponent(id) : null; } catch { /* An invalid hash has no selected record. */ }
+  pageTaskId = currentPage === 'task' ? routeId : null;
+  if (currentPage === 'chat' && findTask(routeId)) selectTask(routeId);
   document.body.dataset.view = currentPage;
   document.title = '모리 · ' + pages[currentPage][0];
   renderNavigation();
@@ -183,6 +255,12 @@ function route({ focus = false } = {}) {
     if (currentPage !== 'chat') window.scrollTo(0, 0);
   }
   if (currentPage === 'chat') scrollThread();
+  if (previousPage === 'library' && currentPage === 'library' && previousTab !== libraryTab) {
+    const direction = libraryTabs.indexOf(libraryTab) - libraryTabs.indexOf(previousTab);
+    playView(main.querySelector('.library-results'), Math.sign(direction));
+    playTabSelection(main.querySelector('.library-indicator'), libraryTabs.indexOf(previousTab), libraryTabs.indexOf(libraryTab));
+    if (focus) main.querySelector('.library-tabs [aria-current]')?.focus({ preventScroll: true });
+  }
   const transition = sharedRoute;
   sharedRoute = null;
   const arriving = transition?.page === currentPage;
@@ -213,7 +291,12 @@ function updateTranscript(log, markup) {
   let current = log.firstElementChild;
   for (const turn of [...template.content.children]) {
     const previous = existing.get(turn.dataset.turnKey);
-    const node = previous?.isEqualNode(turn) ? previous : turn;
+    let comparable = previous;
+    if (previous?.querySelector('.thread-composer-slot')?.contains(threadFooter)) {
+      comparable = previous.cloneNode(true);
+      comparable.querySelector('.thread-composer-slot').replaceChildren();
+    }
+    const node = comparable?.isEqualNode(turn) ? previous : turn;
     if (node !== current) log.insertBefore(node, current);
     current = node.nextElementSibling;
     if (previous === node) existing.delete(turn.dataset.turnKey);
@@ -226,23 +309,24 @@ function renderPage() {
   const onThread = currentPage === 'chat';
   threadFooter.hidden = !onThread;
   if (!onThread) {
+    if (threadFooter.parentElement !== appBottom) appBottom.prepend(threadFooter);
     threadFooter.replaceChildren();
     delete threadFooter.dataset.key;
     if (currentPage === 'today') {
       main.innerHTML = renderDashboard(state, {
-        ...threadView, todayLabel, workingIds: preparing, agenda: scheduleItems(events, state.tasks, today, tools, today)
+        ...threadView, today, todayLabel, workingIds: preparing, agenda: scheduleItems(events, state.tasks, today, tools, today)
       });
     } else if (currentPage === 'schedule') {
       main.innerHTML = renderSchedule({ ...threadView, events, tools, tasks: state.tasks, today, day: scheduleDay, mode: scheduleMode });
     } else if (currentPage === 'tools') {
-      main.innerHTML = renderTools(tools, { ...threadView, notesHref: '#notes', scheduleHref: '#schedule' });
+      main.innerHTML = renderTools(tools, { ...threadView, notesHref: '#library/notes', scheduleHref: '#schedule' });
     } else if (currentPage === 'task') {
       const task = findTask(pageTaskId);
       main.innerHTML = task
         ? renderTaskPage(task, { ...threadView, avatar: renderAvatar, working: preparing.has(task.id) })
-        : '<section class="thread-empty"><h1>이 일을 찾을 수 없어요</h1><a class="thread-quick" href="#works">맡은 일 보기</a></section>';
+        : '<section class="thread-empty"><h1>이 일을 찾을 수 없어요</h1><a class="thread-quick" href="#library">보관함 보기</a></section>';
     } else {
-      main.innerHTML = renderSecondary(currentPage, { state, filter, notesMode, theme, icon, esc, formatDay });
+      main.innerHTML = renderSecondary(currentPage, libraryContext());
     }
     return;
   }
@@ -257,6 +341,8 @@ function renderPage() {
     updateTranscript(main.querySelector('.thread-log'), renderTurns(task, { ...threadView, working }));
   }
 
+  const outlet = main.querySelector('.thread-composer-slot') ?? appBottom;
+  if (threadFooter.parentElement !== outlet) outlet.prepend(threadFooter);
   const key = task ? task.id + ':' + (working ? 'working' : task.status) : '';
   if (threadFooter.dataset.key !== key) {
     threadFooter.innerHTML = renderThreadComposer(task, { ...threadView, working });
@@ -273,26 +359,38 @@ function scrollThread() {
   main.scrollTop = main.scrollHeight;
 }
 
-function openThread(id) {
-  if (!findTask(id)) return;
-  selectTask(id);
-  if (currentPage !== 'chat') {
-    const source = main.querySelector('.dash-spotlight:has([data-id="' + CSS.escape(id) + '"]) .mori-avatar')
-      ?? main.querySelector('.task-current .mori-avatar');
-    if (source) sharedRoute = { page: 'chat', snapshot: captureShared(source) };
-    location.hash = 'chat';
+function routeToDetail(hash) {
+  if (location.hash === hash) return;
+  if (history.state?.moriParent === hash) {
+    history.back();
     return;
   }
-  renderNavigation();
-  renderPage();
-  scrollThread();
-  main.focus({ preventScroll: true });
+  history.pushState({ moriParent: location.hash || '#today', moriTab: activeTab }, '', hash);
+  route({ focus: true });
+}
+
+function openThread(id) {
+  if (!findTask(id)) return;
+  if (currentPage !== 'chat') {
+    const spotlight = main.querySelector('.dash-spotlight:has([data-id="' + CSS.escape(id) + '"]) .mori-avatar');
+    const source = spotlight ?? main.querySelector('.task-current .mori-avatar');
+    if (source) sharedRoute = { page: 'chat', snapshot: captureShared(source) };
+  }
+  selectTask(id);
+  routeToDetail('#chat/' + encodeURIComponent(id));
+}
+
+function captureReturnToToday() {
+  if (currentPage !== 'chat') return;
+  const spotlight = state.tasks.find(task => task.status === 'waiting')
+    ?? state.tasks.find(task => task.status !== 'ready');
+  const source = main.querySelector('.thread-performer .mori-avatar');
+  if (source && spotlight?.id === homeTask()?.id) sharedRoute = { page: 'today', snapshot: captureShared(source) };
 }
 
 function openTask(id) {
   if (!findTask(id)) return;
-  backRoutes.task = location.hash || '#today';
-  const navigate = () => { location.hash = 'task/' + encodeURIComponent(id); };
+  const navigate = () => routeToDetail('#task/' + encodeURIComponent(id));
   if (dialog.open) dismissSheet(0, navigate);
   else navigate();
 }
@@ -343,20 +441,23 @@ function updateTask(task, message) {
   commit({ ...state, tasks: state.tasks.map(item => item.id === task.id ? task : item) }, message);
 }
 
-function renderLauncher() {
-  const shortcuts = [
-    ['new-task', 'mori', '일 맡기기'], ['new-event', 'calendar', '일정 추가'],
-    ['new-note', 'note', '메모'], ['open-tool', 'car', '주차 기록', 'parking'],
-    ['open-tool', 'bell', '알림', 'reminders'], ['open-tool', 'repeat', '반복 루틴', 'routines'],
-  ];
-  return `<div class="sheet-content launch-sheet">
-    <div class="sheet-header"><h2 id="sheet-title" tabindex="-1">새로 만들기</h2>
-      <button type="button" class="sheet-close" data-action="close-sheet" aria-label="닫기">${icon('close')}</button></div>
-    <div class="launch-actions">${shortcuts.map(([action, symbol, text, tool]) =>
-      `<button type="button" class="launch-option spring-control" data-action="${action}" ${tool ? 'data-tool="' + tool + '"' : ''}>
-        <span>${icon(symbol)}</span>${text}
-      </button>`).join('')}</div>
-  </div>`;
+function libraryContext() {
+  return { state, theme, icon, esc, formatDay, libraryTab, libraryQuery, workingIds: preparing };
+}
+
+function refreshLibrarySearch() {
+  const results = main.querySelector('.library-results');
+  if (!results) return;
+  results.innerHTML = renderLibraryResults(libraryContext());
+  main.querySelector('.library-search-clear').hidden = !libraryQuery;
+}
+
+function createAndOpenTask(values) {
+  const task = createTask(values);
+  selectTask(task.id);
+  commit({ ...state, tasks: [task, ...state.tasks] }, '모리가 새 부탁을 맡았어요.');
+  acceptedTaskId = task.id;
+  dismissSheet(0, () => openTask(task.id));
 }
 
 function renderDeleteEvent(event) {
@@ -416,9 +517,7 @@ function updateTools(next, message, { preserveDraft = false } = {}) {
 }
 
 function renderDialog() {
-  if (sheet.kind === 'launcher') {
-    dialog.innerHTML = renderLauncher();
-  } else if (sheet.kind === 'event') {
+  if (sheet.kind === 'event') {
     dialog.innerHTML = renderCalendarSheet({
       ...threadView, event: events.find(event => event.id === sheet.id), day: sheet.day || scheduleDay, editing: sheet.editing
     });
@@ -454,6 +553,10 @@ function renderDialog() {
 }
 
 function showSheet(next, trigger = document.activeElement) {
+  if (!askDock.hidden) {
+    if (askDock.contains(trigger)) trigger = dock.querySelector('[data-action="open-ask"]');
+    setAskOpen(false, { focus: false });
+  }
   const reopening = Boolean(sheetExit);
   sheetExit = null;
   const first = !dialog.open;
@@ -498,7 +601,7 @@ function download(task) {
   const url = URL.createObjectURL(new Blob([documentText(task)], { type: 'text/plain;charset=utf-8' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = task.title.replace(/[\\/:*?"<>|]/g, '_') + '.txt';
+  link.download = documentFilename(task);
   document.body.append(link);
   link.click();
   link.remove();
@@ -511,6 +614,32 @@ function setFilter(value, action, valueKey) {
   main.querySelector(`[data-action="${action}"][data-${valueKey}="${CSS.escape(value)}"]`)?.focus({ preventScroll: true });
 }
 
+function moveSchedule(direction, { focus = false } = {}) {
+  if (direction !== -1 && direction !== 1) return;
+  scheduleDay = shiftScheduleDay(scheduleDay, scheduleMode, direction);
+  if (focus) setFilter(String(direction), 'schedule-step', 'direction');
+  else renderPage();
+  playView(main.querySelector('.schedule-grid'), direction);
+  playView(main.querySelector('.schedule-agenda'), direction);
+}
+
+let scheduleSwipe;
+main.addEventListener('pointerdown', event => {
+  if (currentPage !== 'schedule' || event.pointerType !== 'touch' || !event.isPrimary || !event.target.closest('.schedule-grid')) return;
+  scheduleSwipe = { id: event.pointerId, x: event.clientX, y: event.clientY };
+});
+main.addEventListener('pointerup', event => {
+  if (scheduleSwipe?.id !== event.pointerId) return;
+  const dx = event.clientX - scheduleSwipe.x;
+  const dy = event.clientY - scheduleSwipe.y;
+  scheduleSwipe = null;
+  if (currentPage === 'schedule' && Math.abs(dx) >= 56 && Math.abs(dx) > Math.abs(dy) * 1.35) {
+    event.preventDefault();
+    moveSchedule(dx < 0 ? 1 : -1);
+  }
+});
+main.addEventListener('pointercancel', () => { scheduleSwipe = null; });
+
 document.addEventListener('click', event => {
   if (event.target.closest('.skip-link')) {
     event.preventDefault();
@@ -522,11 +651,17 @@ document.addEventListener('click', event => {
   if (!button) return;
   const { action, id, mode } = button.dataset;
   switch (action) {
-    case 'open-launcher':
-      showSheet({ kind: 'launcher' }, button);
+    case 'open-ask':
+      setAskOpen(askDock.hidden);
+      break;
+    case 'close-ask':
+      setAskOpen(false);
+      break;
+    case 'ask-details':
+      showSheet({ kind: 'compose', mode: 'task', fromQuickAsk: true, drafts: { task: askRequest(askInput.value.trim()) } }, button);
       break;
     case 'voice-input':
-      toggleVoiceInput(button, threadFooter.querySelector('#thread-input'), announce);
+      toggleVoiceInput(button, button.form?.querySelector('textarea'), announce);
       break;
     case 'today-schedule': {
       const direction = today < scheduleDay ? -1 : 1;
@@ -544,19 +679,19 @@ document.addEventListener('click', event => {
       playView(main.querySelector('.schedule-agenda'), direction);
       break;
     }
-    case 'schedule-step': {
-      const direction = Number(button.dataset.direction);
-      if (direction !== 1 && direction !== -1) break;
-      scheduleDay = shiftScheduleDay(scheduleDay, scheduleMode, direction);
-      setFilter(button.dataset.direction, 'schedule-step', 'direction');
-      playView(main.querySelector('.schedule-grid'), direction);
-      playView(main.querySelector('.schedule-agenda'), direction);
+    case 'schedule-step':
+      moveSchedule(Number(button.dataset.direction), { focus: true });
       break;
-    }
     case 'schedule-mode':
       if ((mode === 'week' || mode === 'month') && mode !== scheduleMode) {
+        const previousMode = scheduleMode;
         scheduleMode = mode;
         setFilter(mode, 'schedule-mode', 'mode');
+        const selector = main.querySelector('.schedule-mode');
+        selector.dataset.mode = previousMode;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (selector.isConnected) selector.dataset.mode = mode;
+        }));
         playView(main.querySelector('.schedule-grid'), mode === 'month' ? 1 : -1);
       }
       break;
@@ -590,7 +725,7 @@ document.addEventListener('click', event => {
       break;
     }
     case 'new-task':
-      showSheet({ kind: 'compose', mode: 'task' }, button);
+      setAskOpen(true);
       break;
     case 'new-note':
       showSheet({ kind: 'compose', mode: 'note', id }, button);
@@ -598,13 +733,12 @@ document.addEventListener('click', event => {
     case 'open-activity':
       showSheet({ kind: 'activity', id }, button);
       break;
-    case 'back':
-      if (backRoutes[currentPage]) {
-        const target = backRoutes[currentPage];
-        backRoutes[currentPage] = null;
-        location.hash = target;
-      } else location.hash = currentPage === 'task' ? 'works' : 'today';
+    case 'back': {
+      const parent = history.state?.moriParent;
+      if (parent) history.back();
+      else location.hash = currentPage === 'task' ? '#library' : '#today';
       break;
+    }
     case 'open-thread':
       openThread(id);
       break;
@@ -641,16 +775,14 @@ document.addEventListener('click', event => {
     case 'close-sheet':
       dismissSheet();
       break;
-    case 'filter':
-      filter = button.dataset.filter;
-      setFilter(filter, 'filter', 'filter');
+    case 'clear-library-query': {
+      const input = main.querySelector('#library-query');
+      if (!input) break;
+      input.value = libraryQuery = '';
+      refreshLibrarySearch();
+      input.focus();
       break;
-    case 'notes-mode':
-      if (mode === 'notes' || mode === 'files') {
-        notesMode = mode;
-        setFilter(notesMode, 'notes-mode', 'mode');
-      }
-      break;
+    }
     case 'theme':
       theme = button.dataset.theme;
       try { storage?.setItem(themeKey, theme); } catch { /* Theme still updates in this session. */ }
@@ -661,7 +793,9 @@ document.addEventListener('click', event => {
       showSheet({ kind: 'reset' }, button);
       break;
     case 'confirm-reset':
-      filter = 'all';
+      libraryQuery = '';
+      askInput.value = '';
+      updateComposer(askInput);
       selectTask(null);
       for (const timer of preparing.values()) clearTimeout(timer);
       preparing.clear();
@@ -718,7 +852,14 @@ document.addEventListener('submit', event => {
   if (sheetExit && dialog.contains(form)) return;
   const fields = new FormData(form);
   const value = name => String(fields.get(name) ?? '').trim();
-  if (form.dataset.form === 'calendar-event') {
+  if (form.dataset.form === 'instant-task') {
+    const request = value('request');
+    if (!request) return;
+    form.reset();
+    updateComposer(askInput);
+    setAskOpen(false, { focus: false });
+    createAndOpenTask(askRequest(request));
+  } else if (form.dataset.form === 'calendar-event') {
     const existing = events.find(event => event.id === form.dataset.id);
     const next = eventFromFields(fields, existing);
     if (next.error) { formError(form, next.error); return; }
@@ -738,11 +879,12 @@ document.addEventListener('submit', event => {
     else if (task.status === 'collecting') updateHomeTask(addObservation(task, message));
   } else if (form.dataset.form === 'task') {
     if (!value('title')) return;
-    const task = createTask({ title: value('title'), brief: value('brief'), due: value('due') });
-    selectTask(task.id);
-    commit({ ...state, tasks: [task, ...state.tasks] }, '모리가 새 부탁을 맡았어요.');
-    acceptedTaskId = task.id;
-    dismissSheet(0, () => openTask(task.id));
+    const fromQuickAsk = sheet?.drafts?.task && sheet.fromQuickAsk;
+    if (fromQuickAsk) {
+      askInput.value = '';
+      updateComposer(askInput);
+    }
+    createAndOpenTask({ title: value('title'), brief: value('brief'), due: value('due') });
   } else if (form.dataset.form === 'note' && value('text')) {
     const task = findTask(value('taskId'));
     if (task) updateTask(addObservation(task, value('text')), '맡긴 일에 기록을 더했어요.');
@@ -809,27 +951,32 @@ dialog.addEventListener('close', () => {
   (trigger?.element.isConnected ? trigger.element : replacement || main).focus({ preventScroll: true });
 });
 
+main.addEventListener('input', event => {
+  if (event.target.id !== 'library-query') return;
+  libraryQuery = event.target.value;
+  refreshLibrarySearch();
+});
+
 document.addEventListener('keydown', event => {
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && !dialog.open) {
+  if (dialog.open) return;
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault();
-    showSheet({ kind: 'compose', mode: 'task' });
+    setAskOpen(true);
+    askInput.focus({ preventScroll: true });
+  } else if (event.key === 'Escape' && !askDock.hidden) {
+    event.preventDefault();
+    setAskOpen(false);
   }
 });
 
 document.addEventListener('click', event => {
-  const settings = event.target.closest('a[href="#settings"]');
-  const toolsLink = event.target.closest('a[href="#tools"]');
-  if (settings) backRoutes.settings = location.hash || '#today';
-  if (toolsLink) backRoutes.tools = location.hash || '#today';
-  if (currentPage === 'chat' && event.target.closest('a[href="#today"]')) {
-    const spotlight = state.tasks.find(task => task.status === 'waiting')
-      ?? state.tasks.find(task => task.status !== 'ready');
-    const source = main.querySelector('.thread-performer .mori-avatar');
-    if (source && spotlight?.id === homeTask()?.id) sharedRoute = { page: 'today', snapshot: captureShared(source) };
-  } else if (currentPage === 'today' && event.target.closest('a[href="#chat"]')) {
-    const id = homeTask()?.id;
-    const source = id && main.querySelector('.dash-spotlight:has([data-id="' + CSS.escape(id) + '"]) .mori-avatar');
-    if (source) sharedRoute = { page: 'chat', snapshot: captureShared(source) };
+  if (event.target.closest('a[href="#settings"]') && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    routeToDetail('#settings');
+    return;
+  }
+  if (!askDock.hidden && !event.target.closest('#ask-dock, .dock, dialog, [data-action="new-task"]')) {
+    setAskOpen(false, { focus: false });
   }
 });
 
@@ -842,8 +989,14 @@ function updateKeyboard() {
   const keyboard = viewport && innerHeight - viewport.height > 145
     && document.activeElement?.matches('input, textarea, select');
   document.body.toggleAttribute('data-keyboard', Boolean(keyboard));
-  if (keyboard) document.body.style.setProperty('--keyboard-height', viewport.height + 'px');
-  else document.body.style.removeProperty('--keyboard-height');
+  if (keyboard) {
+    document.body.style.setProperty('--keyboard-height', viewport.height + 'px');
+    document.body.style.setProperty('--keyboard-inset', Math.max(0, innerHeight - viewport.height - viewport.offsetTop) + 'px');
+    if (currentPage === 'chat' && threadFooter.contains(document.activeElement)) scrollThread();
+  } else {
+    document.body.style.removeProperty('--keyboard-height');
+    document.body.style.removeProperty('--keyboard-inset');
+  }
 }
 
 window.visualViewport?.addEventListener('resize', updateKeyboard);
@@ -854,5 +1007,6 @@ bindTouchFeedback(document);
 setInterval(() => {
   if (currentPage === 'tools' || dialog.open && sheet?.kind === 'tool') updateToolCountdowns(document);
 }, 1000);
+initializeAsk();
 updateTheme();
 route();

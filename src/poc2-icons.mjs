@@ -1,4 +1,5 @@
 const paths = {
+  search: '<circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 4.5 4.5"/>',
   grid: '<rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/>',
   bell: '<path d="M5 17h14l-1.5-2.5V10a5.5 5.5 0 0 0-11 0v4.5L5 17Zm4.5 2.5a2.8 2.8 0 0 0 5 0"/>',
   repeat: '<path d="M17 4l3 3-3 3m3-3H8a4 4 0 0 0-4 4m3 9-3-3 3-3m-3 3h12a4 4 0 0 0 4-4"/>',

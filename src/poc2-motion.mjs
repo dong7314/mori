@@ -1,5 +1,5 @@
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
-const tactile = '.spring-control, .mori-sheet button, .sec-work-card, .sec-note-card--linked, .sec-filter, .sec-theme-option';
+const tactile = '.spring-control, .mori-sheet button';
 const controlledAnimations = new Set();
 
 function animate(element, frames, options) {
@@ -52,6 +52,24 @@ export function playThreadReply(turn) {
   animate(turn, [{ opacity: .45, transform: 'translateY(7px)' }, { opacity: 1, transform: 'none' }], {
     duration: 250, easing: 'cubic-bezier(.22,.76,.23,1)'
   });
+}
+
+export function playAskOpen(panel, trigger) {
+  if (!panel || reduceMotion.matches) return;
+  const bounds = panel.getBoundingClientRect();
+  const button = trigger?.getBoundingClientRect();
+  const towardButton = button ? Math.sign(button.left + button.width / 2 - bounds.left - bounds.width / 2) * 12 : 0;
+  animate(panel, [
+    { opacity: .45, transform: `translate(${towardButton}px, 13px) scale(.97)` },
+    { opacity: 1, transform: 'none' }
+  ], { duration: 315, easing: 'cubic-bezier(.18,.74,.23,1)' });
+}
+
+export function playTabSelection(marker, previous, current) {
+  animate(marker, [
+    { transform: `translateX(${100 * previous}%)` },
+    { transform: `translateX(${100 * current}%)` }
+  ], { duration: 310, easing: 'cubic-bezier(.2,.76,.23,1)' });
 }
 
 export function playView(view, direction) {
