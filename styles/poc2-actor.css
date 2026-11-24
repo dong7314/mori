@@ -1,0 +1,99 @@
+/* The leaf and body use complementary clips of the same real artwork. */
+.mori-avatar {
+  --actor-leaf-idle: 19.10% 28.28%, 21.99% 25.28%, 42.71% 12.52%, 49.94% 10.16%, 61.50% 8.89%, 63.27% 11.11%, 62.46% 15.98%, 59.74% 21.82%, 56.20% 25.76%, 52.67% 27.96%, 37.09% 34.39%, 35.00% 34.39%, 24.88% 32.37%, 19.43% 29.53%, 19.10% 28.28%;
+  --actor-leaf-collecting: 24.24% 27.97%, 27.23% 24.59%, 48.12% 11.07%, 55.70% 8.37%, 69.95% 6.80%, 72.47% 7.92%, 71.78% 12.65%, 69.48% 18.06%, 64.89% 23.91%, 59.14% 27.29%, 45.14% 32.88%, 42.15% 33.53%, 29.75% 32.03%, 24.24% 29.10%, 24.24% 27.97%;
+  --actor-leaf-waiting: 24.47% 27.75%, 28.14% 23.91%, 48.59% 11.52%, 54.79% 9.27%, 69.26% 7.24%, 71.55% 8.36%, 69.95% 15.35%, 66.50% 20.99%, 63.51% 23.91%, 59.14% 26.17%, 44.45% 32.45%, 40.77% 33.32%, 29.75% 31.13%, 25.38% 29.32%, 24.47% 27.75%;
+  --actor-leaf-working: 22.63% 29.08%, 26.30% 25.03%, 46.52% 11.51%, 53.87% 8.80%, 70.86% 6.77%, 71.78% 8.80%, 70.86% 13.08%, 68.10% 19.39%, 64.89% 23.89%, 59.14% 27.95%, 43.07% 34.40%, 40.32% 34.62%, 29.06% 33.59%, 24.24% 31.79%, 22.63% 29.08%;
+  --actor-leaf-ready: 24.69% 24.28%, 26.99% 22.02%, 48.35% 8.50%, 55.93% 5.80%, 69.71% 4.00%, 72.01% 6.03%, 71.32% 9.63%, 68.33% 15.94%, 64.43% 20.22%, 59.61% 23.15%, 45.14% 29.42%, 40.32% 29.63%, 29.29% 28.78%, 25.16% 27.43%, 24.69% 24.28%;
+  --actor-leaf-points: var(--actor-leaf-idle);
+  --actor-leaf-root: 43% 33%;
+}
+.mori-avatar[data-mood='collecting'] { --actor-leaf-points: var(--actor-leaf-collecting); }
+.mori-avatar[data-mood='waiting'] { --actor-leaf-points: var(--actor-leaf-waiting); }
+.mori-avatar[data-mood='working'] { --actor-leaf-points: var(--actor-leaf-working); --actor-leaf-root: 42% 34%; }
+.mori-avatar[data-mood='ready'] { --actor-leaf-points: var(--actor-leaf-ready); --actor-leaf-root: 43% 29.5%; }
+.mori-figure { animation: none !important; }
+.mori-body-art,
+.mori-leaf-art { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.mori-body-art {
+  z-index: 0;
+}
+.mori-leaf-art {
+  display: none;
+  z-index: 1;
+  clip-path: polygon(var(--actor-leaf-points));
+  transform-origin: var(--actor-leaf-root);
+  pointer-events: none;
+}
+@supports (clip-path: polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%)) {
+  .mori-body-art {
+    clip-path: polygon(evenodd, 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 0%, var(--actor-leaf-points), 0% 0%);
+  }
+  .mori-leaf-art { display: block; }
+}
+.mori-avatar[data-actor-pose] .mori-pose-frame { display: block; }
+.mori-avatar[data-actor-pose] .mori-original { visibility: hidden; }
+.mori-avatar[data-actor-pose='collecting'] { --pose-x: 0%; --pose-y: 0%; }
+.mori-avatar[data-actor-pose='waiting'] { --pose-x: -100%; --pose-y: 0%; }
+.mori-avatar[data-actor-pose='working'] { --pose-x: 0%; --pose-y: -100%; }
+.mori-avatar[data-actor-pose='ready'] { --pose-x: -100%; --pose-y: -100%; }
+.mori-avatar[data-actor-pose='collecting'] { --actor-leaf-points: var(--actor-leaf-collecting); --actor-leaf-root: 43% 33%; }
+.mori-avatar[data-actor-pose='waiting'] { --actor-leaf-points: var(--actor-leaf-waiting); --actor-leaf-root: 43% 33%; }
+.mori-avatar[data-actor-pose='working'] { --actor-leaf-points: var(--actor-leaf-working); --actor-leaf-root: 42% 34%; }
+.mori-avatar[data-actor-pose='ready'] { --actor-leaf-points: var(--actor-leaf-ready); --actor-leaf-root: 43% 29.5%; }
+.mori-avatar[data-actor-motion] :is(.mori-question, .mori-complete) { opacity: 0; }
+
+.mori-work-papers { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.mori-actor-paper {
+  position: absolute;
+  display: block;
+  width: 23%;
+  height: 17%;
+  margin: 0;
+  border: 1px solid rgb(111 76 137 / 45%);
+  border-radius: 10% 23% 10% 10%;
+  background: #e5d5ef;
+  box-shadow: 0 2px 3px rgb(72 47 85 / 11%);
+  opacity: 0;
+  transform-origin: 50% 78%;
+  pointer-events: none;
+}
+.mori-actor-paper::before,
+.mori-actor-paper::after {
+  content: '';
+  position: absolute;
+  left: 18%;
+  height: max(1px, .025em);
+  border-radius: 2px;
+  background: #b9a0ca;
+  pointer-events: none;
+}
+.mori-actor-paper::before { top: 35%; width: 61%; }
+.mori-actor-paper::after { top: 58%; width: 44%; }
+.mori-work-papers .mori-actor-paper { left: 24%; top: 76%; }
+.mori-work-papers .mori-actor-paper:nth-child(2) { background: #fcf8f0; }
+.mori-work-papers .mori-actor-paper:nth-child(3) { background: #e5d5ef; }
+.mori-offer-sheet { z-index: 2; left: 42%; top: 65%; width: 26%; height: 19%; }
+.mori-receive-flight {
+  position: fixed;
+  z-index: 6;
+  opacity: 1;
+  border-color: #9777ae;
+  background: #dcc5ec;
+  border-radius: 3px 6px 3px 3px;
+  box-shadow: 0 4px 12px rgb(72 47 85 / 16%);
+  pointer-events: none;
+  transform-origin: 50% 75%;
+}
+
+/* Bare art has a visual touch response without becoming a hidden control. */
+.dash-spotlight-art,
+.thread-performer-art { pointer-events: auto; }
+:is(.dash-spotlight-art, .thread-performer-art, .task-current) .mori-avatar { cursor: pointer; touch-action: manipulation; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mori-leaf-art { transform: none !important; }
+  .mori-work-papers,
+  .mori-offer-sheet,
+  .mori-receive-flight { display: none !important; }
+}

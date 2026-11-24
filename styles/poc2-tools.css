@@ -38,6 +38,22 @@
 .tool-feature-copy > :is(span, time) { color: var(--muted); font-size: .8125rem; line-height: 1.5; overflow-wrap: anywhere; }
 .tool-chevron { flex: none; color: var(--subtle); opacity: .7; }
 .tool-chevron svg { width: 16px; height: 16px; }
+.tool-chevron, .tool-parking-control > :last-child svg {
+  transition: transform 220ms var(--spring), color 160ms ease;
+}
+:is(.tool-feature-row, .tool-active-row, .tool-destination):focus-visible .tool-chevron {
+  transform: translateX(4px);
+  color: var(--accent);
+}
+@media (hover: hover) and (pointer: fine) {
+  :is(.tool-feature-row, .tool-active-row, .tool-destination):hover .tool-chevron { transform: translateX(4px); color: var(--accent); }
+  .tool-parking-control:hover > :last-child svg { transform: translate(2px,-2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.tool-feature-row, .tool-active-row, .tool-destination) .tool-chevron,
+  .tool-parking-control > :last-child svg { transform: none !important; }
+}
+
 .tool-feature-row:active, .tool-active-row:active, .tool-destination:active, .tool-simple-row:active, .tool-control:active, .tool-parking-control:active { background: var(--wash); }
 .tool-active-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 85px; padding: 18px 0; background: transparent; border: 0; border-radius: 8px; text-align: start; }
 .tool-active-mark { display: grid; place-items: center; width: 28px; color: var(--accent); }

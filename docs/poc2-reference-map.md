@@ -33,3 +33,8 @@ Claire Vo 영상에서 선택을 기다릴 때 표시되는 실제 문구는 `Co
 - 오늘·일정·보관함·생활을 하단에 두고, 작업 상세와 대화에 들어가도 출발한 탭이 선택된 상태로 유지됩니다. 부탁 입력은 탭 옆의 별도 조작으로 열립니다. [Apple 탭 바 가이드](https://developer.apple.com/design/human-interface-guidelines/tab-bars)
 - 부탁은 현재 화면에서 입력하고, 기한 등 추가 속성이 필요할 때 작성 중인 내용을 시트에 이어서 편집합니다. [Apple 시트 가이드](https://developer.apple.com/design/human-interface-guidelines/sheets)
 - 확인 질문, 사용자의 답변, 받은 파일을 하나의 작업 기록 안에서 찾을 수 있게 했습니다. 답변 입력과 받은 파일은 각각 현재 진행 단계에서 바로 조작할 수 있습니다. [Muse의 승인과 활동 기록](https://www.meta.com/en-gb/help/superintelligence/1385290430137537/)
+
+## 입력과 항목 선택에 반응하는 동작
+
+- 부탁 입력은 누른 버튼에서 펼치고, 파일 미리보기는 파일 행에서 펼쳐 같은 자리로 돌아옵니다. 달력은 실제 인접 날짜와 표시를 미리 렌더해서 드래그 거리에 맞춰 이동시킵니다.
+- 모리는 호버와 초점에 짧게 반응합니다. 접수, 기록 정리, 파일 전달에는 실제 상태와 연결된 한 번의 동작을 사용합니다. 동작 줄이기 설정에서도 같은 상태 정보와 기능을 사용할 수 있습니다. [Apple 모션 가이드](https://developer.apple.com/design/human-interface-guidelines/motion)

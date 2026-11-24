@@ -9,14 +9,22 @@ export const avatarStatus = Object.freeze({
   ready: '파일을 준비했어요',
 });
 
+function artwork(layer) {
+  return `<span class="${layer}">
+    <img class="mori-original" src="${portrait}" alt="" width="112" height="112" draggable="false">
+    <span class="mori-pose-frame"><img class="mori-pose-atlas" src="${atlas}" alt="" width="960" height="960" draggable="false"></span>
+  </span>`;
+}
+
 export function renderAvatar(status, { large = false } = {}) {
   const mood = Object.hasOwn(avatarStatus, status) ? status : 'idle';
   return `<span class="mori-avatar${large ? ' mori-avatar-large' : ''}" data-mood="${mood}" aria-hidden="true">
     <span class="mori-figure">
-      <img class="mori-original" src="${portrait}" alt="" width="112" height="112" draggable="false">
-      <span class="mori-pose-frame"><img class="mori-pose-atlas" src="${atlas}" alt="" width="960" height="960" draggable="false"></span>
+      ${artwork('mori-body-art')}
+      ${artwork('mori-leaf-art')}
+      <span class="mori-work-papers"><i class="mori-actor-paper"></i><i class="mori-actor-paper"></i><i class="mori-actor-paper"></i></span>
+      <span class="mori-offer-sheet mori-actor-paper"></span>
     </span>
-    <span class="mori-desk"><i></i><i></i></span>
     <span class="mori-question">?</span>
     <span class="mori-complete">✓</span>
   </span>`;

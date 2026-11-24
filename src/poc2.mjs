@@ -1,9 +1,11 @@
+import { bindActorMotion, playActorReception, playActorSorting, playActorOffer } from './poc2-actor-motion.mjs';
+import { bindCalendarGesture } from './poc2-calendar-gesture.mjs';
 import { captureShared, revealShared, animateSheet } from './poc2-continuity.mjs';
 import { loadSchedule, saveSchedule, renderSchedule, renderCalendarSheet, scheduleItems, eventFromFields, shiftScheduleDay } from './poc2-schedule.mjs';
 import { loadTools, saveTools, renderTools, renderToolSheet, applyToolForm, applyToolAction, updateToolCountdowns } from './poc2-tools.mjs';
 import { cancelVoiceInput, toggleVoiceInput } from './poc2-voice.mjs';
 import { renderAssistant, renderThreadComposer, renderThreadContext, renderTurns, renderResultSheet } from './poc2-assistant.mjs';
-import { bindTouchFeedback, deliverFile, playAskOpen, playAvatarAcceptance, playTabSelection, playThreadReply, playView } from './poc2-motion.mjs';
+import { bindTouchFeedback, deliverFile, playAskTransition, playTabSelection, playThreadReply, playView } from './poc2-motion.mjs';
 import { avatarStatus, renderActivity, renderAvatar } from './poc2-avatar.mjs';
 import { renderDashboard, renderTaskPage } from './poc2-dashboard.mjs';
 import { icon } from './poc2-icons.mjs';
@@ -40,6 +42,8 @@ const appBottom = document.querySelector('.app-bottom');
 const threadFooter = document.querySelector('.thread-footer');
 const askDock = document.querySelector('#ask-dock');
 let askInput;
+let askOpen = false;
+let askMotion;
 const dialog = document.querySelector('.mori-sheet');
 const toast = document.querySelector('.toast');
 const media = matchMedia('(prefers-color-scheme: dark)');
@@ -55,7 +59,7 @@ let pageTaskId = null;
 const nestedPages = ['task', 'settings', 'chat'];
 let activeTab = 'today';
 let sharedRoute;
-let acceptedTaskId = null;
+let acceptedTask;
 const preparing = new Map();
 let libraryTab = 'tasks';
 let libraryQuery = '';
@@ -163,7 +167,7 @@ function initializeAsk() {
     ['open-tool', 'pin', '주차', 'parking'],
     ['open-tool', 'clock', '알림', 'reminders'],
   ];
-  askDock.innerHTML = `
+  askDock.innerHTML = `<div class="ask-content">
     <div class="ask-heading"><h2 id="ask-title">모리에게 부탁하기</h2>
       <button class="ask-close spring-control" type="button" data-action="close-ask" aria-label="부탁 입력 닫기">${icon('close')}</button>
     </div>
@@ -180,24 +184,33 @@ function initializeAsk() {
     </form>
     <div class="ask-shortcuts" aria-label="바로 추가">
       ${shortcuts.map(([action, symbol, label, tool]) => `<button class="spring-control" type="button" data-action="${action}"${tool ? ` data-tool="${tool}"` : ''}>${icon(symbol)}${label}</button>`).join('')}
-    </div>`;
+    </div></div>`;
   askInput = askDock.querySelector('textarea');
   askInput.addEventListener('input', () => updateComposer(askInput));
 }
 
-function setAskOpen(open, { focus = true } = {}) {
-  if (open === !askDock.hidden) return;
+function setAskOpen(open, { focus = true, enabled = true } = {}) {
+  if (open === askOpen && (enabled || askDock.hidden)) return;
+  askOpen = open;
   const trigger = dock.querySelector('[data-action="open-ask"]');
-  askDock.hidden = !open;
   trigger?.setAttribute('aria-expanded', String(open));
+  if (trigger) trigger.querySelector('span').textContent = open ? '접기' : '부탁';
   document.body.classList.toggle('is-asking', open);
   cancelVoiceInput();
-  if (open) {
-    playAskOpen(askDock, trigger);
-    if (focus) askInput.focus({ preventScroll: true });
-  } else if (focus) {
-    trigger?.focus({ preventScroll: true });
-  }
+  if (open) askDock.hidden = false;
+  askDock.inert = !open;
+  askDock.dataset.phase = open ? 'opening' : 'closing';
+  const motion = playAskTransition(askDock, trigger, { open, enabled });
+  askMotion = motion;
+  const settle = () => {
+    if (askMotion !== motion) return;
+    askMotion = null;
+    askDock.dataset.phase = open ? 'open' : 'closed';
+    askDock.hidden = !open;
+  };
+  if (motion) motion.finished.then(settle, settle);
+  else settle();
+  if (focus) (open ? askInput : trigger)?.focus({ preventScroll: true });
 }
 
 function askRequest(text) {
@@ -236,7 +249,7 @@ function route({ focus = false } = {}) {
   const previousTab = libraryTab;
   if (!sharedRoute && (!slug || slug === 'today')) captureReturnToToday();
   cancelVoiceInput();
-  setAskOpen(false, { focus: false });
+  setAskOpen(false, { focus: false, enabled: false });
   const legacyTab = slug === 'works' ? 'tasks' : slug === 'notes' ? 'notes' : null;
   currentPage = legacyTab ? 'library' : Object.hasOwn(pages, slug) ? slug : 'today';
   if (topTabs.includes(currentPage)) activeTab = currentPage;
@@ -276,9 +289,10 @@ function route({ focus = false } = {}) {
       playView(main.firstElementChild, order.indexOf(currentPage) >= order.indexOf(previousPage) ? 1 : -1);
     }
   }
-  if (acceptedTaskId === pageTaskId && currentPage === 'task') {
-    acceptedTaskId = null;
-    playAvatarAcceptance(document);
+  if (currentPage === 'task' && acceptedTask?.id === pageTaskId) {
+    const { from } = acceptedTask;
+    acceptedTask = null;
+    playActorReception(main, { from });
   }
 }
 
@@ -304,6 +318,10 @@ function updateTranscript(log, markup) {
   for (const stale of existing.values()) stale.remove();
 }
 
+function scheduleView(day = scheduleDay, mode = scheduleMode) {
+  return renderSchedule({ ...threadView, events, tools, tasks: state.tasks, today, day, mode });
+}
+
 function renderPage() {
   refreshActor();
   const onThread = currentPage === 'chat';
@@ -317,7 +335,7 @@ function renderPage() {
         ...threadView, today, todayLabel, workingIds: preparing, agenda: scheduleItems(events, state.tasks, today, tools, today)
       });
     } else if (currentPage === 'schedule') {
-      main.innerHTML = renderSchedule({ ...threadView, events, tools, tasks: state.tasks, today, day: scheduleDay, mode: scheduleMode });
+      main.innerHTML = scheduleView();
     } else if (currentPage === 'tools') {
       main.innerHTML = renderTools(tools, { ...threadView, notesHref: '#library/notes', scheduleHref: '#schedule' });
     } else if (currentPage === 'task') {
@@ -416,8 +434,12 @@ function updateHomeTask(task) {
   const file = last?.querySelector('.thread-file');
   scrollThread();
   if (!previousFocus?.isConnected) (file ?? threadFooter.querySelector('#thread-input') ?? main).focus({ preventScroll: true });
-  if (hasFile) deliverFile(performer);
-  else playThreadReply(last);
+  if (hasFile) {
+    const offer = playActorOffer(performer);
+    deliverFile(performer, { delay: offer?.handoffAt ?? 0 });
+  } else if (!preparing.has(task.id)) {
+    playThreadReply(last);
+  }
 }
 
 function announce(message) {
@@ -452,11 +474,11 @@ function refreshLibrarySearch() {
   main.querySelector('.library-search-clear').hidden = !libraryQuery;
 }
 
-function createAndOpenTask(values) {
+function createAndOpenTask(values, from) {
   const task = createTask(values);
   selectTask(task.id);
   commit({ ...state, tasks: [task, ...state.tasks] }, '모리가 새 부탁을 맡았어요.');
-  acceptedTaskId = task.id;
+  acceptedTask = { id: task.id, from };
   dismissSheet(0, () => openTask(task.id));
 }
 
@@ -553,9 +575,10 @@ function renderDialog() {
 }
 
 function showSheet(next, trigger = document.activeElement) {
+  const anchor = next.kind === 'file' ? trigger?.getBoundingClientRect() : undefined;
   if (!askDock.hidden) {
     if (askDock.contains(trigger)) trigger = dock.querySelector('[data-action="open-ask"]');
-    setAskOpen(false, { focus: false });
+    setAskOpen(false, { focus: false, enabled: false });
   }
   const reopening = Boolean(sheetExit);
   sheetExit = null;
@@ -570,7 +593,7 @@ function showSheet(next, trigger = document.activeElement) {
   renderDialog();
   if (first) dialog.showModal();
   if (first || reopening) {
-    animateSheet(dialog, { opening: true });
+    animateSheet(dialog, { opening: true, anchor });
   } else {
     playView(dialog.querySelector('.sheet-content') ?? dialog.firstElementChild, 1);
   }
@@ -582,7 +605,9 @@ function showSheet(next, trigger = document.activeElement) {
 function dismissSheet(offset = 0, after) {
   if (!dialog.open) { after?.(); return; }
   if (sheetExit) return;
-  const motion = animateSheet(dialog, { opening: false, offset });
+  const anchor = sheet?.kind === 'file' && returnFocus?.element.isConnected
+    ? returnFocus.element.getBoundingClientRect() : undefined;
+  const motion = animateSheet(dialog, { opening: false, offset, anchor });
   if (!motion) { dialog.close(); after?.(); return; }
   sheetExit = motion;
   motion.finished.then(() => {
@@ -614,31 +639,14 @@ function setFilter(value, action, valueKey) {
   main.querySelector(`[data-action="${action}"][data-${valueKey}="${CSS.escape(value)}"]`)?.focus({ preventScroll: true });
 }
 
-function moveSchedule(direction, { focus = false } = {}) {
+function moveSchedule(direction, { focus = false, animated = false } = {}) {
   if (direction !== -1 && direction !== 1) return;
   scheduleDay = shiftScheduleDay(scheduleDay, scheduleMode, direction);
   if (focus) setFilter(String(direction), 'schedule-step', 'direction');
   else renderPage();
-  playView(main.querySelector('.schedule-grid'), direction);
+  if (!animated) playView(main.querySelector('.schedule-grid'), direction);
   playView(main.querySelector('.schedule-agenda'), direction);
 }
-
-let scheduleSwipe;
-main.addEventListener('pointerdown', event => {
-  if (currentPage !== 'schedule' || event.pointerType !== 'touch' || !event.isPrimary || !event.target.closest('.schedule-grid')) return;
-  scheduleSwipe = { id: event.pointerId, x: event.clientX, y: event.clientY };
-});
-main.addEventListener('pointerup', event => {
-  if (scheduleSwipe?.id !== event.pointerId) return;
-  const dx = event.clientX - scheduleSwipe.x;
-  const dy = event.clientY - scheduleSwipe.y;
-  scheduleSwipe = null;
-  if (currentPage === 'schedule' && Math.abs(dx) >= 56 && Math.abs(dx) > Math.abs(dy) * 1.35) {
-    event.preventDefault();
-    moveSchedule(dx < 0 ? 1 : -1);
-  }
-});
-main.addEventListener('pointercancel', () => { scheduleSwipe = null; });
 
 document.addEventListener('click', event => {
   if (event.target.closest('.skip-link')) {
@@ -652,7 +660,7 @@ document.addEventListener('click', event => {
   const { action, id, mode } = button.dataset;
   switch (action) {
     case 'open-ask':
-      setAskOpen(askDock.hidden);
+      setAskOpen(!askOpen);
       break;
     case 'close-ask':
       setAskOpen(false);
@@ -811,6 +819,13 @@ document.addEventListener('click', event => {
   }
 });
 
+function taskActorScope(id) {
+  if (currentPage === 'chat' && homeTask()?.id === id) return main.querySelector('.thread-performer');
+  if (currentPage === 'task' && pageTaskId === id) return main.querySelector('.task-current');
+  if (currentPage === 'today') return main.querySelector('.dash-spotlight:has([data-id="' + CSS.escape(id) + '"])');
+  return null;
+}
+
 function prepareResult(task, { submittedReply = false } = {}) {
   if (preparing.has(task.id)) return;
   const wasChat = currentPage === 'chat' && homeTask()?.id === task.id;
@@ -821,13 +836,19 @@ function prepareResult(task, { submittedReply = false } = {}) {
     if (!known || known.status !== 'collecting') return;
     const result = completeTask(known);
     if (currentPage === 'chat' && homeTask()?.id === task.id) updateHomeTask(result);
-    else updateTask(result, '결과 파일을 준비했어요.');
+    else {
+      updateTask(result, '결과 파일을 준비했어요.');
+      const actor = taskActorScope(task.id);
+      if (actor) playActorOffer(actor);
+    }
     if (dialog.open && sheet?.kind === 'activity') renderDialog();
-  }, reduce ? 0 : 910);
+  }, reduce ? 0 : 1180);
   preparing.set(task.id, timer);
   if (submittedReply && wasChat) updateHomeTask(task);
   else if (submittedReply) updateTask(task);
   else renderPage();
+  const actor = taskActorScope(task.id);
+  if (actor) playActorSorting(actor);
 }
 
 function recordHomeAnswer(id, text) {
@@ -855,10 +876,11 @@ document.addEventListener('submit', event => {
   if (form.dataset.form === 'instant-task') {
     const request = value('request');
     if (!request) return;
+    const from = (event.submitter || askInput).getBoundingClientRect();
     form.reset();
     updateComposer(askInput);
-    setAskOpen(false, { focus: false });
-    createAndOpenTask(askRequest(request));
+    setAskOpen(false, { focus: false, enabled: false });
+    createAndOpenTask(askRequest(request), from);
   } else if (form.dataset.form === 'calendar-event') {
     const existing = events.find(event => event.id === form.dataset.id);
     const next = eventFromFields(fields, existing);
@@ -884,7 +906,7 @@ document.addEventListener('submit', event => {
       askInput.value = '';
       updateComposer(askInput);
     }
-    createAndOpenTask({ title: value('title'), brief: value('brief'), due: value('due') });
+    createAndOpenTask({ title: value('title'), brief: value('brief'), due: value('due') }, (event.submitter || form).getBoundingClientRect());
   } else if (form.dataset.form === 'note' && value('text')) {
     const task = findTask(value('taskId'));
     if (task) updateTask(addObservation(task, value('text')), '맡긴 일에 기록을 더했어요.');
@@ -963,7 +985,7 @@ document.addEventListener('keydown', event => {
     event.preventDefault();
     setAskOpen(true);
     askInput.focus({ preventScroll: true });
-  } else if (event.key === 'Escape' && !askDock.hidden) {
+  } else if (event.key === 'Escape' && askOpen) {
     event.preventDefault();
     setAskOpen(false);
   }
@@ -975,7 +997,7 @@ document.addEventListener('click', event => {
     routeToDetail('#settings');
     return;
   }
-  if (!askDock.hidden && !event.target.closest('#ask-dock, .dock, dialog, [data-action="new-task"]')) {
+  if (askOpen && !event.target.closest('#ask-dock, .dock, dialog, [data-action="new-task"]')) {
     setAskOpen(false, { focus: false });
   }
 });
@@ -1004,6 +1026,10 @@ document.addEventListener('focusin', updateKeyboard);
 document.addEventListener('focusout', () => requestAnimationFrame(updateKeyboard));
 media.addEventListener('change', updateTheme);
 bindTouchFeedback(document);
+bindActorMotion(document);
+bindCalendarGesture(main, (direction, options) => {
+  if (currentPage === 'schedule') moveSchedule(direction, options);
+}, scheduleView);
 setInterval(() => {
   if (currentPage === 'tools' || dialog.open && sheet?.kind === 'tool') updateToolCountdowns(document);
 }, 1000);

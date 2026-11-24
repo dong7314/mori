@@ -1,5 +1,7 @@
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const tactile = '.spring-control, .mori-sheet button';
+const actionButtons = '.dock-action, .dash-spotlight-action, .ask-send, .thread-send, .sheet-primary, .task-action-primary, .schedule-new';
+const askMotions = new WeakMap();
 const controlledAnimations = new Set();
 
 function animate(element, frames, options) {
@@ -7,6 +9,7 @@ function animate(element, frames, options) {
   const animation = element.animate(frames, options);
   controlledAnimations.add(animation);
   animation.finished.then(() => controlledAnimations.delete(animation), () => controlledAnimations.delete(animation));
+  return animation;
 }
 
 reduceMotion.addEventListener('change', () => {
@@ -19,11 +22,8 @@ export function bindTouchFeedback(root) {
     const control = event.target.closest(tactile);
     if (!control || control.disabled || !event.isPrimary || event.button !== 0 || reduceMotion.matches) return;
     press?.control.classList.remove('is-pressed');
-    const rect = control.getBoundingClientRect();
-    control.style.setProperty('--touch-x', (event.clientX - rect.left) + 'px');
-    control.style.setProperty('--touch-y', (event.clientY - rect.top) + 'px');
     control.classList.add('is-pressed');
-    press = { control, id: event.pointerId, intensity: event.pointerType === 'touch' ? .94 : .97 };
+    press = { control, id: event.pointerId, intensity: event.pointerType === 'touch' ? .95 : .97 };
   });
 
   function release(event) {
@@ -32,11 +32,10 @@ export function bindTouchFeedback(root) {
     press = null;
     control.classList.remove('is-pressed');
     const releasedOn = document.elementFromPoint(event.clientX, event.clientY);
-    if (event.type === 'pointerup' && control.isConnected && control.contains(releasedOn)) {
+    if (event.type === 'pointerup' && control.isConnected && control.contains(releasedOn) && control.matches(actionButtons)) {
       animate(control, [
-        { scale: intensity, offset: 0 }, { scale: 1.023, offset: .48 },
-        { scale: .995, offset: .77 }, { scale: 1 }
-      ], { duration: 290, easing: 'cubic-bezier(.19,.72,.28,1)' });
+        { scale: intensity }, { scale: 1.014, offset: .66 }, { scale: 1 }
+      ], { duration: 210, easing: 'cubic-bezier(.2,.75,.23,1)' });
     }
   }
 
@@ -54,15 +53,54 @@ export function playThreadReply(turn) {
   });
 }
 
-export function playAskOpen(panel, trigger) {
-  if (!panel || reduceMotion.matches) return;
-  const bounds = panel.getBoundingClientRect();
-  const button = trigger?.getBoundingClientRect();
-  const towardButton = button ? Math.sign(button.left + button.width / 2 - bounds.left - bounds.width / 2) * 12 : 0;
-  animate(panel, [
-    { opacity: .45, transform: `translate(${towardButton}px, 13px) scale(.97)` },
-    { opacity: 1, transform: 'none' }
-  ], { duration: 315, easing: 'cubic-bezier(.18,.74,.23,1)' });
+export function playAskTransition(panel, trigger, { open, enabled = true }) {
+  const previous = askMotions.get(panel);
+  const content = panel.querySelector('.ask-content');
+  const sampled = previous && {
+    transform: getComputedStyle(panel).transform,
+    borderRadius: getComputedStyle(panel).borderRadius,
+    backgroundColor: getComputedStyle(panel).backgroundColor,
+  };
+  const sampledOpacity = previous && getComputedStyle(content).opacity;
+  previous?.surface.cancel();
+  previous?.content?.cancel();
+  askMotions.delete(panel);
+  if (!enabled || reduceMotion.matches || !panel.animate) return null;
+
+  const resting = panel.getBoundingClientRect();
+  if (!resting.width || !resting.height) return null;
+  const control = trigger?.getBoundingClientRect();
+  const origin = control?.width && control.height ? control : {
+    left: resting.right - 48, top: resting.bottom - 44, width: 48, height: 44
+  };
+  const sx = origin.width / resting.width;
+  const sy = origin.height / resting.height;
+  const shellStyle = getComputedStyle(panel);
+  const radius = parseFloat(trigger ? getComputedStyle(trigger).borderRadius : '') || 14;
+  const collapsed = {
+    transform: `translate(${origin.left - resting.left}px, ${origin.top - resting.top}px) scale(${sx}, ${sy})`,
+    borderRadius: `${radius / sx}px / ${radius / sy}px`,
+    backgroundColor: shellStyle.getPropertyValue('--accent').trim() || shellStyle.backgroundColor,
+  };
+  const expanded = { transform: 'none', borderRadius: shellStyle.borderRadius, backgroundColor: shellStyle.backgroundColor };
+  const surface = animate(panel, open ? [sampled || collapsed, expanded] : [sampled || expanded, collapsed], {
+    duration: open ? 470 : 320, easing: open ? 'cubic-bezier(.16,.78,.22,1)' : 'cubic-bezier(.42,0,.82,.56)',
+  });
+  if (!surface) return null;
+
+  const reveal = animate(content, open
+    ? [{ opacity: sampledOpacity || 0, transform: 'translateY(7px)' }, { opacity: 1, transform: 'none' }]
+    : [{ opacity: sampledOpacity || 1 }, { opacity: 0 }],
+  { duration: open ? 245 : 130, delay: open && !previous ? 110 : 0, fill: 'both', easing: 'ease-out' });
+  const motion = { surface, content: reveal };
+  askMotions.set(panel, motion);
+  const cleanup = () => {
+    if (askMotions.get(panel) !== motion) return;
+    askMotions.delete(panel);
+    reveal?.cancel();
+  };
+  surface.finished.then(cleanup, cleanup);
+  return surface;
 }
 
 export function playTabSelection(marker, previous, current) {
@@ -73,29 +111,13 @@ export function playTabSelection(marker, previous, current) {
 }
 
 export function playView(view, direction) {
-  animate(view, [{ opacity: .46, transform: `translateX(${direction * 12}px)` }, { opacity: 1, transform: 'none' }], {
+  animate(view, [{ opacity: .72, transform: `translateX(${direction * 10}px)` }, { opacity: 1, transform: 'none' }], {
     duration: 290, easing: 'cubic-bezier(.2,.72,.23,1)'
   });
 }
 
-export function playAvatarAcceptance(scope) {
-  for (const avatar of scope.querySelectorAll('.mori-avatar[data-mood="collecting"]')) {
-    animate(avatar.querySelector('.mori-figure'), [
-      { transform: 'none' },
-      { transform: 'translateY(6%) rotate(-8deg) scale(1.06,.9)', offset: .39 },
-      { transform: 'translateY(-4%) rotate(4deg)' },
-      { transform: 'none' }
-    ], { duration: 590, easing: 'cubic-bezier(.24,.72,.24,1)' });
-    animate(avatar.querySelector('.mori-desk'), [
-      { opacity: 0, transform: 'translate(-33%, -46%) rotate(-12deg) scale(.72)' },
-      { opacity: 1, transform: 'translate(0,4%) rotate(2deg)', offset: .73 },
-      { opacity: 0, transform: 'translate(20%, 5%) scale(.72)' }
-    ], { duration: 545, fill: 'backwards', easing: 'cubic-bezier(.21,.69,.23,1)' });
-  }
-}
-
 /* The document travels from Mori’s hands to its interactive file row. */
-export function deliverFile(performer) {
+export function deliverFile(performer, { delay = 0 } = {}) {
   if (!performer || reduceMotion.matches) return;
   const avatar = performer.querySelector('.mori-avatar');
   const target = performer.querySelector('.thread-file-icon');
@@ -106,21 +128,21 @@ export function deliverFile(performer) {
   const sheet = target.cloneNode(true);
   sheet.classList.add('mori-document-flight');
   sheet.setAttribute('aria-hidden', 'true');
+  sheet.style.opacity = '0';
   sheet.style.left = (origin.left + origin.width * .61) + 'px';
   sheet.style.top = (origin.top + origin.height * .61) + 'px';
   document.body.append(sheet);
   const dx = finish.left - origin.left - origin.width * .61;
   const dy = finish.top - origin.top - origin.height * .61;
-  const flight = sheet.animate([
+  const duration = 535;
+  const flight = animate(sheet, [
     { transform: 'translate(-20%, -26%) rotate(-18deg) scale(.8)', opacity: .82 },
     { transform: `translate(${dx * .6}px, ${dy * .46 - 13}px) rotate(9deg) scale(1.06)`, opacity: 1, offset: .62 },
     { transform: `translate(${dx}px, ${dy}px) rotate(0) scale(1)`, opacity: 1 }
-  ], { duration: 590, easing: 'cubic-bezier(.24,.64,.21,1)' });
-  controlledAnimations.add(flight);
-  animate(target, [{ opacity: 0 }, { opacity: 0, offset: .74 }, { opacity: 1 }], { duration: 590 });
-  flight.finished.then(cleanup, cleanup);
-  function cleanup() {
-    controlledAnimations.delete(flight);
-    sheet.remove();
-  }
+  ], { duration, delay, easing: 'cubic-bezier(.24,.64,.21,1)' });
+  if (!flight) { sheet.remove(); return; }
+  const flightEnd = duration + delay;
+  animate(target, [{ opacity: 0 }, { opacity: 0, offset: 1 - 125 / flightEnd }, { opacity: 1 }], { duration: flightEnd });
+  const clean = () => sheet.remove();
+  flight.finished.then(clean, clean);
 }

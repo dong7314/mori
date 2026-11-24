@@ -5,7 +5,7 @@ body[data-view='chat'] .workspace {
 }
 
 .thread {
-  --thread-next: var(--accent-soft, #ede4ec);
+  --thread-next: color-mix(in srgb, var(--panel) 78%, var(--accent-soft));
   min-width: 0;
   padding-block-end: 0;
 }
@@ -182,7 +182,8 @@ body[data-view='chat'] .workspace {
   margin: 14px calc(-1 * var(--side, 20px)) 0;
   padding: 25px var(--side, 20px) 30px;
   border: 0;
-  border-radius: 26px 26px 0 0;
+  border-block-start: 1px solid var(--line);
+  border-radius: 17px 17px 0 0;
   background: var(--thread-next);
 }
 
@@ -267,7 +268,7 @@ body[data-view='chat'] .workspace {
   border: 1px solid transparent;
   border-radius: 15px;
   background: var(--panel, #fffdf9);
-  box-shadow: 0 2px 0 rgb(74 51 67 / 3%);
+
 }
 
 .thread-composer:focus-within { border-color: var(--accent, #694b64); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #694b64) 10%, transparent); }
@@ -307,10 +308,11 @@ body[data-view='chat'] .workspace {
   width: 100%;
   min-height: 80px;
   margin-block-start: 2px;
-  padding: 16px 13px;
+  padding: 12px 1px;
   border: 0;
-  border-radius: 6px 16px 16px 6px;
-  background: var(--panel, #fffdf9);
+  border-block: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
   text-align: start;
 }
 
@@ -358,7 +360,7 @@ body[data-view='chat'] .workspace {
   .thread-topic { padding-block: 25px 32px; }
   .thread-topic h1 { max-width: 25ch; font-size: 2.1rem; }
   .thread-log { gap: 23px; }
-  .thread-performer { padding-block: 28px 35px; border-radius: 28px 28px 0 0; }
+  .thread-performer { padding-block: 28px 35px; }
   .thread-performer-question { margin-inline-end: 120px; min-height: 66px; }
   .thread-performer-art { right: 25px; width: 112px; }
   .thread-performer .mori-avatar { --portrait-size: 122px; }
@@ -377,7 +379,7 @@ body[data-view='chat'][data-keyboard] .thread-performer { padding-block-end: 20p
 @media (hover: hover) {
   .thread-topic-more:hover { background: var(--wash, #eee8e2); }
   .thread-quick:hover { background: color-mix(in srgb, var(--panel, #fffdf9) 88%, var(--accent, #694b64)); }
-  .thread-file:hover { box-shadow: 0 3px 14px rgb(74 51 67 / 6%); }
+  .thread-file:hover { color: var(--accent); }
 }
 
 @media (prefers-reduced-motion: reduce) {

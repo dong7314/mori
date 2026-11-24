@@ -30,14 +30,14 @@
 .mori-sheet[data-native-sheet][open] {
   animation: none !important;
   transform-origin: 50% 100%;
-  will-change: translate, opacity;
+  will-change: translate, scale, opacity;
 }
 
 .mori-sheet[data-native-sheet]::backdrop {
   animation: none !important;
-  background: rgb(18 19 27 / 23%);
-  -webkit-backdrop-filter: blur(5px) saturate(.9);
-  backdrop-filter: blur(5px) saturate(.9);
+  background: rgb(24 18 23 / 24%);
+  -webkit-backdrop-filter: blur(2px) saturate(.95);
+  backdrop-filter: blur(2px) saturate(.95);
 }
 
 .mori-sheet[data-native-sheet-phase='closing'] {

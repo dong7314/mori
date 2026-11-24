@@ -34,12 +34,10 @@ function renderSpotlight(task, { icon, esc, formatDay, avatar, workingIds }) {
   const mood = working ? 'working' : task?.status ?? 'idle';
   const action = waiting ? 'open-thread' : task ? 'open-task' : 'new-task';
   const heading = waiting ? task.question || task.title : task?.title || '어떤 일을 맡길까요?';
-  const label = waiting ? '모리의 질문' : working ? '정리 중' : task ? '맡은 일' : '새 부탁';
   return `
     <section class="dash-spotlight" aria-labelledby="dash-spotlight-title" data-status="${mood}">
       <div class="dash-spotlight-copy">
-        <p class="dash-spotlight-label">${label}</p>
-        <h2 id="dash-spotlight-title">${esc(heading)}</h2>
+        <h2 id="dash-spotlight-title">${waiting ? `<span class="sr-only">모리의 질문. </span>` : ''}${esc(heading)}</h2>
         ${task ? `<p class="dash-spotlight-context">
           <span>${waiting ? esc(task.title) : working ? '결과 파일을 준비하고 있어요' : `기록 ${task.observations.length}개`}</span>
           ${task.due ? `<time datetime="${esc(task.due)}">${esc(formatDay(task.due))}까지</time>` : ''}

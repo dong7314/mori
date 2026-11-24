@@ -249,6 +249,17 @@ function currentTranslate(dialog, win) {
   return value && value !== 'none' ? value : '0px 0px';
 }
 
+function sheetAnchorFrame(sheet, anchor, viewportHeight) {
+  if (!anchor?.width || !anchor.height || !sheet.width || !sheet.height || anchor.bottom < 0 || anchor.top > viewportHeight) return null;
+  const scaleX = Math.max(.18, Math.min(1, anchor.width / sheet.width));
+  const scaleY = Math.max(.12, Math.min(.62, anchor.height / sheet.height));
+  return {
+    translate: `${anchor.left + anchor.width / 2 - sheet.left - sheet.width / 2}px ${anchor.bottom - sheet.bottom}px`,
+    scale: `${scaleX} ${scaleY}`,
+    opacity: .86,
+  };
+}
+
 function backdropMotion(dialog, from, to, duration, easing) {
   try {
     const animation = dialog.animate([{ opacity: from }, { opacity: to }], {
@@ -268,15 +279,21 @@ function backdropMotion(dialog, from, to, duration, easing) {
  * Call after showModal() for entry. For exit, await the returned animation before
  * dialog.close(); null means close immediately. offset is an existing downward
  * drag distance in CSS pixels, after removing the drag class/inline translate.
+ * An optional anchor lets a document expand from and return to its tapped row.
  */
-export function animateSheet(dialog, { opening = true, offset = 0 } = {}) {
+export function animateSheet(dialog, { opening = true, offset = 0, anchor } = {}) {
   if (!dialog?.open || !dialog.ownerDocument?.defaultView) return null;
   const context = contextFor(dialog.ownerDocument);
   const { win } = context;
   const previous = sheetMotions.get(dialog);
-  const current = previous ? currentTranslate(dialog, win) : null;
-  const opacity = previous ? win.getComputedStyle(dialog).opacity : '1';
+  const current = previous && {
+    translate: currentTranslate(dialog, win),
+    scale: win.getComputedStyle(dialog).scale || '1',
+    opacity: win.getComputedStyle(dialog).opacity,
+  };
   const backdropOpacity = win.getComputedStyle(dialog, '::backdrop').opacity;
+  const content = dialog.querySelector(':scope > .sheet-content');
+  const contentOpacity = previous && content ? win.getComputedStyle(content).opacity : null;
   previous?.dispose();
   dialog.dataset.nativeSheet = '';
   dialog.dataset.nativeSheetPhase = opening ? 'opening' : 'closing';
@@ -297,21 +314,28 @@ export function animateSheet(dialog, { opening = true, offset = 0 } = {}) {
   const viewportHeight = win.visualViewport?.height ?? win.innerHeight;
   const distance = Math.ceil(rect.height + Math.max(0, viewportHeight - rect.bottom) + 32);
   const dragOffset = Number.isFinite(offset) ? Math.max(0, offset) : 0;
-  const from = current ?? `0px ${opening ? distance : dragOffset}px`;
-  const to = opening ? '0px 0px' : `0px ${Math.max(distance, dragOffset + 32)}px`;
-  const duration = opening ? (previous ? 340 : 440) : (dragOffset ? 240 : 300);
+  const anchored = dragOffset ? null : sheetAnchorFrame(rect, anchor, viewportHeight);
+  const rest = { translate: '0px 0px', scale: '1', opacity: 1 };
+  const away = anchored ?? { translate: `0px ${Math.max(distance, dragOffset + 32)}px`, scale: '1', opacity: .95 };
+  const from = current || (opening ? away : { ...rest, translate: `0px ${dragOffset}px` });
+  const to = opening ? rest : away;
+  const duration = opening ? (previous ? 330 : 440) : (dragOffset ? 230 : 315);
   let animation;
   try {
-    animation = dialog.animate([
-      { translate: from, opacity: opening && !previous ? .92 : opacity },
-      { translate: to, opacity: opening ? 1 : .96 },
-    ], { duration, easing: opening ? sheetEasing : 'cubic-bezier(.4,0,.8,.4)', fill: 'both' });
+    animation = dialog.animate([from, to], {
+      duration, easing: opening ? sheetEasing : 'cubic-bezier(.4,0,.8,.4)', fill: 'both',
+    });
   } catch {
     dialog.dataset.nativeSheetPhase = opening ? 'open' : 'closed';
     return null;
   }
   const backdrop = backdropMotion(dialog,
     previous ? backdropOpacity : (opening ? 0 : 1), opening ? 1 : 0, duration, 'ease-out');
+  const reveal = anchored ? content?.animate?.([
+    { opacity: contentOpacity ?? (opening ? 0 : 1) },
+    { opacity: opening ? 1 : 0 },
+  ], { duration: opening ? 255 : 150, delay: opening && !previous ? 75 : 0, easing: 'ease-out', fill: 'both' }) : null;
+  reveal?.finished.catch(() => {});
   dialog.dataset.nativeBackdrop = backdrop ? 'waapi' : 'css';
   let disposed = false;
   const motion = {
@@ -323,6 +347,7 @@ export function animateSheet(dialog, { opening = true, offset = 0 } = {}) {
       if (sheetMotions.get(dialog) === motion) sheetMotions.delete(dialog);
       animation.cancel();
       backdrop?.cancel();
+      reveal?.cancel();
     },
   };
   context.sheets.add(motion);

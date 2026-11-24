@@ -18,9 +18,15 @@
 .schedule-mode[data-mode='month']::before { transform: translateX(100%); }
 .schedule-mode button { min-width: 0; min-height: 38px; padding: 4px 8px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: .875rem; font-weight: 550; transition: color 180ms ease; }
 .schedule-mode button[aria-pressed='true'] { color: var(--ink); font-weight: 700; }
-.schedule-weekdays, .schedule-grid { touch-action: pan-y; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 0; }
+.schedule-weekdays, .schedule-grid { touch-action: pan-y pinch-zoom; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); min-width: 0; }
 .schedule-weekdays { min-height: 30px; align-items: center; text-align: center; color: var(--muted); font-size: .75rem; }
 .schedule-grid { gap: 3px; }
+.schedule-drag-viewport { position: relative; min-width: 0; overflow: clip; touch-action: pan-y pinch-zoom; }
+.schedule-drag-track { display: flex; align-items: flex-start; gap: 16px; width: 100%; will-change: transform; }
+.schedule-drag-track > .schedule-grid { flex: 0 0 100%; width: 100%; user-select: none; -webkit-user-select: none; }
+.schedule-drag-viewport .schedule-day { pointer-events: none; transition: none; }
+.schedule-drag-viewport .schedule-day:active { transform: none; }
+.schedule-grid-preview { pointer-events: none; }
 .schedule-day { position: relative; display: grid; grid-template-rows: 34px 7px; align-content: center; justify-items: center; gap: 3px; min-width: 0; min-height: 48px; padding: 3px 0; border: 0; border-radius: 12px; background: transparent; color: var(--ink); font-size: 1rem; line-height: 1; font-variant-numeric: tabular-nums; transition: color 180ms ease, background 180ms ease, transform 240ms var(--spring, ease); }
 .schedule-number { display: grid; place-items: center; width: min(100%, 34px); height: 34px; border: 1px solid transparent; border-radius: 50%; transition: background 180ms ease, color 180ms ease, border-color 180ms ease; }
 .schedule-day[data-outside='true'] .schedule-number { color: var(--subtle); opacity: .6; }
