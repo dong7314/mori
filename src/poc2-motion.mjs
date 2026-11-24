@@ -48,19 +48,10 @@ export function bindTouchFeedback(root) {
   });
 }
 
-export function playThreadReply(avatar, turn, hasFile) {
-  const easing = 'cubic-bezier(.22,.76,.23,1)';
-  animate(avatar, [
-    { transform: 'none' },
-    { transform: 'translateY(2px) rotate(9deg) scale(1.04,.94)' },
-    { transform: 'translateY(-3px) rotate(-3deg)' },
-    { transform: 'none' }
-  ], { duration: 425, easing });
-  animate(turn, [{ opacity: .35, transform: 'translateY(7px)' }, { opacity: 1, transform: 'none' }], { duration: 270, easing });
-  if (hasFile) animate(turn?.querySelector('.thread-file'), [
-    { opacity: 0, transform: 'translateY(-8px) scale(.98)' },
-    { opacity: 1, transform: 'none' }
-  ], { duration: 340, delay: 100, fill: 'backwards', easing });
+export function playThreadReply(turn) {
+  animate(turn, [{ opacity: .45, transform: 'translateY(7px)' }, { opacity: 1, transform: 'none' }], {
+    duration: 250, easing: 'cubic-bezier(.22,.76,.23,1)'
+  });
 }
 
 export function playView(view, direction) {
@@ -80,7 +71,38 @@ export function playAvatarAcceptance(scope) {
     animate(avatar.querySelector('.mori-desk'), [
       { opacity: 0, transform: 'translate(-33%, -46%) rotate(-12deg) scale(.72)' },
       { opacity: 1, transform: 'translate(0,4%) rotate(2deg)', offset: .73 },
-      { opacity: 1, transform: 'none' }
+      { opacity: 0, transform: 'translate(20%, 5%) scale(.72)' }
     ], { duration: 545, fill: 'backwards', easing: 'cubic-bezier(.21,.69,.23,1)' });
+  }
+}
+
+/* The document travels from Mori’s hands to its interactive file row. */
+export function deliverFile(performer) {
+  if (!performer || reduceMotion.matches) return;
+  const avatar = performer.querySelector('.mori-avatar');
+  const target = performer.querySelector('.thread-file-icon');
+  if (!avatar || !target) return;
+  const origin = avatar.getBoundingClientRect();
+  const finish = target.getBoundingClientRect();
+  if (!origin.width || !finish.width) return;
+  const sheet = target.cloneNode(true);
+  sheet.classList.add('mori-document-flight');
+  sheet.setAttribute('aria-hidden', 'true');
+  sheet.style.left = (origin.left + origin.width * .61) + 'px';
+  sheet.style.top = (origin.top + origin.height * .61) + 'px';
+  document.body.append(sheet);
+  const dx = finish.left - origin.left - origin.width * .61;
+  const dy = finish.top - origin.top - origin.height * .61;
+  const flight = sheet.animate([
+    { transform: 'translate(-20%, -26%) rotate(-18deg) scale(.8)', opacity: .82 },
+    { transform: `translate(${dx * .6}px, ${dy * .46 - 13}px) rotate(9deg) scale(1.06)`, opacity: 1, offset: .62 },
+    { transform: `translate(${dx}px, ${dy}px) rotate(0) scale(1)`, opacity: 1 }
+  ], { duration: 590, easing: 'cubic-bezier(.24,.64,.21,1)' });
+  controlledAnimations.add(flight);
+  animate(target, [{ opacity: 0 }, { opacity: 0, offset: .74 }, { opacity: 1 }], { duration: 590 });
+  flight.finished.then(cleanup, cleanup);
+  function cleanup() {
+    controlledAnimations.delete(flight);
+    sheet.remove();
   }
 }

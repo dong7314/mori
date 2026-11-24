@@ -1,0 +1,88 @@
+/* The actor carries its resolved sprite/frame styles; the carrier only moves. */
+.mori-shared-flight,
+.mori-shared-actor {
+  pointer-events: none !important;
+  user-select: none;
+  -webkit-user-select: none;
+  transform-origin: 0 0;
+}
+
+.mori-shared-flight {
+  position: fixed;
+  z-index: 2147483646;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  isolation: isolate;
+  overflow: visible;
+  will-change: transform;
+}
+
+.mori-shared-flight *,
+.mori-shared-flight *::before,
+.mori-shared-flight *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+  pointer-events: none !important;
+}
+
+/* WAAPI owns entry and exit, replacing the old CSS-only entrance animation. */
+.mori-sheet[data-native-sheet][open] {
+  animation: none !important;
+  transform-origin: 50% 100%;
+  will-change: translate, opacity;
+}
+
+.mori-sheet[data-native-sheet]::backdrop {
+  animation: none !important;
+  background: rgb(18 19 27 / 23%);
+  -webkit-backdrop-filter: blur(5px) saturate(.9);
+  backdrop-filter: blur(5px) saturate(.9);
+}
+
+.mori-sheet[data-native-sheet-phase='closing'] {
+  pointer-events: none;
+}
+
+/* Progressive fallback for browsers without ::backdrop WAAPI support. */
+.mori-sheet[data-native-backdrop='css'][data-native-sheet-phase='opening']::backdrop {
+  animation: mori-native-backdrop-in 440ms ease-out both !important;
+}
+
+.mori-sheet[data-native-backdrop='css'][data-native-sheet-phase='closing']::backdrop {
+  animation: mori-native-backdrop-out 240ms ease-out both !important;
+}
+
+.mori-sheet[data-native-sheet-phase='closed']::backdrop {
+  opacity: 0;
+}
+
+@keyframes mori-native-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mori-native-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mori-shared-flight {
+    display: none;
+  }
+
+  .mori-sheet[data-native-sheet][open],
+  .mori-sheet[data-native-sheet]::backdrop {
+    animation: none !important;
+    will-change: auto;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .mori-sheet[data-native-sheet]::backdrop {
+    background: rgb(18 19 27 / 50%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

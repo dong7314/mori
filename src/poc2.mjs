@@ -1,17 +1,23 @@
+import { captureShared, revealShared, animateSheet } from './poc2-continuity.mjs';
+import { loadSchedule, saveSchedule, renderSchedule, renderCalendarSheet, scheduleItems, eventFromFields, shiftScheduleDay } from './poc2-schedule.mjs';
+import { loadTools, saveTools, renderTools, renderToolSheet, applyToolForm, applyToolAction, updateToolCountdowns } from './poc2-tools.mjs';
+import { cancelVoiceInput, toggleVoiceInput } from './poc2-voice.mjs';
 import { renderAssistant, renderThreadComposer, renderThreadContext, renderTurns, renderResultSheet } from './poc2-assistant.mjs';
-import { bindTouchFeedback, playAvatarAcceptance, playThreadReply, playView } from './poc2-motion.mjs';
+import { bindTouchFeedback, deliverFile, playAvatarAcceptance, playThreadReply, playView } from './poc2-motion.mjs';
 import { avatarStatus, renderActivity, renderAvatar } from './poc2-avatar.mjs';
 import { renderDashboard, renderTaskPage } from './poc2-dashboard.mjs';
 import { icon } from './poc2-icons.mjs';
 import { renderSecondary } from './poc2-views.mjs';
 import { renderComposer } from './poc2-sheets.mjs';
 import {
-  DEMO_DATE, createDemoState, loadState, saveState, createTask, createNote,
+  createDemoState, loadState, saveState, createTask, createNote,
   addObservation, answerQuestion, completeTask, formatDay, documentText
 } from './poc2-model.mjs';
 
 const pages = {
   today: ['오늘', 'sun'],
+  schedule: ['일정', 'calendar'],
+  tools: ['기능', 'grid'],
   works: ['맡은 일', 'layers'],
   chat: ['대화', 'chat'],
   notes: ['기록', 'note'],
@@ -20,10 +26,13 @@ const pages = {
 };
 const themeKey = 'mori.poc2.theme';
 const taskKey = 'mori.poc2.active-task';
-const topTabs = ['today', 'works', 'chat', 'notes'];
+const topTabs = ['today', 'schedule', 'works', 'chat', 'notes'];
+const openedAt = new Date();
+const today = [openedAt.getFullYear(), openedAt.getMonth() + 1, openedAt.getDate()]
+  .map(part => String(part).padStart(2, '0')).join('-');
 const todayLabel = new Intl.DateTimeFormat('ko-KR', {
-  month: 'long', day: 'numeric', weekday: 'long', timeZone: 'UTC'
-}).format(new Date(DEMO_DATE));
+  month: 'long', day: 'numeric', weekday: 'long'
+}).format(openedAt);
 const main = document.querySelector('.workspace');
 const appBar = document.querySelector('.app-bar');
 const dock = document.querySelector('.dock');
@@ -33,10 +42,15 @@ const toast = document.querySelector('.toast');
 const media = matchMedia('(prefers-color-scheme: dark)');
 const storage = getStorage();
 let state = loadState(storage);
+let events = loadSchedule(storage, today);
+let tools = loadTools(storage);
+let scheduleDay = today;
+let scheduleMode = 'week';
 let theme = readTheme();
 let currentPage = 'today';
 let pageTaskId = null;
-const backRoutes = { task: null, settings: null };
+const backRoutes = { task: null, settings: null, tools: null };
+let sharedRoute;
 let acceptedTaskId = null;
 const preparing = new Map();
 let filter = 'all';
@@ -97,7 +111,8 @@ function refreshActor() {
 }
 
 function renderNavigation() {
-  const nested = currentPage === 'task' || currentPage === 'settings';
+  const nested = Boolean(Object.hasOwn(backRoutes, currentPage));
+  const actor = appBar.querySelector('.mori-avatar');
   appBar.innerHTML = `
     <div class="app-bar-leading">
       ${nested ? `<button class="utility-control back-control spring-control" type="button" data-action="back" aria-label="이전 화면">${icon('back')}</button>` : ''}
@@ -106,7 +121,11 @@ function renderNavigation() {
         <span class="thread-identity-copy"><strong>모리</strong><small class="thread-state" aria-live="polite"></small></span>
       </button>
     </div>
-    ${currentPage !== 'settings' ? `<a class="utility-control glass spring-control" href="#settings" aria-label="설정">${icon('settings')}</a>` : ''}`;
+    <div class="app-bar-trailing">
+      ${currentPage !== 'tools' ? `<a class="utility-control glass spring-control" href="#tools" aria-label="모리 기능" title="기능">${icon('grid')}</a>` : ''}
+      ${currentPage !== 'settings' ? `<a class="utility-control glass spring-control" href="#settings" aria-label="설정">${icon('settings')}</a>` : ''}
+    </div>`;
+  if (actor) appBar.querySelector('.mori-avatar').replaceWith(actor);
   if (!dock.firstElementChild) {
     const links = topTabs.map(page => `<a class="nav-link spring-control" href="#${page}" data-page="${page}">
       ${icon(pages[page][1])}<span>${pages[page][0]}</span>
@@ -114,7 +133,7 @@ function renderNavigation() {
     dock.innerHTML = `<nav class="dock-tabs glass" aria-label="주요 메뉴">
       <span class="tab-indicator" aria-hidden="true"></span>${links}
     </nav>
-    <button class="dock-action glass spring-control" type="button" data-action="new-task" aria-label="새 부탁">${icon('plus')}</button>`;
+    <button class="dock-action glass spring-control" type="button" data-action="open-launcher" aria-label="새로 만들기">${icon('plus')}</button>`;
   }
   const selected = currentPage === 'task' ? 'works' : currentPage;
   dock.dataset.view = selected;
@@ -151,6 +170,7 @@ function selectTask(id) {
 function route({ focus = false } = {}) {
   const [slug, id] = location.hash.slice(1).split('/');
   const previousPage = currentPage;
+  cancelVoiceInput();
   currentPage = Object.hasOwn(pages, slug) ? slug : 'today';
   try { pageTaskId = currentPage === 'task' && id ? decodeURIComponent(id) : null; }
   catch { pageTaskId = null; }
@@ -163,9 +183,20 @@ function route({ focus = false } = {}) {
     if (currentPage !== 'chat') window.scrollTo(0, 0);
   }
   if (currentPage === 'chat') scrollThread();
-  else if (previousPage !== currentPage) {
-    const order = Object.keys(pages);
-    playView(main.firstElementChild, order.indexOf(currentPage) >= order.indexOf(previousPage) ? 1 : -1);
+  const transition = sharedRoute;
+  sharedRoute = null;
+  const arriving = transition?.page === currentPage;
+  const target = arriving && (currentPage === 'chat'
+    ? main.querySelector('.thread-performer .mori-avatar')
+    : main.querySelector('.dash-spotlight .mori-avatar'));
+  if (target) {
+    revealShared(transition.snapshot, target, { reverse: currentPage === 'today' });
+  } else {
+    transition?.snapshot?.cancel();
+    if (previousPage !== currentPage && currentPage !== 'chat') {
+      const order = Object.keys(pages);
+      playView(main.firstElementChild, order.indexOf(currentPage) >= order.indexOf(previousPage) ? 1 : -1);
+    }
   }
   if (acceptedTaskId === pageTaskId && currentPage === 'task') {
     acceptedTaskId = null;
@@ -173,7 +204,7 @@ function route({ focus = false } = {}) {
   }
 }
 
-const threadView = { icon, esc, formatDay };
+const threadView = { icon, esc, formatDay, avatar: renderAvatar };
 
 function updateTranscript(log, markup) {
   const template = document.createElement('template');
@@ -198,7 +229,13 @@ function renderPage() {
     threadFooter.replaceChildren();
     delete threadFooter.dataset.key;
     if (currentPage === 'today') {
-      main.innerHTML = renderDashboard(state, { ...threadView, avatar: renderAvatar, todayLabel, workingIds: preparing });
+      main.innerHTML = renderDashboard(state, {
+        ...threadView, todayLabel, workingIds: preparing, agenda: scheduleItems(events, state.tasks, today, tools, today)
+      });
+    } else if (currentPage === 'schedule') {
+      main.innerHTML = renderSchedule({ ...threadView, events, tools, tasks: state.tasks, today, day: scheduleDay, mode: scheduleMode });
+    } else if (currentPage === 'tools') {
+      main.innerHTML = renderTools(tools, { ...threadView, notesHref: '#notes', scheduleHref: '#schedule' });
     } else if (currentPage === 'task') {
       const task = findTask(pageTaskId);
       main.innerHTML = task
@@ -240,6 +277,9 @@ function openThread(id) {
   if (!findTask(id)) return;
   selectTask(id);
   if (currentPage !== 'chat') {
+    const source = main.querySelector('.dash-spotlight:has([data-id="' + CSS.escape(id) + '"]) .mori-avatar')
+      ?? main.querySelector('.task-current .mori-avatar');
+    if (source) sharedRoute = { page: 'chat', snapshot: captureShared(source) };
     location.hash = 'chat';
     return;
   }
@@ -252,8 +292,9 @@ function openThread(id) {
 function openTask(id) {
   if (!findTask(id)) return;
   backRoutes.task = location.hash || '#today';
-  if (dialog.open) dialog.close();
-  location.hash = 'task/' + encodeURIComponent(id);
+  const navigate = () => { location.hash = 'task/' + encodeURIComponent(id); };
+  if (dialog.open) dismissSheet(0, navigate);
+  else navigate();
 }
 
 function updateComposer(input) {
@@ -261,6 +302,7 @@ function updateComposer(input) {
 }
 
 function updateHomeTask(task) {
+  cancelVoiceInput();
   selectTask(task.id);
   replyDrafts.delete(task.id);
   const input = threadFooter.querySelector('#thread-input');
@@ -271,11 +313,13 @@ function updateHomeTask(task) {
   }
   updateTask(task);
   const hasFile = task.status === 'ready';
-  const last = [...main.querySelectorAll('.thread-turn')].at(-1);
+  const performer = main.querySelector('.thread-performer');
+  const last = performer ?? [...main.querySelectorAll('.thread-turn')].at(-1);
   const file = last?.querySelector('.thread-file');
   scrollThread();
   if (!previousFocus?.isConnected) (file ?? threadFooter.querySelector('#thread-input') ?? main).focus({ preventScroll: true });
-  playThreadReply(appBar.querySelector('.mori-figure'), last, hasFile);
+  if (hasFile) deliverFile(performer);
+  else playThreadReply(last);
 }
 
 function announce(message) {
@@ -284,7 +328,6 @@ function announce(message) {
   toast.classList.add('shown');
   toastTimer = setTimeout(() => {
     toast.classList.remove('shown');
-    toast.textContent = '';
   }, 2800);
 }
 
@@ -300,8 +343,92 @@ function updateTask(task, message) {
   commit({ ...state, tasks: state.tasks.map(item => item.id === task.id ? task : item) }, message);
 }
 
+function renderLauncher() {
+  const shortcuts = [
+    ['new-task', 'mori', '일 맡기기'], ['new-event', 'calendar', '일정 추가'],
+    ['new-note', 'note', '메모'], ['open-tool', 'car', '주차 기록', 'parking'],
+    ['open-tool', 'bell', '알림', 'reminders'], ['open-tool', 'repeat', '반복 루틴', 'routines'],
+  ];
+  return `<div class="sheet-content launch-sheet">
+    <div class="sheet-header"><h2 id="sheet-title" tabindex="-1">새로 만들기</h2>
+      <button type="button" class="sheet-close" data-action="close-sheet" aria-label="닫기">${icon('close')}</button></div>
+    <div class="launch-actions">${shortcuts.map(([action, symbol, text, tool]) =>
+      `<button type="button" class="launch-option spring-control" data-action="${action}" ${tool ? 'data-tool="' + tool + '"' : ''}>
+        <span>${icon(symbol)}</span>${text}
+      </button>`).join('')}</div>
+  </div>`;
+}
+
+function renderDeleteEvent(event) {
+  return `<div class="sheet-content">
+    <div class="sheet-header"><h2 id="sheet-title" tabindex="-1">일정을 지울까요?</h2>
+      <button type="button" class="sheet-close" data-action="close-sheet" aria-label="닫기">${icon('close')}</button></div>
+    <p class="sheet-brief">${esc(event.title)}</p>
+    <div class="sheet-actions">
+      <button type="button" class="sheet-secondary" data-action="open-event" data-id="${esc(event.id)}">취소</button>
+      <button type="button" class="sheet-primary destructive-control" data-action="confirm-delete-event" data-id="${esc(event.id)}">일정 삭제</button>
+    </div>
+  </div>`;
+}
+
+function formError(form, message) {
+  let error = form.querySelector('.form-error, [data-tool-error]');
+  if (!error) {
+    error = document.createElement('p');
+    error.className = 'form-error';
+    error.setAttribute('role', 'alert');
+    form.append(error);
+  }
+  error.hidden = false;
+  error.textContent = message;
+}
+
+function updateSchedule(next, message) {
+  events = next;
+  const saved = saveSchedule(storage, events);
+  renderPage();
+  announce(saved ? message : '이 화면에 반영했어요. 브라우저에는 저장할 수 없어요.');
+}
+
+function updateTools(next, message, { preserveDraft = false } = {}) {
+  tools = next;
+  const saved = saveTools(storage, tools);
+  if (['today', 'schedule', 'tools'].includes(currentPage)) renderPage();
+  if (dialog.open && sheet?.kind === 'tool') {
+    const before = dialog.querySelector('form[data-form="mori-tool"]');
+    const draft = preserveDraft && before ? new FormData(before) : null;
+    const active = document.activeElement;
+    const { action, command, id } = active?.dataset ?? {};
+    renderDialog();
+    const after = dialog.querySelector('form[data-form="mori-tool"]');
+    if (draft && after?.dataset.tool === before.dataset.tool) {
+      for (const [name, value] of draft) {
+        const field = after.elements.namedItem(name);
+        if (field instanceof HTMLElement) field.value = value;
+      }
+    }
+    const replacement = [...dialog.querySelectorAll('[data-action]')].find(button =>
+      button.dataset.action === action && button.dataset.command === command && button.dataset.id === id
+    );
+    (replacement ?? dialog.querySelector('#sheet-title'))?.focus({ preventScroll: true });
+  }
+  if (message || !saved) announce(saved ? message : '이 화면에 반영했어요. 브라우저에는 저장할 수 없어요.');
+}
+
 function renderDialog() {
-  if (sheet.kind === 'activity') {
+  if (sheet.kind === 'launcher') {
+    dialog.innerHTML = renderLauncher();
+  } else if (sheet.kind === 'event') {
+    dialog.innerHTML = renderCalendarSheet({
+      ...threadView, event: events.find(event => event.id === sheet.id), day: sheet.day || scheduleDay, editing: sheet.editing
+    });
+  } else if (sheet.kind === 'delete-event') {
+    const record = events.find(event => event.id === sheet.id);
+    if (record) dialog.innerHTML = renderDeleteEvent(record);
+  } else if (sheet.kind === 'tool') {
+    dialog.innerHTML = renderToolSheet(sheet.tool, tools, threadView);
+    updateToolCountdowns(dialog);
+  } else if (sheet.kind === 'activity') {
     const task = findTask(sheet.id);
     dialog.innerHTML = renderActivity(task, moodOf(task), threadView);
   } else if (sheet.kind === 'file') {
@@ -319,7 +446,7 @@ function renderDialog() {
   } else {
     dialog.innerHTML = `<header class="sheet-header"><button class="sheet-close" type="button" data-action="close-sheet" aria-label="닫기">${icon('close')}</button></header>
       <div class="reset-sheet"><h2 id="sheet-title" tabindex="-1">예시로 되돌릴까요?</h2>
-      <p>이 브라우저에서 추가한 부탁과 기록을 지우고 처음 예시를 다시 엽니다.</p>
+      <p>이 브라우저에서 추가한 부탁, 일정, 기록과 기능 설정을 지우고 처음 예시를 다시 엽니다.</p>
       <div class="sheet-actions"><button type="button" data-action="close-sheet" class="sheet-secondary">취소</button>
       <button type="button" data-action="confirm-reset" class="sheet-primary">되돌리기</button></div></div>`;
   }
@@ -327,32 +454,39 @@ function renderDialog() {
 }
 
 function showSheet(next, trigger = document.activeElement) {
-  sheetExit?.cancel();
+  const reopening = Boolean(sheetExit);
   sheetExit = null;
-  if (!dialog.open) {
-    returnFocus = trigger instanceof HTMLElement ? { element: trigger, id: trigger.dataset.id, action: trigger.dataset.action } : null;
+  const first = !dialog.open;
+  if (first) {
+    returnFocus = trigger instanceof HTMLElement ? {
+      element: trigger, id: trigger.dataset.id, action: trigger.dataset.action, tool: trigger.dataset.tool
+    } : null;
   }
   sheet = next;
   dialog.dataset.kind = next.kind;
   renderDialog();
-  if (!dialog.open) dialog.showModal();
+  if (first) dialog.showModal();
+  if (first || reopening) {
+    animateSheet(dialog, { opening: true });
+  } else {
+    playView(dialog.querySelector('.sheet-content') ?? dialog.firstElementChild, 1);
+  }
   document.body.classList.add('sheet-open');
   dialog.scrollTop = 0;
   dialog.querySelector('#sheet-title')?.focus({ preventScroll: true });
 }
 
-function dismissSheet(offset = 0) {
-  if (!dialog.open || sheetExit) return;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    dialog.close();
-    return;
-  }
-  const motion = dialog.animate([
-    { translate: '0 ' + offset + 'px', opacity: 1 },
-    { translate: '0 ' + Math.max(offset + 55, 64) + 'px', opacity: 0 }
-  ], { duration: 190, fill: 'forwards', easing: 'cubic-bezier(.3,.05,.65,.25)' });
+function dismissSheet(offset = 0, after) {
+  if (!dialog.open) { after?.(); return; }
+  if (sheetExit) return;
+  const motion = animateSheet(dialog, { opening: false, offset });
+  if (!motion) { dialog.close(); after?.(); return; }
   sheetExit = motion;
-  motion.finished.then(() => { if (sheetExit === motion) dialog.close(); }, () => {});
+  motion.finished.then(() => {
+    if (sheetExit !== motion) return;
+    dialog.close();
+    after?.();
+  }, () => {});
 }
 
 function focusInDialog(selector = '#sheet-title') {
@@ -388,6 +522,73 @@ document.addEventListener('click', event => {
   if (!button) return;
   const { action, id, mode } = button.dataset;
   switch (action) {
+    case 'open-launcher':
+      showSheet({ kind: 'launcher' }, button);
+      break;
+    case 'voice-input':
+      toggleVoiceInput(button, threadFooter.querySelector('#thread-input'), announce);
+      break;
+    case 'today-schedule': {
+      const direction = today < scheduleDay ? -1 : 1;
+      scheduleDay = today;
+      renderPage();
+      main.querySelector('[data-action="today-schedule"]')?.focus({ preventScroll: true });
+      playView(main.querySelector('.schedule-agenda'), direction);
+      break;
+    }
+    case 'schedule-day': {
+      const direction = button.dataset.day < scheduleDay ? -1 : 1;
+      if (scheduleDay === button.dataset.day) break;
+      scheduleDay = button.dataset.day;
+      setFilter(scheduleDay, 'schedule-day', 'day');
+      playView(main.querySelector('.schedule-agenda'), direction);
+      break;
+    }
+    case 'schedule-step': {
+      const direction = Number(button.dataset.direction);
+      if (direction !== 1 && direction !== -1) break;
+      scheduleDay = shiftScheduleDay(scheduleDay, scheduleMode, direction);
+      setFilter(button.dataset.direction, 'schedule-step', 'direction');
+      playView(main.querySelector('.schedule-grid'), direction);
+      playView(main.querySelector('.schedule-agenda'), direction);
+      break;
+    }
+    case 'schedule-mode':
+      if ((mode === 'week' || mode === 'month') && mode !== scheduleMode) {
+        scheduleMode = mode;
+        setFilter(mode, 'schedule-mode', 'mode');
+        playView(main.querySelector('.schedule-grid'), mode === 'month' ? 1 : -1);
+      }
+      break;
+    case 'new-event':
+      showSheet({ kind: 'event', day: currentPage === 'schedule' ? scheduleDay : today, editing: true }, button);
+      break;
+    case 'open-event':
+    case 'edit-event':
+    case 'delete-event': {
+      if (!events.some(event => event.id === id)) break;
+      showSheet({ kind: action === 'delete-event' ? 'delete-event' : 'event', id, editing: action === 'edit-event' }, button);
+      break;
+    }
+    case 'confirm-delete-event':
+      if (events.some(event => event.id === id)) {
+        updateSchedule(events.filter(event => event.id !== id), '일정을 지웠어요.');
+        dismissSheet();
+      }
+      break;
+    case 'open-tool':
+      showSheet({ kind: 'tool', tool: button.dataset.tool }, button);
+      break;
+    case 'tool-action': {
+      const command = button.dataset.command;
+      const result = applyToolAction(command, tools, id);
+      if (result?.state) {
+        if (command === 'reminder-delete') sheet.tool = 'reminders';
+        if (command === 'routine-delete') sheet.tool = 'routines';
+        updateTools(result.state, result.message, { preserveDraft: command !== 'parking-clear' });
+      } else if (result?.error) announce(result.error);
+      break;
+    }
     case 'new-task':
       showSheet({ kind: 'compose', mode: 'task' }, button);
       break;
@@ -465,8 +666,13 @@ document.addEventListener('click', event => {
       for (const timer of preparing.values()) clearTimeout(timer);
       preparing.clear();
       replyDrafts.clear();
+      events = loadSchedule(null, today);
+      tools = loadTools(null);
+      saveSchedule(storage, events);
+      saveTools(storage, tools);
+      scheduleDay = today;
       commit(createDemoState(), '처음 예시를 다시 불러왔어요.');
-      dialog.close();
+      dismissSheet();
       break;
   }
 });
@@ -483,7 +689,7 @@ function prepareResult(task, { submittedReply = false } = {}) {
     if (currentPage === 'chat' && homeTask()?.id === task.id) updateHomeTask(result);
     else updateTask(result, '결과 파일을 준비했어요.');
     if (dialog.open && sheet?.kind === 'activity') renderDialog();
-  }, reduce ? 0 : 560);
+  }, reduce ? 0 : 910);
   preparing.set(task.id, timer);
   if (submittedReply && wasChat) updateHomeTask(task);
   else if (submittedReply) updateTask(task);
@@ -509,9 +715,22 @@ document.addEventListener('submit', event => {
   const form = event.target;
   if (!(form instanceof HTMLFormElement) || !form.dataset.form) return;
   event.preventDefault();
+  if (sheetExit && dialog.contains(form)) return;
   const fields = new FormData(form);
   const value = name => String(fields.get(name) ?? '').trim();
-  if (form.dataset.form === 'thread-message') {
+  if (form.dataset.form === 'calendar-event') {
+    const existing = events.find(event => event.id === form.dataset.id);
+    const next = eventFromFields(fields, existing);
+    if (next.error) { formError(form, next.error); return; }
+    scheduleDay = next.date;
+    updateSchedule(existing ? events.map(event => event.id === existing.id ? next : event) : [...events, next],
+      existing ? '일정을 수정했어요.' : '일정을 추가했어요.');
+    dismissSheet(0, () => { if (currentPage !== 'schedule') location.hash = 'schedule'; });
+  } else if (form.dataset.form === 'mori-tool') {
+    const result = applyToolForm(form.dataset.tool, tools, fields);
+    if (result?.error) { formError(form, result.error); return; }
+    if (result?.state) updateTools(result.state, result.message);
+  } else if (form.dataset.form === 'thread-message') {
     const message = value('message');
     const task = findTask(form.dataset.id);
     if (!message || !task || preparing.has(task.id)) return;
@@ -522,14 +741,13 @@ document.addEventListener('submit', event => {
     const task = createTask({ title: value('title'), brief: value('brief'), due: value('due') });
     selectTask(task.id);
     commit({ ...state, tasks: [task, ...state.tasks] }, '모리가 새 부탁을 맡았어요.');
-    dialog.close();
     acceptedTaskId = task.id;
-    openTask(task.id);
+    dismissSheet(0, () => openTask(task.id));
   } else if (form.dataset.form === 'note' && value('text')) {
     const task = findTask(value('taskId'));
     if (task) updateTask(addObservation(task, value('text')), '맡긴 일에 기록을 더했어요.');
     else commit({ ...state, notes: [createNote(value('text')), ...state.notes] }, '기록을 남겼어요.');
-    dialog.close();
+    dismissSheet();
   }
 });
 
@@ -585,8 +803,8 @@ dialog.addEventListener('close', () => {
   sheet = null;
   const trigger = returnFocus;
   returnFocus = null;
-  const replacement = trigger?.action && document.querySelector(
-    `[data-action="${CSS.escape(trigger.action)}"]${trigger.id ? '[data-id="' + CSS.escape(trigger.id) + '"]' : ''}`
+  const replacement = trigger?.action && [...document.querySelectorAll('[data-action]')].find(button =>
+    button.dataset.action === trigger.action && button.dataset.id === trigger.id && button.dataset.tool === trigger.tool
   );
   (trigger?.element.isConnected ? trigger.element : replacement || main).focus({ preventScroll: true });
 });
@@ -599,7 +817,20 @@ document.addEventListener('keydown', event => {
 });
 
 document.addEventListener('click', event => {
-  if (event.target.closest('a[href="#settings"]')) backRoutes.settings = location.hash || '#today';
+  const settings = event.target.closest('a[href="#settings"]');
+  const toolsLink = event.target.closest('a[href="#tools"]');
+  if (settings) backRoutes.settings = location.hash || '#today';
+  if (toolsLink) backRoutes.tools = location.hash || '#today';
+  if (currentPage === 'chat' && event.target.closest('a[href="#today"]')) {
+    const spotlight = state.tasks.find(task => task.status === 'waiting')
+      ?? state.tasks.find(task => task.status !== 'ready');
+    const source = main.querySelector('.thread-performer .mori-avatar');
+    if (source && spotlight?.id === homeTask()?.id) sharedRoute = { page: 'today', snapshot: captureShared(source) };
+  } else if (currentPage === 'today' && event.target.closest('a[href="#chat"]')) {
+    const id = homeTask()?.id;
+    const source = id && main.querySelector('.dash-spotlight:has([data-id="' + CSS.escape(id) + '"]) .mori-avatar');
+    if (source) sharedRoute = { page: 'chat', snapshot: captureShared(source) };
+  }
 });
 
 window.addEventListener('hashchange', () => {
@@ -620,5 +851,8 @@ document.addEventListener('focusin', updateKeyboard);
 document.addEventListener('focusout', () => requestAnimationFrame(updateKeyboard));
 media.addEventListener('change', updateTheme);
 bindTouchFeedback(document);
+setInterval(() => {
+  if (currentPage === 'tools' || dialog.open && sheet?.kind === 'tool') updateToolCountdowns(document);
+}, 1000);
 updateTheme();
 route();

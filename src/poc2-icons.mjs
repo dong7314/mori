@@ -1,4 +1,13 @@
 const paths = {
+  grid: '<rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/>',
+  bell: '<path d="M5 17h14l-1.5-2.5V10a5.5 5.5 0 0 0-11 0v4.5L5 17Zm4.5 2.5a2.8 2.8 0 0 0 5 0"/>',
+  repeat: '<path d="M17 4l3 3-3 3m3-3H8a4 4 0 0 0-4 4m3 9-3-3 3-3m-3 3h12a4 4 0 0 0 4-4"/>',
+  news: '<path d="M6 5h13v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8m5 1h7m-7 4h7m-7 4h4"/>',
+  chart: '<path d="M5 5v14h14M8 15l3-4 3 2 4-6"/>',
+  chevronLeft: '<path d="m14 6-6 6 6 6"/>',
+  chevronRight: '<path d="m10 6 6 6-6 6"/>',
+  pin: '<path d="M12 21s6-5.9 6-11a6 6 0 0 0-12 0c0 5.1 6 11 6 11Z"/><circle cx="12" cy="10" r="2"/>',
+  trash: '<path d="M5 7h14M9 7V4h6v3m2 0-1 13H8L7 7m3 4v5m4-5v5"/>',
   mori: '<path d="M7 20h10a4 4 0 0 0 4-4 8 8 0 0 0-8-8h-2a8 8 0 0 0-8 8 4 4 0 0 0 4 4Zm5-12c0-3 1.5-5 4-5 0 2.5-1.5 4-4 5Zm-3 5.5v1m6-1v1m-4 1.5c.5.65 1.5.65 2 0"/>',
   'arrow-up': '<path d="M12 19V5m-5 5 5-5 5 5"/>',
   compose: '<path d="M13 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6m-9 4 1-3 7-7a1.4 1.4 0 0 1 2 2l-7 7-3 1Z"/>',

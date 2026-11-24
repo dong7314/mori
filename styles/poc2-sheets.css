@@ -745,3 +745,28 @@
   }
   .mori-sheet[open].is-dragging { translate: 0 var(--sheet-offset, 0px); }
 }
+
+.mori-sheet .launch-sheet h2 { font-size: var(--type-headline); font-weight: 650; }
+.mori-sheet .launch-actions {
+  display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 12px;
+  margin-top: 10px;
+}
+.mori-sheet .launch-option {
+  display: flex; align-items: center; min-width: 0; gap: 9px; min-height: 57px;
+  padding: 4px; border: 0; border-block-end: 1px solid var(--line);
+  background: transparent; text-align: left; font-size: var(--type-callout);
+}
+.mori-sheet .launch-option span {
+  flex: none; width: 36px; height: 36px; display: grid; place-items: center;
+  color: var(--accent); background: var(--wash); border-radius: 11px;
+}
+.mori-sheet .launch-option svg { width: 19px; height: 19px; }
+.mori-sheet .destructive-control { margin-block-start: 8px; background: #a34343; color: #fff; }
+.mori-sheet .form-error { color: #9b3939; font-size: var(--type-caption); }
+:root[data-theme='dark'] .mori-sheet .form-error { color: #ffb5b5; }
+
+.mori-sheet .sheet-document-intro {
+  display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: 12px;
+}
+.mori-sheet .sheet-document-intro .sheet-intro { gap: 3px; }
+.mori-sheet .sheet-document-intro h2 { font-size: var(--type-headline); line-height: 1.26; }

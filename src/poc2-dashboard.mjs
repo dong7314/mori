@@ -67,7 +67,27 @@ function renderGroup(id, label, tasks, options) {
   `;
 }
 
-export function renderDashboard(state, { icon, esc, formatDay, avatar, todayLabel, workingIds = new Set() }) {
+function renderAgenda(items, view) {
+  const { icon, esc } = view;
+  return `<section class="dash-group dash-agenda" aria-labelledby="dash-agenda-title">
+    <div class="dash-group-heading"><h2 id="dash-agenda-title">오늘 일정</h2>
+      <a class="dash-all spring-control" href="#schedule">일정 보기${icon('chevron')}</a></div>
+    ${items.length ? `<ul class="dash-rows">
+      ${items.slice(0, 3).map(item => {
+        const action = item.type === 'task' ? 'open-task' : item.type === 'tool' ? 'open-tool' : 'open-event';
+        const detail = item.type === 'tool' ? item.detail : item.place;
+        return `<li class="dash-row">
+          <button class="dash-row-main dash-time-row spring-control" type="button" data-action="${action}" data-id="${esc(item.id)}"${item.type === 'tool' ? ` data-tool="${esc(item.tool)}"` : ''}>
+            <span class="dash-agenda-time">${esc(item.time || (item.type === 'task' ? '마감' : '종일'))}</span>
+            <span class="dash-row-copy"><strong>${esc(item.title)}</strong>${detail ? `<span>${esc(detail)}</span>` : ''}</span>
+            <span class="dash-row-arrow">${icon('chevron')}</span>
+          </button></li>`;
+      }).join('')}</ul>`
+      : `<div class="dash-no-events"><span>오늘 잡힌 일정이 없어요</span><button type="button" class="dash-all spring-control" data-action="new-event">${icon('plus')}일정 추가</button></div>`}
+  </section>`;
+}
+
+export function renderDashboard(state, { icon, esc, formatDay, avatar, todayLabel, workingIds = new Set(), agenda = [] }) {
   const options = { icon, esc, formatDay, avatar, workingIds };
   const active = state.tasks.filter(task => task.status !== 'ready');
   const spotlight = active.find(task => task.status === 'waiting') ?? active[0];
@@ -83,6 +103,7 @@ export function renderDashboard(state, { icon, esc, formatDay, avatar, todayLabe
         <h1 id="dashboard-title" tabindex="-1">오늘</h1>
       </header>
       ${renderSpotlight(spotlight, options)}
+      ${renderAgenda(agenda, options)}
       ${renderGroup('dash-active', '진행 중', otherActive, options)}
       ${renderGroup('dash-recent', '최근 결과', recent, options)}
     </div>
@@ -141,6 +162,7 @@ function taskActions(task, { icon, esc, working }) {
   }
   return `
     <button type="button" class="task-action-primary spring-control" data-action="new-note" data-id="${id}">${icon('plus')}<span>기록 남기기</span></button>
+    <button type="button" class="task-action-secondary spring-control" data-action="open-thread" data-id="${id}">대화 보기</button>
     ${task.observations.length ? `<button type="button" class="task-action-secondary spring-control" data-action="home-finish" data-id="${id}">결과 만들기</button>` : ''}
   `;
 }
@@ -155,7 +177,7 @@ export function renderTaskPage(task, { icon, esc, formatDay, avatar, working = f
         ${task.brief ? `<p class="task-brief">${esc(task.brief)}</p>` : ''}
       </header>
       <section class="task-current" aria-label="진행 상황" data-status="${esc(task.status)}">
-        <div class="task-current-avatar" aria-hidden="true">${avatar(viewStatus)}</div>
+        <div class="task-current-avatar" aria-hidden="true">${avatar(viewStatus, { large: true })}</div>
         <div class="task-current-copy">
           <h2>${working ? '모리가 기록을 정리하는 중이에요' : soundStatus[task.status]}</h2>
           ${task.status === 'waiting' && task.question ? `<p>${esc(task.question)}</p>` : ''}

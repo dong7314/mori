@@ -1,4 +1,5 @@
 const portrait = '/assets/mori-poc2.webp';
+const atlas = '/assets/mori-poc2-poses.webp';
 
 export const avatarStatus = Object.freeze({
   idle: '맡길 일 기다리는 중',
@@ -11,7 +12,10 @@ export const avatarStatus = Object.freeze({
 export function renderAvatar(status, { large = false } = {}) {
   const mood = Object.hasOwn(avatarStatus, status) ? status : 'idle';
   return `<span class="mori-avatar${large ? ' mori-avatar-large' : ''}" data-mood="${mood}" aria-hidden="true">
-    <span class="mori-figure"><img src="${portrait}" alt="" width="112" height="112" draggable="false"></span>
+    <span class="mori-figure">
+      <img class="mori-original" src="${portrait}" alt="" width="112" height="112" draggable="false">
+      <span class="mori-pose-frame"><img class="mori-pose-atlas" src="${atlas}" alt="" width="960" height="960" draggable="false"></span>
+    </span>
     <span class="mori-desk"><i></i><i></i></span>
     <span class="mori-question">?</span>
     <span class="mori-complete">✓</span>

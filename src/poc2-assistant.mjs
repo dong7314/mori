@@ -11,6 +11,13 @@ function bubble(text, esc) {
   return `<p class="thread-bubble">${esc(text)}</p>`;
 }
 
+function performer(status, view, content, key = 'performer') {
+  return `<li class="thread-performer" data-mood="${status}" data-turn-key="${view.esc(key)}">
+    ${view.avatar(status, { large: true })}
+    <div class="thread-performer-copy">${content}</div>
+  </li>`;
+}
+
 function fileRow(task, { icon, esc }) {
   return `<button type="button" class="thread-file spring-control" data-action="open-file" data-id="${esc(task.id)}">
     <span class="thread-file-icon">${icon('file')}</span>
@@ -50,16 +57,20 @@ export function renderTurns(task, view) {
   }
 
   if (view.working) {
-    output.push(turn('working', 'mori', '<p class="thread-working"><span></span>기록을 한 파일로 정리하고 있어요.</p>', esc));
+    output.push(performer('working', view, '<p class="thread-working"><span></span>남긴 기록을 정리하고 있어요.</p>'));
   } else if (task.status === 'waiting') {
-    output.push(turn('question-' + questionNumber, 'mori', bubble(task.question || '기록을 한 번 확인해 주세요.', esc), esc));
-    if (task.id === 'garage') {
-      output.push(`<li class="thread-option" data-turn-key="quick"><button type="button" class="thread-quick spring-control" data-action="home-quick-answer" data-id="${id}">네, 맞아요${icon('arrow-up')}</button></li>`);
-    }
+    const question = esc(task.question || '기록을 한 번 확인해 주세요.');
+    const confirm = task.id === 'garage'
+      ? `<button type="button" class="thread-quick spring-control" data-action="home-quick-answer" data-id="${id}">네, 맞아요${icon('check')}</button>`
+      : '';
+    output.push(performer('waiting', view, `<p class="thread-performer-question"><span class="sr-only">모리의 질문</span>${question}</p>` + confirm));
   } else if (task.status === 'ready') {
-    output.push(turn('file-' + task.completedAt, 'mori', bubble('남겨 주신 내용으로 파일을 만들었어요.', esc) + fileRow(task, view), esc));
-  } else if (task.observations.length) {
-    output.push(`<li class="thread-option" data-turn-key="make-file"><button type="button" class="thread-quick spring-control" data-action="home-finish" data-id="${id}">${icon('file')}기록 정리${icon('chevron')}</button></li>`);
+    output.push(performer('ready', view, '<p class="thread-performer-status">기록을 정리했어요</p>' + fileRow(task, view), 'file-' + task.completedAt));
+  } else {
+    const finish = task.observations.length
+      ? `<button type="button" class="thread-quick spring-control" data-action="home-finish" data-id="${id}">${icon('file')}기록 정리${icon('chevron')}</button>`
+      : '';
+    output.push(performer('collecting', view, '<p class="thread-performer-status">기록을 받아두고 있어요.</p>' + finish));
   }
   return output.join('');
 }
@@ -99,6 +110,7 @@ export function renderThreadComposer(task, { icon, esc, working }) {
   return `<form class="thread-composer" data-form="thread-message" data-id="${esc(task.id)}">
     <label class="sr-only" for="thread-input">모리에게 메시지 보내기</label>
     <textarea id="thread-input" name="message" rows="1" maxlength="1000" placeholder="${task.status === 'waiting' ? '모리에게 답하기' : '남겨둘 기록 쓰기'}" required></textarea>
+    <button type="button" class="thread-voice spring-control" data-action="voice-input" aria-label="음성 입력" aria-pressed="false">${icon('mic')}</button>
     <button class="thread-send spring-control" type="submit" aria-label="보내기" disabled>${icon('arrow-up')}</button>
   </form>`;
 }
@@ -107,10 +119,12 @@ export function renderResultSheet(task, { icon, esc, formatDay }) {
   return `<div class="sheet-content result-preview">
       <div class="sheet-header"><span class="sheet-kicker">받은 파일</span>
         <button class="sheet-close" type="button" data-action="close-sheet" aria-label="닫기">${icon('close')}</button></div>
-      <div class="sheet-intro">
+      <div class="sheet-document-intro">
         <span class="sheet-task-icon">${icon('file')}</span>
-        <h2 id="sheet-title" tabindex="-1">${esc(task.title)}</h2>
-        <p class="sheet-meta">텍스트 파일 · 기록 ${task.observations.length}개</p>
+        <div class="sheet-intro">
+          <h2 id="sheet-title" tabindex="-1">${esc(task.title)}</h2>
+          <p class="sheet-meta">텍스트 파일 · 기록 ${task.observations.length}개</p>
+        </div>
       </div>
       <ol class="result-observations">${task.observations.map(observation => `
         <li><time datetime="${esc(observation.at)}">${esc(formatDay(observation.at))}</time><p>${esc(observation.text)}</p></li>
