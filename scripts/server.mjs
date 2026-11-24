@@ -6,7 +6,7 @@ import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 const random = () => randomBytes(32).toString('base64url');
 const hash = value => createHash('sha256').update(value).digest('base64url');
 const equal = (a, b) => typeof a === 'string' && typeof b === 'string' && Buffer.byteLength(a) === Buffer.byteLength(b) && timingSafeEqual(Buffer.from(a), Buffer.from(b));
-const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.woff2': 'font/woff2' };
+const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.woff2': 'font/woff2' };
 const error = (status, code, message) => Object.assign(new Error(message), { status, code });
 const json = (res, status, data) => { res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); };
 const cookies = req => Object.fromEntries((req.headers.cookie || '').split(';').map(pair => { const index = pair.indexOf('='); return [pair.slice(0, index).trim(), pair.slice(index + 1).trim()]; }));
@@ -17,7 +17,7 @@ const body = async req => {
   try { return JSON.parse(data); } catch { throw error(400, 'INVALID_JSON', '입력 내용을 확인해 주세요.'); }
 };
 
-export function createServer({ root = resolve(import.meta.dirname, '..'), origin = 'http://localhost:4173', apiBaseUrl = 'http://localhost:8000', fetchImpl = fetch } = {}) {
+export function createServer({ root = resolve(import.meta.dirname, '..'), origin = 'http://localhost:4173', apiBaseUrl = 'http://localhost:8000', fetchImpl = fetch, poc2 = false } = {}) {
   const appUrl = new URL(origin), backend = new URL(apiBaseUrl);
   for (const url of [appUrl, backend]) {
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash || !['', '/'].includes(url.pathname)) throw new Error('Configure API and app origins without credentials, paths, queries or fragments');
@@ -147,7 +147,7 @@ export function createServer({ root = resolve(import.meta.dirname, '..'), origin
             } catch { result = 'failed'; }
           }
         }
-        res.writeHead(302, { Location: '/?login=' + result, 'Cache-Control': 'no-store' }); return res.end();
+        res.writeHead(302, { Location: (poc2 ? '/index.html' : '/') + '?login=' + result, 'Cache-Control': 'no-store' }); return res.end();
       }
       if (req.method === 'POST' && path === '/api/logout') {
         await body(req);
@@ -170,8 +170,8 @@ export function createServer({ root = resolve(import.meta.dirname, '..'), origin
       }
       if (path.startsWith('/api/') || !['GET', 'HEAD'].includes(req.method)) throw error(404, 'NOT_FOUND', '요청한 화면을 찾을 수 없어요.');
       const pathname = decodeURIComponent(path);
-      const allowed = pathname === '/' || pathname === '/index.html' || pathname === '/preview.html' || /^(\/src\/[^/]+\.(js|mjs)|\/styles\/main.css|\/assets\/(mori\.svg|fonts\/PretendardVariable\.woff2))$/.test(pathname);
-      const file = resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
+      const allowed = ['/', '/index.html', '/poc2.html', '/preview.html'].includes(pathname) || /^(\/src\/[^/]+\.(js|mjs)|\/styles\/(main|poc2|poc2-views|poc2-sheets)\.css|\/assets\/(mori\.svg|mori-poc2\.webp|fonts\/PretendardVariable\.woff2))$/.test(pathname);
+      const file = resolve(root, '.' + (pathname === '/' ? (poc2 ? '/poc2.html' : '/index.html') : pathname));
       if (!allowed || !file.startsWith(root + sep) || !(await stat(file).catch(() => null))?.isFile()) throw error(404, 'NOT_FOUND', '요청한 화면을 찾을 수 없어요.');
       res.writeHead(200, { 'Content-Type': types[extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
       res.end(req.method === 'HEAD' ? undefined : await readFile(file));

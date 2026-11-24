@@ -1,0 +1,724 @@
+.mori-sheet {
+  position: fixed;
+  inset: 16px 16px auto auto;
+  width: min(520px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 24px 84px rgb(17 32 23 / 22%);
+}
+
+.mori-sheet[open] {
+  animation: mori-sheet-in 350ms var(--spring, cubic-bezier(.17, .67, .23, 1)) both;
+}
+
+.mori-sheet::backdrop {
+  background: rgb(15 32 23 / 31%);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+  animation: mori-backdrop-in 200ms ease-out both;
+}
+
+@keyframes mori-sheet-in {
+  from { opacity: 0; transform: translateX(22px) scale(.985); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes mori-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mori-sheet .sheet-content,
+.mori-sheet .reset-sheet {
+  padding: 18px clamp(20px, 4.8vw, 32px) 30px;
+}
+
+.mori-sheet .sheet-header {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block-end: 15px;
+}
+
+.mori-sheet > .sheet-header {
+  justify-content: flex-end;
+  margin-block-end: 0;
+  padding: 16px clamp(20px, 4.8vw, 32px) 0;
+}
+
+.mori-sheet .sheet-kicker {
+  font-size: .8125rem;
+  font-weight: 650;
+  letter-spacing: -.015em;
+  color: var(--muted);
+}
+
+.mori-sheet .sheet-close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: var(--wash);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.mori-sheet .sheet-close svg {
+  width: 17px;
+  height: 17px;
+}
+
+.mori-sheet .sheet-intro {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+.mori-sheet :is(.sheet-intro h2, .reset-sheet h2) {
+  margin: 0;
+  font-size: clamp(1.75rem, 5vw, 2.125rem);
+  font-weight: 700;
+  letter-spacing: -.05em;
+  line-height: 1.13;
+  overflow-wrap: anywhere;
+}
+
+.mori-sheet .sheet-task-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-block-end: 5px;
+}
+
+.mori-sheet :is(.sheet-task-icon, .sheet-document-icon) {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mori-sheet :is(.sheet-task-icon, .sheet-document-icon) svg {
+  width: 21px;
+  height: 21px;
+}
+
+.mori-sheet .sheet-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: var(--wash);
+  color: var(--muted);
+  font-size: .75rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.mori-sheet .sheet-status::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mori-sheet .sheet-status[data-status="waiting"] {
+  --waiting-dot: #a5611d;
+  background: color-mix(in srgb, #c68e4a 15%, var(--panel));
+  color: var(--ink);
+}
+
+.mori-sheet .sheet-status[data-status="waiting"]::before {
+  background: var(--waiting-dot);
+}
+
+.mori-sheet .sheet-status[data-status="ready"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mori-sheet :is(.sheet-brief, .reset-sheet p) {
+  margin: 0;
+  color: var(--muted);
+  font-size: .9375rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.mori-sheet .sheet-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: .8125rem;
+  font-weight: 550;
+  line-height: 1.45;
+}
+
+.mori-sheet .sheet-meta svg {
+  width: 15px;
+  height: 15px;
+}
+
+.mori-sheet .stage-track {
+  --stage-mark-size: 28px;
+  --stage-line: color-mix(in srgb, var(--muted) 26%, var(--line));
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 22px 0;
+  padding: 13px 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: var(--wash);
+  list-style: none;
+}
+
+.mori-sheet .stage-step {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  align-items: start;
+  justify-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding-inline: 3px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.mori-sheet .stage-step:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  inset-block-start: calc(var(--stage-mark-size) / 2);
+  inset-inline-start: calc(50% + var(--stage-mark-size) / 2 + 4px);
+  width: calc(100% - var(--stage-mark-size) - 8px);
+  border-block-start: 1px solid var(--stage-line, var(--line));
+}
+
+.mori-sheet .stage-step[data-state="done"]::after {
+  border-color: var(--accent);
+}
+
+.mori-sheet .stage-mark {
+  display: grid;
+  place-items: center;
+  width: var(--stage-mark-size);
+  height: var(--stage-mark-size);
+  border: 1px solid var(--stage-line, var(--line));
+  border-radius: 50%;
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.mori-sheet .stage-mark > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mori-sheet .stage-mark > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.mori-sheet .stage-step[data-state="done"] .stage-mark {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mori-sheet .stage-step[data-state="current"] {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.mori-sheet .stage-step[data-state="current"] .stage-mark {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.mori-sheet .stage-label {
+  font-size: .75rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.mori-sheet .sheet-question {
+  padding: clamp(14px, 3.5vw, 20px);
+  border: 1px solid var(--line);
+  border-radius: 19px;
+  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent-soft) 62%, var(--panel));
+}
+
+.mori-sheet .sheet-question-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 7px;
+  color: var(--accent);
+  font-size: .8125rem;
+  font-weight: 700;
+}
+
+.mori-sheet .sheet-question-label svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mori-sheet .sheet-question h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.1875rem;
+  font-weight: 700;
+  line-height: 1.38;
+  letter-spacing: -.035em;
+  overflow-wrap: anywhere;
+}
+
+.mori-sheet :is(.sheet-primary, .sheet-secondary) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-size: .875rem;
+  font-weight: 650;
+  line-height: 1.35;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mori-sheet :is(.sheet-primary, .sheet-secondary, .sheet-switch button) svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.mori-sheet .sheet-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.mori-sheet .sheet-secondary {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.mori-sheet .sheet-quick-answer {
+  justify-content: flex-start;
+  margin-block-start: 13px;
+  text-align: start;
+}
+
+.mori-sheet .sheet-quick-answer svg {
+  color: var(--accent);
+}
+
+.mori-sheet .sheet-form {
+  display: grid;
+  gap: 13px;
+  margin: 0;
+}
+
+.mori-sheet .sheet-answer-form {
+  gap: 6px;
+  margin-block-start: 12px;
+}
+
+.mori-sheet .sheet-inline-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 7px;
+}
+
+.mori-sheet .sheet-answer-submit {
+  padding: 0;
+}
+
+.mori-sheet .field-group {
+  display: grid;
+  gap: 6px;
+}
+
+.mori-sheet .field-label {
+  display: block;
+  color: var(--ink);
+  font-size: .8125rem;
+  font-weight: 650;
+}
+
+.mori-sheet .field-optional {
+  margin-inline-start: 3px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.mori-sheet .field-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 46px;
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--muted) 19%, var(--line));
+  border-radius: 11px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.mori-sheet textarea.field-input {
+  min-height: 74px;
+  max-height: 280px;
+  resize: vertical;
+}
+
+.mori-sheet .field-input::placeholder {
+  color: var(--subtle);
+  opacity: 1;
+}
+
+.mori-sheet .field-input:-webkit-autofill {
+  -webkit-text-fill-color: var(--ink);
+  -webkit-box-shadow: 0 0 0 50px var(--panel) inset;
+}
+
+.mori-sheet .sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mori-sheet .sheet-observations {
+  margin-block: 21px 0;
+}
+
+.mori-sheet :is(.sheet-observations h3, .sheet-document h3) {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -.025em;
+  overflow-wrap: anywhere;
+}
+
+.mori-sheet .sheet-count {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-size: .8125rem;
+}
+
+.mori-sheet .sheet-observation-list {
+  margin: 5px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mori-sheet .sheet-observation-item {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  gap: 9px;
+  padding: 10px 0;
+}
+
+.mori-sheet .sheet-observation-item + .sheet-observation-item {
+  border-block-start: 1px solid var(--line);
+}
+
+.mori-sheet .sheet-observation-mark {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--wash);
+  color: var(--accent);
+}
+
+.mori-sheet .sheet-observation-mark svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mori-sheet .sheet-observation-item p {
+  margin: 0 0 3px;
+  font-size: .875rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.mori-sheet .sheet-observation-item time {
+  color: var(--muted);
+  font-size: .75rem;
+  line-height: 1.35;
+}
+
+.mori-sheet .sheet-empty {
+  margin: 8px 0 12px;
+  color: var(--muted);
+  font-size: .875rem;
+  line-height: 1.45;
+}
+
+.mori-sheet .sheet-observation-form {
+  gap: 7px;
+  margin-block-start: 10px;
+}
+
+.mori-sheet .sheet-details {
+  margin-block-start: 5px;
+  border-block-start: 1px solid var(--line);
+}
+
+.mori-sheet .sheet-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  min-height: 44px;
+  color: var(--accent);
+  font-size: .8125rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.mori-sheet .sheet-summary::-webkit-details-marker {
+  display: none;
+}
+
+.mori-sheet .sheet-summary svg {
+  width: 16px;
+  height: 16px;
+}
+
+.mori-sheet .sheet-summary svg:last-child {
+  margin-inline-start: auto;
+  transition: transform 180ms ease;
+}
+
+.mori-sheet .sheet-details[open] .sheet-summary svg:last-child {
+  transform: rotate(90deg);
+}
+
+.mori-sheet .sheet-details .sheet-observation-form {
+  margin-block-start: 0;
+}
+
+.mori-sheet .sheet-finish-actions {
+  margin-block-start: 16px;
+}
+
+.mori-sheet :is(.sheet-compose-form, .sheet-finish-actions) .sheet-primary,
+.mori-sheet .sheet-download {
+  width: 100%;
+  min-height: 48px;
+}
+
+.mori-sheet .sheet-document {
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--wash);
+}
+
+.mori-sheet .sheet-document-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.mori-sheet .sheet-document-header p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: .8125rem;
+  line-height: 1.35;
+}
+
+.mori-sheet .sheet-document-preview {
+  margin-block: 12px;
+  padding-inline: 11px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+}
+
+.mori-sheet .sheet-document-preview .sheet-observation-list {
+  margin: 0;
+}
+
+.mori-sheet .sheet-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-block: 16px 18px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--wash);
+}
+
+.mori-sheet .sheet-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 7px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: .875rem;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.mori-sheet .sheet-switch button[aria-pressed="true"] {
+  border-color: var(--line);
+  background: var(--panel);
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgb(17 32 23 / 8%);
+}
+
+.mori-sheet > .reset-sheet {
+  padding-block-start: 8px;
+}
+
+.mori-sheet .reset-sheet p {
+  margin-block: 10px 20px;
+}
+
+.mori-sheet :is(button, input, textarea, select, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mori-sheet button {
+  transition: background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+@media (hover: hover) {
+  .mori-sheet :is(.sheet-close, .sheet-secondary):hover {
+    border-color: var(--accent);
+  }
+
+  .mori-sheet .sheet-primary:hover {
+    background-color: color-mix(in srgb, var(--accent) 88%, var(--ink));
+  }
+}
+
+.mori-sheet button:active {
+  transform: scale(.97);
+}
+
+@media (max-width: 640px) {
+  .mori-sheet {
+    inset: auto 0 0;
+    width: 100%;
+    max-height: 90vh;
+    max-height: min(92dvh, calc(100dvh - env(safe-area-inset-top, 0px) - 12px));
+    border-block-end: 0;
+    border-radius: 27px 27px 0 0;
+  }
+
+  .mori-sheet[open] {
+    animation-name: mori-sheet-up;
+  }
+
+  .mori-sheet :is(.sheet-content, .reset-sheet) {
+    padding: 12px clamp(16px, 5.5vw, 24px) calc(22px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mori-sheet .sheet-header {
+    margin-block-end: 9px;
+  }
+
+  .mori-sheet .stage-track {
+    margin-block: 18px;
+  }
+}
+
+@keyframes mori-sheet-up {
+  from { opacity: 0; transform: translateY(36px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mori-sheet[open],
+  .mori-sheet::backdrop {
+    animation: none;
+  }
+
+  .mori-sheet button,
+  .mori-sheet .sheet-summary svg:last-child {
+    transition: none;
+  }
+
+  .mori-sheet button:active {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .mori-sheet::backdrop {
+    background: rgb(15 32 23 / 58%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+.sheet-grabber { display: none; }
+@media (max-width: 640px) {
+  .mori-sheet .sheet-grabber {
+    position: relative; z-index: 1; display: grid; place-items: center; min-height: 23px; margin-bottom: -11px;
+    cursor: grab; touch-action: none;
+  }
+  .sheet-grabber > span { width: 33px; height: 4px; border-radius: 4px; background: var(--line); }
+  .mori-sheet[open].is-dragging { animation: none; transform: translateY(var(--sheet-offset, 0px)); }
+}

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f7f7f4">
+  <meta name="description" content="맡긴 일과 필요한 기록을 한자리에 모으는 개인 비서 모리.">
+  <title>모리 · 오늘</title>
+  <link rel="icon" href="/assets/mori.svg" type="image/svg+xml">
+  <link rel="preload" href="/assets/fonts/PretendardVariable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/assets/mori-poc2.webp" as="image">
+  <link rel="stylesheet" href="/styles/poc2.css">
+  <link rel="stylesheet" href="/styles/poc2-views.css">
+  <link rel="stylesheet" href="/styles/poc2-sheets.css">
+  <script type="module" src="/src/poc2.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">본문으로 바로 가기</a>
+  <div class="layout">
+    <aside class="sidebar" aria-label="모리 메뉴"></aside>
+    <main id="content" class="workspace" tabindex="-1"></main>
+  </div>
+  <nav class="mobile-dock" aria-label="모바일 메뉴"></nav>
+  <dialog class="mori-sheet" id="mori-sheet" aria-labelledby="sheet-title"></dialog>
+  <div class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+  <noscript>모리를 이용하려면 JavaScript를 켜 주세요.</noscript>
+</body>
+</html>

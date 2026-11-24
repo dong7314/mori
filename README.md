@@ -1,5 +1,19 @@
 # 모리 — 내 곁의 작은 비서
 
+## poc2 체험
+
+```sh
+npm start
+```
+
+[새 화면 열기](http://localhost:4174/)에서 **답변하기 → 답변 선택 → 결과 만들기 → 파일 저장** 순서로 체험할 수 있습니다. **새 부탁**에서 일을 맡기거나 기록을 남겨 같은 과정을 반복할 수 있습니다.
+
+이 화면은 브라우저의 예시 데이터로 동작하며, 맡긴 일과 기록을 이 기기에 저장합니다. 라이트·다크 모드는 **설정**에서 선택할 수 있습니다.
+
+기존 화면은 [poc 체험](http://localhost:4174/index.html)에서 열 수 있습니다.
+
+## 기존 poc
+
 휴대폰과 태블릿을 중심으로 만든 개인 비서 앱 UI PoC입니다. PLAN의 생활 정보와 바로 실행 원칙을 바탕으로, 세이지·라벤더·크림 파스텔과 절제된 글라스 내비게이션을 적용했습니다. 오늘의 정보, 일정, 대화, 기능, 마이가 같은 글자·여백·그림자 체계를 사용합니다. 태블릿에서는 정보 카드를 두 열로 배치하고, 일정과 기록을 함께 확인합니다.
 
 [디자인 참고 자료와 검증 결과](docs/mobile-ui-redesign.md)
@@ -14,9 +28,9 @@ Node.js 22.9 이상. 빌드된 CSS가 포함되어 있습니다.
 npm start
 ```
 
-[앱 열기](http://localhost:4173) · localhost:4173 · 로컬 인터페이스에만 바인딩합니다.
+[기존 앱 열기](http://localhost:4174/index.html) · localhost:4174 · 로컬 인터페이스에만 바인딩합니다.
 
-[모바일·태블릿 나란히 보기](http://localhost:4173/preview.html)에서 실제 앱을 390×844 / 768×1024 크기로 조작할 수 있습니다. 모바일·태블릿·나란히·100% 크기를 선택할 수 있으며, 두 미리보기의 로컬 체험 기록은 실제 앱과 서로 분리됩니다.
+[모바일·태블릿 나란히 보기](http://localhost:4174/preview.html)에서 실제 앱을 390×844 / 768×1024 크기로 조작할 수 있습니다. 모바일·태블릿·나란히·100% 크기를 선택할 수 있으며, 두 미리보기의 로컬 체험 기록은 실제 앱과 서로 분리됩니다.
 
 ```sh
 npm ci
@@ -67,7 +81,7 @@ npm test
 기본 API 주소는 `http://localhost:8000`입니다. `master` 작업 폴더에서 API와 DB를 실행합니다.
 
 ```sh
-MORI_AUTH_RETURN_URLS='["http://localhost:4173/auth/callback","http://localhost:5173/auth/callback"]' \
+MORI_AUTH_RETURN_URLS='["http://localhost:4174/auth/callback","http://localhost:5173/auth/callback"]' \
   docker compose -p mori-poc-local up -d --build
 ```
 
@@ -77,7 +91,7 @@ MORI_AUTH_RETURN_URLS='["http://localhost:4173/auth/callback","http://localhost:
 | --- | --- |
 | 네이버 앱 콜백 | `http://localhost:8000/v1/auth/naver/callback` |
 | 카카오 앱 Redirect URI | `http://localhost:8000/v1/auth/kakao/callback` |
-| 백엔드 MORI_AUTH_RETURN_URLS | `http://localhost:4173/auth/callback` |
+| 백엔드 MORI_AUTH_RETURN_URLS | `http://localhost:4174/auth/callback` |
 | 백엔드 MORI_AUTH_PUBLIC_BASE_URL | `http://localhost:8000` |
 
 마이의 **네이버 · 카카오로 로그인**에서 로그인합니다. 공급자 키가 없으면 버튼이 비활성화됩니다. 임의 사용자 ID 로그인이나 테스트 계정 우회는 제공하지 않습니다.
