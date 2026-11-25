@@ -29,6 +29,29 @@ body.dark-stage .stage { background: #302e36; }
 .stage img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .motion-grid .stage { aspect-ratio: 1.55; padding: 8px; }
 .hero-grid .stage { aspect-ratio: 1.4; padding: 9px; }
+.ticket-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ticket-stage { position: relative; aspect-ratio: 892 / 523; container-type: inline-size; }
+.ticket-stage .ticket-character {
+  position: absolute;
+  top: 2.2%;
+  left: 43.15%;
+  width: 52.2%;
+  height: auto;
+}
+.ticket-copy {
+  position: absolute;
+  left: 17.7%;
+  top: 37.2%;
+  display: grid;
+  gap: 1cqw;
+  color: #544656;
+  font-size: 4.2cqw;
+  font-weight: 570;
+  line-height: 1.08;
+  transform: rotate(-3.6deg);
+  transform-origin: top left;
+}
+.ticket-copy strong { color: #492741; font-size: 15cqw; font-weight: 720; line-height: 1; letter-spacing: -.035em; }
 figcaption { padding: 10px 2px; line-height: 1.5; font-size: 14px; }
 figcaption strong { font-size: 16px; font-weight: 620; display: block; }
 .links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 3px; }
@@ -52,7 +75,7 @@ details summary { font-size: 17px; font-weight: 600; cursor: pointer; padding: 6
   main, header { width: calc(100% - 32px); }
   header { padding: 20px 0; }
   section { margin-top: 28px; }
-  .motion-grid { grid-template-columns: 1fr; }
+  .motion-grid, .ticket-grid { grid-template-columns: 1fr; }
   .motion-grid .stage { aspect-ratio: 2.1; }
   .hero-grid, .tab-grid, .object-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .grid { gap: 12px; }

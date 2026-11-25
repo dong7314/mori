@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="892" height="523" viewBox="0 0 892 523">
+  <defs>
+    <path id="paper" d="M82 149 C210 140 582 115 768 102 Q799 98 805 129
+      L839 413 Q844 446 814 450 C628 462 294 482 104 492 Q70 494 67 461
+      L59 359 Q59 355 63 354 C77 351 87 339 86 323 C85 307 72 296 56 294
+      Q53 294 53 290 L45 190 Q42 152 82 149Z"/>
+    <clipPath id="edge"><use href="#paper"/></clipPath>
+    <linearGradient id="pulp" x1="70" y1="172" x2="818" y2="409" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f7e8f9"/>
+      <stop offset=".42" stop-color="#f2e1f5"/>
+      <stop offset="1" stop-color="#e6d1ec"/>
+    </linearGradient>
+    <radialGradient id="wash" cx=".14" cy=".66" r=".92">
+      <stop stop-color="#ffeffa" stop-opacity=".21"/>
+      <stop offset="1" stop-color="#fff1ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="edgeTint" x1=".16" y1=".03" x2=".54" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#fff8ff" stop-opacity=".95"/>
+      <stop offset=".47" stop-color="#f7edf8" stop-opacity=".34"/>
+      <stop offset=".86" stop-color="#d8c1df" stop-opacity=".63"/>
+      <stop offset="1" stop-color="#c8b1d1" stop-opacity=".84"/>
+    </linearGradient>
+    <filter id="cast" filterUnits="userSpaceOnUse" x="0" y="70" width="892" height="453" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+    <filter id="contact" filterUnits="userSpaceOnUse" x="20" y="85" width="850" height="431">
+      <feGaussianBlur stdDeviation="2.2"/>
+    </filter>
+    <!-- Shallow fibres in the paper; the clip keeps the notch open. -->
+    <filter id="fibres" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency=".12 .63" numOctaves="2" seed="11"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 .39  0 0 0 0 .27  0 0 0 0 .43  .28 0 0 0 -.095"/>
+    </filter>
+    <radialGradient id="pinprick" cx=".44" cy=".24" r=".79">
+      <stop stop-color="#c9afce"/>
+      <stop offset=".55" stop-color="#d9c2dc"/>
+      <stop offset=".87" stop-color="#eddaee"/>
+      <stop offset="1" stop-color="#f5e7f6"/>
+    </radialGradient>
+    <pattern id="tearLine" width="14" height="21.85" patternUnits="userSpaceOnUse">
+      <ellipse cx="7" cy="7.8" rx="5.15" ry="5.65" fill="#fff4fc" opacity=".78"/>
+      <ellipse cx="7" cy="6.4" rx="4.35" ry="4.45" fill="url(#pinprick)"/>
+    </pattern>
+  </defs>
+  <g fill="#674777">
+    <use href="#paper" transform="translate(2 10)" opacity=".21" filter="url(#cast)"/>
+    <use href="#paper" transform="translate(.6 3.4)" opacity=".25" filter="url(#contact)"/>
+  </g>
+  <use href="#paper" fill="url(#pulp)"/>
+  <g clip-path="url(#edge)">
+    <use href="#paper" fill="url(#wash)"/>
+    <g opacity=".43" transform="rotate(-26 446 296)">
+      <rect x="-130" y="-150" width="1152" height="902" filter="url(#fibres)"/>
+    </g>
+    <rect x="0" y="0" width="14" height="329" transform="translate(97 160) rotate(-3.6)" fill="url(#tearLine)"/>
+    <use href="#paper" fill="none" stroke="url(#edgeTint)" stroke-width="4"/>
+  </g>
+</svg>
