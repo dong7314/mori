@@ -1,3 +1,4 @@
+import { updateLiquidGlass } from './poc2-glass.mjs';
 import { bindActorMotion, playActorReception, playActorSorting, playActorOffer } from './poc2-actor-motion.mjs';
 import { bindCalendarGesture } from './poc2-calendar-gesture.mjs';
 import { captureShared, revealShared, animateSheet } from './poc2-continuity.mjs';
@@ -142,14 +143,16 @@ function renderNavigation() {
   if (actor && inThread) appBar.querySelector('.mori-avatar').replaceWith(actor);
   if (!dock.firstElementChild) {
     const links = topTabs.map(page => `<a class="nav-link spring-control" href="#${page}" data-page="${page}">
-      ${icon(pages[page][1])}<span>${pages[page][0]}</span>
+      <span class="dock-tab-icon" aria-hidden="true"></span><span>${pages[page][0]}</span>
     </a>`).join('');
-    dock.innerHTML = `<nav class="dock-tabs" aria-label="주요 메뉴">
-      <span class="tab-indicator" aria-hidden="true"></span>${links}
-    </nav>
-    <button class="dock-action spring-control" type="button" data-action="open-ask" aria-controls="ask-dock" aria-expanded="false">
-      ${icon('compose')}<span>부탁</span>
-    </button>`;
+    dock.innerHTML = `
+      <div class="dock-request">
+        <button class="dock-action spring-control" type="button" data-action="open-ask" aria-controls="ask-dock" aria-expanded="false" aria-label="모리에게 새 부탁">
+          ${icon('plus')}<span class="dock-pencil" aria-hidden="true"></span><span class="dock-action-label">모리에게 새 부탁</span>
+        </button>
+        <button class="dock-voice spring-control" type="button" data-action="open-ask-voice" aria-label="말로 부탁하기">${icon('mic')}</button>
+      </div>
+      <nav class="dock-tabs" aria-label="주요 메뉴">${links}</nav>`;
   }
   const selected = currentPage === 'settings' ? 'settings' : activeTab;
   dock.dataset.view = selected;
@@ -194,7 +197,10 @@ function setAskOpen(open, { focus = true, enabled = true } = {}) {
   askOpen = open;
   const trigger = dock.querySelector('[data-action="open-ask"]');
   trigger?.setAttribute('aria-expanded', String(open));
-  if (trigger) trigger.querySelector('span').textContent = open ? '접기' : '부탁';
+  if (trigger) {
+    trigger.querySelector('.dock-action-label').textContent = open ? '부탁 입력 접기' : '모리에게 새 부탁';
+    trigger.setAttribute('aria-label', open ? '부탁 입력 접기' : '모리에게 새 부탁');
+  }
   document.body.classList.toggle('is-asking', open);
   cancelVoiceInput();
   if (open) askDock.hidden = false;
@@ -323,6 +329,7 @@ function scheduleView(day = scheduleDay, mode = scheduleMode) {
 }
 
 function renderPage() {
+  updateLiquidGlass();
   refreshActor();
   const onThread = currentPage === 'chat';
   threadFooter.hidden = !onThread;
@@ -661,6 +668,10 @@ document.addEventListener('click', event => {
   switch (action) {
     case 'open-ask':
       setAskOpen(!askOpen);
+      break;
+    case 'open-ask-voice':
+      setAskOpen(true);
+      toggleVoiceInput(askDock.querySelector('.ask-voice'), askInput, announce);
       break;
     case 'close-ask':
       setAskOpen(false);

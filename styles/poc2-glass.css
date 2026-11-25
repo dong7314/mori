@@ -1,0 +1,271 @@
+:root {
+  --glass-film: linear-gradient(180deg, rgb(247 241 251 / 85%), rgb(239 232 245 / 93%) 23%, rgb(239 233 245 / 92%) 82%, rgb(245 238 250 / 81%));
+  --glass-tab-film:
+    radial-gradient(ellipse 27% 39% at 74% 109%, rgb(224 198 251 / 25%), transparent 91%),
+    linear-gradient(179deg, rgb(247 243 249 / 85%), rgb(240 236 242 / 94%) 28%, rgb(240 235 243 / 93%) 79%, rgb(244 239 249 / 83%));
+  --glass-rim: rgb(255 252 255 / 57%);
+  --glass-control-shadow:
+    inset 0 .7px 1px rgb(255 252 255 / 74%),
+    inset .7px 0 1.2px rgb(137 111 155 / 10%),
+    inset 0 -1.3px 1.6px rgb(255 253 255 / 94%),
+    0 1.2px 2px rgb(90 68 111 / 15%),
+    0 4px 9px -3px rgb(101 67 128 / 30%);
+  --glass-shelf: #f7f1fb;
+  --glass-ink: #66636b;
+  --glass-tab-ink: #6c696e;
+  --glass-selection: #713db4;
+  --glass-selection-fill: linear-gradient(160deg, #f2e6fb, #edddf8);
+  --glass-focus: #8d64b7;
+}
+
+:root[data-theme='dark'] {
+  --glass-film: linear-gradient(180deg, rgb(62 51 72 / 86%), rgb(44 37 51 / 93%) 27%, rgb(45 37 52 / 92%) 83%, rgb(60 47 70 / 85%));
+  --glass-tab-film: linear-gradient(180deg, rgb(55 49 61 / 88%), rgb(38 33 44 / 87%) 81%, rgb(56 43 67 / 85%));
+  --glass-rim: rgb(231 211 248 / 22%);
+  --glass-control-shadow:
+    inset 0 .7px 1px rgb(250 232 255 / 20%),
+    inset 0 -1.3px 1.6px rgb(250 222 255 / 25%),
+    0 1.2px 2px rgb(9 4 15 / 30%),
+    0 4px 9px -3px rgb(9 4 15 / 42%);
+  --glass-shelf: #1d1724;
+  --glass-ink: #ded4e6;
+  --glass-tab-ink: #d4c9dd;
+  --glass-selection: #e0c6ff;
+  --glass-selection-fill: linear-gradient(160deg, #514061, #432f55);
+  --glass-focus: #cfacf3;
+}
+
+.glass-scene {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.glass-source { position: absolute; inset: 0; width: 100%; height: 100%; visibility: hidden; }
+.glass-plane {
+  position: absolute;
+  z-index: 1;
+  isolation: isolate;
+  pointer-events: none;
+  visibility: hidden;
+}
+.glass-plane.is-rendered { visibility: visible; }
+.glass-plane[hidden] { display: none; }
+.glass-plane::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--glass-film);
+}
+
+/* The live canvas contributes softly through the curved pearl surface. */
+.glass-plane[data-surface='tabs']::after, .dock-tabs { --glass-film: var(--glass-tab-film); }
+
+.dock-request { display: contents; }
+.dock-voice, .dock-pencil { display: none; }
+
+.nav-link[data-page='today'] {
+  --tab-outline: url('/assets/mori-soft-glass/icons/tabs/today.svg');
+  --tab-selected: url('/assets/mori-soft-glass/icons/tabs/today-active.svg');
+}
+.nav-link[data-page='schedule'] {
+  --tab-outline: url('/assets/mori-soft-glass/icons/tabs/schedule.svg');
+  --tab-selected: url('/assets/mori-soft-glass/icons/tabs/schedule-active.svg');
+}
+.nav-link[data-page='library'] {
+  --tab-outline: url('/assets/mori-soft-glass/icons/tabs/library.svg');
+  --tab-selected: url('/assets/mori-soft-glass/icons/tabs/library-active.svg');
+}
+.nav-link[data-page='tools'] {
+  --tab-outline: url('/assets/mori-soft-glass/icons/tabs/life.svg');
+  --tab-selected: url('/assets/mori-soft-glass/icons/tabs/life-active.svg');
+}
+.dock-tab-icon, .dock-pencil {
+  flex: none;
+  width: 23px;
+  height: 23px;
+  background-color: currentColor;
+  mask: var(--glyph) center / contain no-repeat;
+}
+.dock-tab-icon {
+  --glyph: var(--tab-outline);
+  transition: transform .22s var(--spring);
+}
+.nav-link[aria-current='page'] .dock-tab-icon { --glyph: var(--tab-selected); }
+.nav-link.is-pressed .dock-tab-icon { transform: translateY(1px) scale(.90); }
+.nav-link:focus-visible { outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+  .nav-link:hover:not(.is-pressed) .dock-tab-icon { transform: translateY(-2px); }
+}
+
+body[data-view='chat'] .thread { display: flex; flex-direction: column; min-height: 100%; }
+.thread-composer-slot:has(.thread-footer:not(:empty)) {
+  position: sticky;
+  z-index: 3;
+  bottom: 0;
+  margin-block-start: auto;
+  padding-block: 8px 12px;
+  background: transparent;
+}
+.thread-composer {
+  min-height: 46px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0;
+  padding: 0 5px 0 18px;
+  border-radius: 24px;
+}
+.thread-composer textarea { grid-column: auto; min-height: 44px; padding-block: 12px 9px; font-weight: 400; }
+.thread-composer textarea::placeholder, .thread-composer .thread-voice { color: var(--glass-ink); }
+.thread-composer :is(.thread-voice, .thread-send) { width: 44px; height: 44px; }
+.thread-composer .thread-send:not(:disabled) { color: var(--canvas); background: var(--glass-selection); }
+.thread-composer .thread-send:disabled { display: none; }
+
+.thread-composer {
+  border: 1px solid var(--glass-rim);
+  background: var(--glass-film);
+  box-shadow: var(--glass-control-shadow);
+  -webkit-backdrop-filter: blur(9px) saturate(1.08);
+  backdrop-filter: blur(9px) saturate(1.08);
+}
+.thread-composer:focus-within {
+  border-color: var(--glass-focus);
+  box-shadow: var(--glass-control-shadow);
+}
+
+:is(.dock-request, .dock-tabs, .thread-composer).has-glass-shader {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@media (width < 900px) {
+  :root { --dock-height: calc(134px + env(safe-area-inset-bottom, 0px)); }
+  body[data-view='chat'] { --dock-height: 0px; }
+  body[data-view='chat'] .workspace {
+    padding-inline: 16px;
+  }
+  body[data-view='chat'] .dock { display: none; }
+  .thread-composer-slot:has(.thread-footer:not(:empty)) {
+    padding-bottom: max(13px, env(safe-area-inset-bottom, 0px));
+  }
+  body[data-keyboard] .thread-composer-slot:has(.thread-footer:not(:empty)) { padding-bottom: 7px; }
+
+  .dock {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    gap: 9px;
+    padding: 0 max(16px, env(safe-area-inset-right, 0px))
+      calc(13px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    background: transparent;
+    border: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    pointer-events: none;
+  }
+  body:not([data-view='chat']):not([data-keyboard])::after {
+    content: '';
+    position: fixed;
+    z-index: 1;
+    inset: auto 0 0;
+    height: calc(var(--dock-height) + 10px);
+    pointer-events: none;
+    background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--glass-shelf) 76%, transparent) 17%, var(--glass-shelf) 39%);
+  }
+  .dock-request, .dock-tabs {
+    width: min(100%, 540px);
+    margin-inline: auto;
+    pointer-events: auto;
+    border: 1px solid var(--glass-rim);
+    background: var(--glass-film);
+    box-shadow: var(--glass-control-shadow);
+    -webkit-backdrop-filter: blur(9px) saturate(1.08);
+    backdrop-filter: blur(9px) saturate(1.08);
+  }
+  .dock-request {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    padding-inline-end: 5px;
+    min-height: 46px;
+    border-radius: 24px;
+    color: var(--glass-ink);
+  }
+  .dock .dock-action {
+    position: relative;
+    inset: auto;
+    translate: none;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding-inline: 16px 2px;
+    border-radius: inherit;
+    background: transparent;
+    text-align: start;
+    font-size: .925rem;
+    font-weight: 400;
+    color: inherit;
+  }
+  .dock-action > svg { display: none; }
+  .dock-pencil { display: block; --glyph: url('/assets/mori-soft-glass/icons/actions/edit.svg'); }
+  .dock-action-label { padding-inline-start: 12px; border-inline-start: 1px solid color-mix(in srgb, var(--glass-ink) 22%, transparent); }
+  .dock-voice {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    min-height: 44px;
+    color: inherit;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .dock-voice svg, .thread-composer .thread-voice svg { width: 24px; height: 24px; }
+  .dock-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    min-height: 58px;
+    padding: 3px;
+    border-radius: 31px;
+  }
+  .dock-tabs .nav-link {
+    grid-column: auto;
+    min-height: 50px;
+    isolation: isolate;
+    gap: 2px;
+    border-radius: 27px;
+    color: var(--glass-tab-ink);
+    font-size: .75rem;
+    font-weight: 500;
+  }
+  .dock-tab-icon { width: 21px; height: 21px; }
+  .dock-tabs .nav-link[aria-current='page'] {
+    color: var(--glass-selection);
+    font-weight: 650;
+  }
+  .dock-tabs .nav-link[aria-current='page']::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    inset: 2px max(3px, calc((100% - 77px) / 2));
+    border-radius: inherit;
+    background: var(--glass-selection-fill);
+  }
+  .dock-voice.is-pressed { scale: .94; }
+}
+
+@media (min-width: 900px) {
+  .dock .dock-action { order: 1; }
+  .dock-tabs .nav-link[aria-current='page'] { background: var(--accent-soft); }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .dock-request, .dock-tabs, .thread-composer {
+    background: color-mix(in srgb, var(--glass-ink) 9%, var(--panel));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

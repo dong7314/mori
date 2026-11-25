@@ -28,7 +28,7 @@ function bubble(text, esc) {
 function performer(status, view, content, key = 'performer') {
   return `<li class="thread-performer" data-mood="${status}" data-turn-key="${view.esc(key)}">
     <div class="thread-performer-art">${view.avatar(status, { large: true })}</div>
-    <div class="thread-performer-copy">${content}<div class="thread-composer-slot"></div></div>
+    <div class="thread-performer-copy">${content}</div>
   </li>`;
 }
 
@@ -116,6 +116,7 @@ export function renderAssistant(task, view) {
     <div class="thread-transcript" role="log" aria-label="이 일에 모인 대화와 기록" aria-relevant="additions">
       <ol class="thread-log"></ol>
     </div>
+    <div class="thread-composer-slot"></div>
   </section>`;
 }
 
@@ -137,8 +138,8 @@ export function renderThreadComposer(task, { icon, esc, working }) {
   }
   const answering = task.status === 'waiting';
   return `<form class="thread-composer" data-form="thread-message" data-id="${esc(task.id)}">
-    <textarea id="thread-input" name="message" rows="2" maxlength="1000" placeholder="${answering ? '상황을 짧게 알려주세요' : '새로 기억난 내용을 적어주세요'}" required></textarea>
-    <label class="thread-composer-label" for="thread-input">${answering ? '모리에게 답변' : '이 일에 남길 기록'}</label>
+    <textarea id="thread-input" name="message" rows="1" maxlength="1000" placeholder="${answering ? '상황을 짧게 알려주세요' : '새로 기억난 내용을 적어주세요'}" required></textarea>
+    <label class="sr-only" for="thread-input">${answering ? '모리에게 답변' : '이 일에 남길 기록'}</label>
     <button type="button" class="thread-voice spring-control" data-action="voice-input" aria-label="음성 입력" aria-pressed="false">${icon('mic')}</button>
     <button class="thread-send spring-control" type="submit" aria-label="${answering ? '답변 보내기' : '기록 보내기'}" disabled>${icon('arrow-up')}</button>
   </form>`;
