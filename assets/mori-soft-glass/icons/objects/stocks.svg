@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <linearGradient id="stocks-orange" x1=".12" y1="0" x2=".74" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#ffcc9a"/>
+      <stop offset=".24" stop-color="#efa775"/>
+      <stop offset=".74" stop-color="#d77d58"/>
+      <stop offset="1" stop-color="#b9654a"/>
+    </linearGradient>
+    <linearGradient id="stocks-sage" x1=".12" y1="0" x2=".74" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#d4dbba"/>
+      <stop offset=".24" stop-color="#b2bc98"/>
+      <stop offset=".74" stop-color="#8f9a79"/>
+      <stop offset="1" stop-color="#768260"/>
+    </linearGradient>
+    <radialGradient id="stocks-contact">
+      <stop stop-color="#534050" stop-opacity=".2"/>
+      <stop offset=".55" stop-color="#534050" stop-opacity=".085"/>
+      <stop offset="1" stop-color="#534050" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="stocks-green" x1=".12" y1="0" x2=".74" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#b7b9a6"/>
+      <stop offset=".24" stop-color="#959d87"/>
+      <stop offset=".74" stop-color="#727d68"/>
+      <stop offset="1" stop-color="#59624f"/>
+    </linearGradient>
+    <linearGradient id="stocks-clay" x1=".12" y1="0" x2=".74" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#fffbf5"/>
+      <stop offset=".24" stop-color="#f1e8d9"/>
+      <stop offset=".74" stop-color="#dfcdb9"/>
+      <stop offset="1" stop-color="#bfa895"/>
+    </linearGradient>
+    <linearGradient id="stocks-paper" x1=".12" y1="0" x2=".74" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#fff8e9"/>
+      <stop offset=".24" stop-color="#f5e8d4"/>
+      <stop offset=".74" stop-color="#e7d5b9"/>
+      <stop offset="1" stop-color="#c8b398"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="47.7" cy="86" rx="29" ry="3.2" fill="url(#stocks-contact)"/>
+  <path d="M37 70 59 71 61 79Q67 80 68 83Q68.5 86 63 86L32 85Q27 84 28.5 81.8Q30 78.8 35 78.4Z" fill="url(#stocks-green)" stroke="#66705f" stroke-width="0.6"/>
+  <path d="M18 30Q19 15 33 14L63 15Q77 16 79 29L80 57Q80 71 67.5 74Q58 76.5 31 74Q17 72 16.4 60Q15.3 45 18 30Z" fill="url(#stocks-green)" stroke="#6e7869" stroke-width="0.75"/>
+  <path d="M23.7 31Q24.7 21 34 21.2L61 22Q71 22.6 72 32L72.7 52.6Q72.5 62.6 64 63.8L31 63Q23.5 62.8 22.7 54Z" fill="url(#stocks-clay)" stroke="#64715f" stroke-width="1.55"/>
+  <path d="M29 32V51" fill="none" stroke="#bca179" stroke-width="1.2"/>
+  <rect x="25.8" y="36" width="6.4" height="15" rx="1.6" fill="url(#stocks-orange)" stroke="#94795f" stroke-opacity=".28" stroke-width=".65"/>
+  <path d="M40 41V63" fill="none" stroke="#bca179" stroke-width="1.2"/>
+  <rect x="36.8" y="45" width="6.4" height="10" rx="1.6" fill="url(#stocks-sage)" stroke="#94795f" stroke-opacity=".28" stroke-width=".65"/>
+  <path d="M51 27V51" fill="none" stroke="#bca179" stroke-width="1.2"/>
+  <rect x="47.8" y="31" width="6.4" height="18" rx="1.6" fill="url(#stocks-sage)" stroke="#94795f" stroke-opacity=".28" stroke-width=".65"/>
+  <path d="M63 33V56" fill="none" stroke="#bca179" stroke-width="1.2"/>
+  <rect x="59.8" y="37" width="6.4" height="12" rx="1.6" fill="url(#stocks-orange)" stroke="#94795f" stroke-opacity=".28" stroke-width=".65"/>
+  <ellipse cx="35" cy="68" rx="2.45" ry="2.6" fill="url(#stocks-paper)" stroke="#80816c" stroke-width=".55"/>
+  <ellipse cx="46" cy="68" rx="2.45" ry="2.6" fill="url(#stocks-paper)" stroke="#80816c" stroke-width=".55"/>
+  <ellipse cx="57" cy="68" rx="2.45" ry="2.6" fill="url(#stocks-paper)" stroke="#80816c" stroke-width=".55"/>
+  <path d="M24 23Q27.5 17.9 34 17.8L59 18.4" fill="none" stroke="#bcc1ae" stroke-width="0.75"/>
+</svg>

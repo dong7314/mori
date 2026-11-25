@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <linearGradient id="household-paper" x1=".12" y1="0" x2=".74" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#fff8e9"/>
+      <stop offset=".24" stop-color="#f5e8d4"/>
+      <stop offset=".74" stop-color="#e7d5b9"/>
+      <stop offset="1" stop-color="#c8b398"/>
+    </linearGradient>
+    <radialGradient id="household-contact">
+      <stop stop-color="#534050" stop-opacity=".2"/>
+      <stop offset=".55" stop-color="#534050" stop-opacity=".085"/>
+      <stop offset="1" stop-color="#534050" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="household-ivory" x1=".12" y1="0" x2=".74" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#fffaf1"/>
+      <stop offset=".24" stop-color="#f8eddf"/>
+      <stop offset=".74" stop-color="#ecddca"/>
+      <stop offset="1" stop-color="#cdb9a2"/>
+    </linearGradient>
+    <linearGradient id="household-lav" x1=".12" y1="0" x2=".74" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0" stop-color="#f6eaf3"/>
+      <stop offset=".24" stop-color="#e0cde4"/>
+      <stop offset=".74" stop-color="#c6aacd"/>
+      <stop offset="1" stop-color="#a184ac"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="48" cy="80.7" rx="37" ry="3.2" fill="url(#household-contact)"/>
+  <path d="M17 52C1 40 8 28 17 37L26 49" fill="none" stroke="url(#household-paper)" stroke-width="4.4"/>
+  <path d="M13.5 49.2Q15.5 43 22.1 42.5L73.7 44.1Q81.4 44.9 82.1 49.6Q83.7 52 81.4 58.5L76.8 69.4Q74.1 78.4 62.5 80.1Q48 83.5 30.1 79.1Q20.6 77.1 18.4 70.8L13.8 55Q12.5 51.6 13.5 49.2Z" fill="url(#household-paper)" stroke="#bcaa91" stroke-width="0.75"/>
+  <path d="M16.90 58.80 Q48 68.40 79.00 56.80" fill="none" stroke="#bba081" stroke-width="1.9" opacity=".75"/>
+  <path d="M16.90 58.65 Q48 67.35 79.00 56.65" fill="none" stroke="url(#household-paper)" stroke-width="1.7"/>
+  <path d="M21.0 59.8 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M29.3 61.1 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M37.6 61.8 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M45.9 61.9 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M54.2 61.6 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M62.5 60.7 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M70.8 59.2 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M17.95 62.90 Q48 72.50 77.95 60.90" fill="none" stroke="#bba081" stroke-width="1.9" opacity=".75"/>
+  <path d="M17.95 62.75 Q48 71.45 77.95 60.75" fill="none" stroke="url(#household-paper)" stroke-width="1.7"/>
+  <path d="M24.0 64.4 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M32.3 65.5 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M40.6 66.0 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M48.9 66.0 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M57.2 65.4 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M65.5 64.3 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M73.8 62.7 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M19.00 67.00 Q48 76.60 76.90 65.00" fill="none" stroke="#bba081" stroke-width="1.9" opacity=".75"/>
+  <path d="M19.00 66.85 Q48 75.55 76.90 64.85" fill="none" stroke="url(#household-paper)" stroke-width="1.7"/>
+  <path d="M21.0 68.0 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M29.3 69.3 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M37.6 70.0 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M45.9 70.1 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M54.2 69.8 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M62.5 68.9 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M70.8 67.4 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M20.05 71.10 Q48 80.70 75.85 69.10" fill="none" stroke="#bba081" stroke-width="1.9" opacity=".75"/>
+  <path d="M20.05 70.95 Q48 79.65 75.85 68.95" fill="none" stroke="url(#household-paper)" stroke-width="1.7"/>
+  <path d="M24.0 72.6 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M32.3 73.7 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M40.6 74.2 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M48.9 74.2 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M57.2 73.6 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M65.5 72.5 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <path d="M73.8 70.9 l.75 2.28" fill="none" stroke="#bca488" stroke-width="0.55"/>
+  <ellipse cx="47.8" cy="50.1" rx="33.8" ry="8" fill="url(#household-paper)"/>
+  <ellipse cx="47.7" cy="49.3" rx="29.7" ry="6.35" fill="#ccb496"/>
+  <path d="M20 49Q19.7 44 24 41.9L61 38.7Q65 38.4 69.7 40.7Q73 42.6 71.6 46.5L68.5 51.3 27.8 55.2Q21.1 55.4 20 49Z" fill="url(#household-ivory)" stroke="#cfbda3" stroke-width="0.65"/>
+  <path d="M24.6 42.5Q21 41 23.2 38.7L29.5 33.6Q32.7 31 37 31.6L68.9 35.4Q73.2 36.1 73.1 39.1L71.5 43.6 28.5 46.4Q25.1 46.5 24.6 42.5Z" fill="url(#household-ivory)" stroke="#cbb59c" stroke-width="0.65"/>
+  <path d="M28.3 35.4Q25.7 31.9 29.2 28.9L37.3 23.2Q39.6 21.5 43.1 22.2L69.6 26.7Q74.7 27.8 73.8 32.7L71.4 37.6Q70.1 40.3 66.6 40L33.3 37.8Q29.9 37.6 28.3 35.4Z" fill="url(#household-lav)" stroke="#bca4bf" stroke-width="0.7"/>
+  <path d="M33 34.1l32.8 3.4q4.3.4 5.3-3.8" fill="none" stroke="#bba0be" stroke-width="0.9"/>
+  <path d="M33 29.2l4.6-3.7q2.3-1.8 4.4-1.3" fill="none" stroke="#f5e8ef" stroke-width="0.75"/>
+  <path d="M13.9 49.8Q19.5 55.3 46.6 55.4Q68 55.9 80.6 48.5L81.3 51.3Q80.6 54 72.3 56.3Q44.6 64 19.4 56.7Q13.5 55.1 13.9 49.8Z" fill="url(#household-paper)" stroke="#cdb89d" stroke-width="0.6"/>
+  <path d="M71.7 54.1C74.1 45.4 81.3 38.3 86.7 39.8Q91 41.8 86.8 48.6L81 57.1" fill="none" stroke="url(#household-paper)" stroke-width="4.25"/>
+</svg>
